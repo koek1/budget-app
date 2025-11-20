@@ -1,0 +1,67 @@
+import 'package:flutter/material.dart';
+import 'package:budget_app/screens/home/dashboard_screen.dart';
+import 'package:budget_app/screens/transactions/transaction_screen.dart';
+import 'package:budget_app/services/auth_service.dart';
+
+class HomeScreen extends StatefulWidget {
+    const HomeScreen({super.key});
+
+    @override
+    _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomScreenState extends State<HomeScreen> {
+    int _currentIndex = 0;
+
+    final List<Widget> _screens = [
+        DashboardScreen(),
+        TransactionsScreen(),
+    ];
+
+    @override
+    Widget build (BuildContext context) {
+        return Scaffold(
+            appBar: AppBar(
+                title: Text('SpendSense'),
+                actions: [
+                    IconButton(
+                        icon: Icon(Icons.logout),
+                        onPressed: _logout,
+                    ),
+                ],
+            ),
+            body: _screens[_currentIndex],
+            floatingActionButton: _currentIndex == 1 ? FloatingActionButton(
+                onPressed: () {
+                    Navigator.push(
+                        context,
+                        MetrialPageRoute(builder: (context) => AddTransactionScreen()),
+                    );
+                },
+                child: Icon(Icons.add),
+            )
+            : null;
+
+            bottomNavigatorBar : BottomNavigationBar(
+                currentIndex : _currentIndex,
+                opTap: (index) => setState() => _currentIndex = index
+            ),
+            items: [
+                BottomNavigationBarItem(
+                    icon: Icon (Icons.dashboard),
+                    label: 'Dashboard',
+                ),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.list),
+                    label: 'Transactions',
+                    ),
+                ],
+            ),
+        );
+    }
+
+    Future<void> _logout() async {
+        await AuthService.logout();
+        Navigator.pushReplacementNamed(context, '/login');
+    }
+}
