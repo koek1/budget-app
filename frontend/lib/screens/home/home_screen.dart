@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:budget_app/screens/home/dashboard_screen.dart';
 import 'package:budget_app/screens/transactions/transaction_screen.dart';
 import 'package:budget_app/services/auth_service.dart';
+import 'package:budget_app/screens/export/export_screen.dart';
 
 class HomeScreen extends StatefulWidget {
     const HomeScreen({super.key});
@@ -24,6 +25,15 @@ class _HomScreenState extends State<HomeScreen> {
             appBar: AppBar(
                 title: Text('SpendSense'),
                 actions: [
+                    IconButton(
+                        icon: Icon(Icons.assessment),
+                        onPressed: () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => ExportScreen()),
+                            );
+                        },
+                    ),
                     IconButton(
                         icon: Icon(Icons.logout),
                         onPressed: _logout,
