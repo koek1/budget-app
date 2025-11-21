@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class AppConstants {
   static const List<String> expenseCategories = [
     'Food & Dining',

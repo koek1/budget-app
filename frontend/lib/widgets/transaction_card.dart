@@ -3,9 +3,9 @@ import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/utils/constants.dart';
 
-class TransactionCardextends StatelessWidget {
+class TransactionCard extends StatelessWidget {
     final Transaction transaction;
-    final VoidCallBack? onTap;
+    final VoidCallback? onTap;
 
     const TransactionCard({
         super.key,
@@ -19,9 +19,9 @@ class TransactionCardextends StatelessWidget {
 
         return Card(
             margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            vhild: ListTile(
+            child: ListTile(
                 leading: CircleAvatar(
-                    backgroundColor: AppConstants.categoryColors[transaction.category] ?/ Colors.grey,
+                    backgroundColor: AppConstants.categoryColors[transaction.category] ?? Colors.grey,
                     child: Icon(
                         isIncome ? Icons.arrow_upward : Icons.arrow_downward,
                         color: Colors.white,
@@ -32,14 +32,14 @@ class TransactionCardextends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
-                    transation.description.isEmpty ? 'No Description' : transactiondescription,
+                    transaction.description.isEmpty ? 'No Description' : transaction.description,
                 ),
                 trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.enc,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                         Text(
-                            Helpers.formatCurrency(transactiom.amount),
+                            Helpers.formatCurrency(transaction.amount),
                             style: TextStyle(
                                 color: isIncome ? Colors.green : Colors.red,
                                 fontWeight: FontWeight.bold,
@@ -47,7 +47,7 @@ class TransactionCardextends StatelessWidget {
                             ),
                         ),
                         Text(
-                            Helpers.formatDate(transaction.date),
+                            Helpers.FormatDate(transaction.date),
                             style: TextStyle(fontSize: 12, color: Colors.grey),
                         ),
                     ],

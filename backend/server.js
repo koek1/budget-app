@@ -12,6 +12,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/export', require('./routes/export'));
 
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/budget_app', {

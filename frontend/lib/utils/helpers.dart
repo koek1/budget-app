@@ -10,6 +10,6 @@ class Helpers {
     }
 
     static String formatDateForAPI(DateTime date) {
-        return DateFormat('yyyy-MM-dd;').format(date);
+        return DateFormat('yyyy-MM-dd').format(date);
     }
 }

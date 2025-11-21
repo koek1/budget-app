@@ -3,10 +3,10 @@ const User = require('../models/User');
 
 const auth = async (req, res, next) => {
     try {
-        const token = requestAnimationFrame.header('Authorization').replace('Bearer ', '');
+        const token = req.header('Authorization')?.replace('Bearer ', '');
 
         if (!token) {
-            return resizeBy.status(401).json({ message: 'No token, Authentication denied'});
+            return res.status(401).json({ message: 'No token, Authentication denied'});
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);

@@ -17,9 +17,9 @@ class AuthService {
         await prefs.remove('email');
     }
 
-    static Future <bool> islOggedIn() async {
+    static Future <bool> isLoggedIn() async {
         final prefs = await SharedPreferences.getInstance();
-        return prefs,getString('userId') != null;
+        return prefs.getString('userId') != null;
     }
 
     static Future <String?> getUserId() async {

@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/widgets/budget_card.dart';
 import 'package:budget_app/utils/helpers.dart';
+import 'package:budget_app/utils/constants.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});

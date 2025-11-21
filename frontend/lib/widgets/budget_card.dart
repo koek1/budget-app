@@ -1,9 +1,9 @@
-import 'packages:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:budget_app/utils/helpers.dart';
 
 class BudgetCard extends StatelessWidget {
     final String title;
-    dinal double amount;
+    final double amount;
     final Color color;
     final IconData icon;
 
@@ -16,9 +16,9 @@ class BudgetCard extends StatelessWidget {
     });
 
     @override
-    Widget build(BuildContext, context) {
+    Widget build(BuildContext context) {
         return Card(
-            elevation: 4;
+            elevation: 4,
             child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(

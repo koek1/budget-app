@@ -1,4 +1,4 @@
-import 'pachakge:hive/hive.dart';
+import 'package:hive/hive.dart';
 
 part 'transaction.g.dart';
 
@@ -26,7 +26,7 @@ class Transaction {
     bool isSynced;
 
     Transaction({
-        rerquired this.id,
+        required this.id,
         required this.amount,
         required this.type,
         required this.category,
@@ -35,8 +35,8 @@ class Transaction {
         this.isSynced = true,
     });
 
-    Map <String, dynamic> toJson() {
-        return{
+    Map<String, dynamic> toJson() {
+        return {
             'amount': amount,
             'type': type,
             'category': category,
@@ -45,8 +45,8 @@ class Transaction {
         };
     }
 
-    factory Transaction.fromJson(Map <String, dynamic> json) {
-        return Transaction (
+    factory Transaction.fromJson(Map<String, dynamic> json) {
+        return Transaction(
             id: json['_id'] ?? '',
             amount: (json['amount'] as num).toDouble(),
             type: json['type'],

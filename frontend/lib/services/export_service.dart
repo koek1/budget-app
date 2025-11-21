@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
@@ -17,7 +18,10 @@ class ExportService {
       
       final response = await http.post(
         Uri.parse('${ApiService.baseUrl}/export/excel'),
-        headers: headers,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
         body: _buildRequestBody(startDate, endDate, reportType),
       );
 

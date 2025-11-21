@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
             home: FutureBuilder(
                 future: _checkLoginStatus(),
                 builder: (context, snapshot) {
-                    if (snapchot.connectionStatus == ConnectionStatus.waiting) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                         return const SplashScreen();
                     }
                     return snapshot.data == true ? const HomeScreen() : const LoginScreen();

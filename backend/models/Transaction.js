@@ -35,4 +35,4 @@ const transactionSchema = new mongoose.Schema({
     timestamps: true
 });
 
-MediaSourceHandle.exports = mongoose.model('Transaction', transactionSchema);
+module.exports = mongoose.model('Transaction', transactionSchema);
