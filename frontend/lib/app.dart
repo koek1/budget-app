@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:budget_app/services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 
@@ -28,8 +28,8 @@ class MyApp extends StatelessWidget {
     }
 
     Future <bool> _checkLoginStatus() async {
-        final prefs = await SharedPreferences.getInstance();
-        return prefs.getString('token') != null;
+        final authService = await AuthService.isLoggedIn();
+        return authService;
     }
 }
 

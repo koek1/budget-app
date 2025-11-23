@@ -1,48 +1,68 @@
-const mongoose = require('mongoose');
+const FileStorage = require('../storage/fileStorage');
 const bcrypt = require('bcryptjs');
 
-const userSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    email: {
-        type: String,
-        required: true,
-        unique: true,
-        lowercase: true,
-    },
-    password: {
-        type: String,
-        required: true,
-        minlength: 6
-    },
-    currency: {
-        type: String,
-        default: 'R'
-    },
-    monthlyBudget: {
-        type: Number,
-        default: 0
+const userStorage = new FileStorage('users');
+
+class User {
+  constructor(data) {
+    this._id = data._id;
+    this.name = data.name;
+    this.email = data.email;
+    this.password = data.password;
+    this.currency = data.currency || 'R';
+    this.monthlyBudget = data.monthlyBudget || 0;
+    this.createdAt = data.createdAt;
+    this.updatedAt = data.updatedAt;
+  }
+
+  static async findOne(query) {
+    const userData = await userStorage.findOne(query);
+    return userData ? new User(userData) : null;
+  }
+
+  static async findById(id) {
+    const userData = await userStorage.findById(id);
+    return userData ? new User(userData) : null;
+  }
+
+  static async create(data) {
+    // Hash password before saving
+    const hashedPassword = await bcrypt.hash(data.password, 12);
+    
+    const userData = await userStorage.create({
+      ...data,
+      password: hashedPassword,
+      email: data.email.toLowerCase(),
+    });
+    
+    return new User(userData);
+  }
+
+  async correctPassword(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+  }
+
+  async save() {
+    const updates = {
+      name: this.name,
+      email: this.email,
+      password: this.password,
+      currency: this.currency,
+      monthlyBudget: this.monthlyBudget,
+    };
+    
+    const updated = await userStorage.update(this._id, updates);
+    if (updated) {
+      Object.assign(this, updated);
     }
-}, {
-    timestamps: true
-});
+    return this;
+  }
 
+  toJSON() {
+    const obj = { ...this };
+    delete obj.password;
+    return obj;
+  }
+}
 
-// Hash password before saving:
-userSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) return next();
-
-    this.password = await bcrypt.hash(this.password, 12);
-    next();
-});
-
-
-//Compare password for login:
-userSchema.methods.correctPassword = async function(candidatePassword, userPassword) {
-    return await bcrypt.compare(candidatePassword, userPassword);
-} 
-
-module.exports = mongoose.model('User', userSchema);
+module.exports = User;

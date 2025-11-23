@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:budget_app/services/api_service.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/screens/home/home_screen.dart';
 
@@ -22,12 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final userData = await ApiService.login(
+      await AuthService.login(
         _emailController.text.trim(),
         _passwordController.text,
       );
-      
-      await AuthService.saveUserData(userData);
       
       Navigator.pushReplacement(
         context,
@@ -150,13 +147,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final userData = await ApiService.register(
+      await AuthService.register(
         _nameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text,
       );
-      
-      await AuthService.saveUserData(userData);
       
       Navigator.pushReplacement(
         context,

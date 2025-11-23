@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/utils/constants.dart';
-import 'package:budget_app/services/api_service.dart';
-import 'package:budget_app/services/sync_service.dart';
+import 'package:budget_app/services/local_storage_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -32,15 +30,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       category: _selectedCategory,
       description: _descriptionController.text,
       date: _selectedDate,
-      isSynced: false,
+      isSynced: true, // Always synced since we're using local storage
     );
 
-    // Save to local database
-    final box = Hive.box<Transaction>('transactionsBox');
-    await box.add(transaction);
-
-    // Sync with server in background
-    SyncService.syncTransaction(transaction);
+    // Save to local storage
+    await LocalStorageService.addTransaction(transaction);
 
     Navigator.pop(context);
   }

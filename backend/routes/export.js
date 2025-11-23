@@ -18,19 +18,22 @@ router.post('/excel', auth, async (req, res) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999); // Include entire end date
 
-    // Build query
-    const query = {
-      userId: req.user.id,
-      date: { $gte: start, $lte: end }
-    };
-
-    if (reportType && reportType !== 'all') {
-      query.type = reportType;
-    }
-
     // Fetch transactions
-    const transactions = await Transaction.find(query)
-      .sort({ date: 1 });
+    let transactions = await Transaction.find({ userId: req.user._id });
+    
+    // Filter by date range
+    transactions = transactions.filter(t => {
+      const tDate = new Date(t.date);
+      return tDate >= start && tDate <= end;
+    });
+    
+    // Filter by type if specified
+    if (reportType && reportType !== 'all') {
+      transactions = transactions.filter(t => t.type === reportType);
+    }
+    
+    // Sort by date ascending
+    transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     // Create workbook
     const workbook = new ExcelJS.Workbook();
@@ -121,16 +124,22 @@ router.get('/summary', auth, async (req, res) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    const query = {
-      userId: req.user.id,
-      date: { $gte: start, $lte: end }
-    };
-
+    // Fetch transactions
+    let transactions = await Transaction.find({ userId: req.user._id });
+    
+    // Filter by date range
+    transactions = transactions.filter(t => {
+      const tDate = new Date(t.date);
+      return tDate >= start && tDate <= end;
+    });
+    
+    // Filter by type if specified
     if (reportType && reportType !== 'all') {
-      query.type = reportType;
+      transactions = transactions.filter(t => t.type === reportType);
     }
-
-    const transactions = await Transaction.find(query).sort({ date: 1 });
+    
+    // Sort by date ascending
+    transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     // Calculate daily totals for income
     const dailyIncome = {};
