@@ -4,7 +4,7 @@ const User = require('../models/User');
 
 // Generate JWT token:
 const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    return jwt.sign({ id }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '30d' });
 };
 
 // Register User:
@@ -19,7 +19,7 @@ exports.register = async (req, res) => {
         const { name, email, password } = req.body;
 
         // Check if the user exists:
-        const userExists = await User.findOne({ email});
+        const userExists = await User.findOne({ email: email.toLowerCase() });
         if (userExists) {
             return res.status(400).json({ message: 'User already exists'});
         }
@@ -38,6 +38,7 @@ exports.register = async (req, res) => {
             token: generateToken(user._id),
         });
     } catch (error) {
+        console.error('Register error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -48,8 +49,8 @@ exports.login = async (req, res) => {
         const { email, password } = req.body;
 
         // Check if the user exists and password is correct:
-        const user = await User.findOne({ email });
-        if (user && (await user.correctPassword(password, user.password))) {
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (user && (await user.correctPassword(password))) {
             res.json ({
                 _id: user._id,
                 name: user.name,
@@ -62,6 +63,7 @@ exports.login = async (req, res) => {
             res.status(401).json({ message: 'Invalid email or password' });
         }
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -70,9 +72,15 @@ exports.login = async (req, res) => {
 // Get User profile:
 exports.getProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('-password');
-        res.json(user);
+        const user = await User.findById(req.user._id);
+        if (user) {
+            const userObj = user.toJSON();
+            res.json(userObj);
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
     } catch (error) {
+        console.error('Get profile error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };

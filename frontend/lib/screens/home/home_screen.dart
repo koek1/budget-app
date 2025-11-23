@@ -4,6 +4,7 @@ import 'package:budget_app/screens/transactions/transactions_screen.dart';
 import 'package:budget_app/screens/home/add_transaction_screen.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/screens/export/export_screen.dart';
+import 'package:budget_app/screens/auth/login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -70,6 +71,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _logout() async {
     await AuthService.logout();
-    Navigator.pushReplacementNamed(context, '/login');
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
   }
 }
