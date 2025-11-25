@@ -127,7 +127,7 @@ class ExportService {
         'totalExpenses': totalExpenses,
         'netTotal': totalIncome - totalExpenses,
         'dailyIncome': dailyIncome.entries.map((e) => {'date': e.key, 'amount': e.value}).toList(),
-        'transactions': transactions.take(10).map((t) => {
+        'transactions': transactions.take(10).map((t) {
           return {
             'date': t.date.toIso8601String(),
             'type': t.type,
