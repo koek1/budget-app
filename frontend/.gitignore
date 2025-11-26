@@ -89,6 +89,10 @@ android/.settings/
 android/.classpath
 android/.project
 
+# Java heap dumps
+*.hprof
+java_pid*.hprof
+
 # Web
 web/
 
