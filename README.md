@@ -5,6 +5,7 @@ A full-stack budgeting application built with Flutter (frontend) and Node.js/Exp
 ## Features
 
 - User authentication (Register/Login)
+- Biometric authentication (Fingerprint/Face ID) for secure and quick login
 - Transaction management (Income/Expenses)
 - Dashboard with financial overview
 - Excel export functionality with date range filtering
@@ -18,6 +19,8 @@ A full-stack budgeting application built with Flutter (frontend) and Node.js/Exp
 - Hive (local storage)
 - HTTP (API calls)
 - Open File (for opening exported Excel files)
+- Local Auth (biometric authentication)
+- Flutter Secure Storage (secure credential storage)
 
 ### Backend
 - Node.js
@@ -130,6 +133,13 @@ budget-app/
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login user
 
+### Biometric Authentication
+The app supports biometric authentication (fingerprint/Face ID) for quick and secure login:
+- Users can enable biometric login after successful password authentication
+- Biometric credentials are stored securely using Flutter Secure Storage
+- Automatic biometric login on app startup (if enabled)
+- Works with fingerprint sensors, Face ID, and other supported biometric methods
+
 ### Transactions
 - `GET /api/transactions` - Get all transactions
 - `POST /api/transactions` - Create transaction
@@ -160,6 +170,11 @@ flutter test
 2. **Flutter Build Errors**: Run `flutter clean` then `flutter pub get`
 3. **API Connection Issues**: Check that backend is running and verify the API URL in `api_service.dart`
 4. **Excel Export Not Working**: Ensure `open_file` package is properly installed and device has file access permissions
+5. **Biometric Authentication Not Working**: 
+   - Ensure device has biometric hardware (fingerprint sensor/Face ID)
+   - Check that biometric permissions are granted in device settings
+   - For Android: Verify `AndroidManifest.xml` includes biometric permissions
+   - For iOS: Ensure `Info.plist` includes `NSFaceIDUsageDescription` key
 
 ## License
 

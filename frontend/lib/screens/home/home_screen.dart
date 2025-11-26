@@ -5,6 +5,7 @@ import 'package:budget_app/screens/home/add_transaction_screen.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/screens/export/export_screen.dart';
 import 'package:budget_app/screens/auth/login_screen.dart';
+import 'package:budget_app/screens/settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +25,15 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text('SpendSense'),
         actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.assessment),
             onPressed: () {
