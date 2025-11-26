@@ -31,6 +31,24 @@ class BiometricService {
   // Authenticate using biometrics
   static Future<bool> authenticate() async {
     try {
+      // Check if fingerprint-only mode is enabled
+      final fingerprintOnly = await isFingerprintOnly();
+      
+      // Get available biometrics
+      final availableBiometrics = await getAvailableBiometrics();
+      
+      // If fingerprint-only is enabled, check if fingerprint is available
+      if (fingerprintOnly) {
+        if (!availableBiometrics.contains(BiometricType.fingerprint)) {
+          throw PlatformException(
+            code: 'FINGERPRINT_NOT_AVAILABLE',
+            message: 'Fingerprint authentication is not available on this device',
+          );
+        }
+        // If fingerprint-only is enabled, we still use biometricOnly: true
+        // The system will use fingerprint if it's the only available biometric
+      }
+
       final bool didAuthenticate = await _localAuth.authenticate(
         localizedReason: 'Please authenticate to access SpendSense',
         options: const AuthenticationOptions(
@@ -70,6 +88,18 @@ class BiometricService {
     await _secureStorage.delete(key: 'biometric_email');
     await _secureStorage.delete(key: 'biometric_password');
     await _secureStorage.delete(key: 'biometric_enabled');
+    await _secureStorage.delete(key: 'fingerprint_only');
+  }
+
+  // Check if fingerprint-only mode is enabled
+  static Future<bool> isFingerprintOnly() async {
+    final fingerprintOnly = await _secureStorage.read(key: 'fingerprint_only');
+    return fingerprintOnly == 'true';
+  }
+
+  // Set fingerprint-only mode
+  static Future<void> setFingerprintOnly(bool value) async {
+    await _secureStorage.write(key: 'fingerprint_only', value: value.toString());
   }
 
   // Perform biometric login
