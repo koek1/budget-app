@@ -209,7 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _themeMode = SettingsService.getThemeMode();
                     
                     return ListView(
-                  children: [
+              children: [
                     const Padding(
                       padding: EdgeInsets.all(16.0),
                       child: Text(
@@ -244,56 +244,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: (value) => _toggleThemeMode(),
                     ),
                     const Divider(),
-                    const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'Security',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    'Security',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
-                    if (!_biometricAvailable)
-                      const ListTile(
-                        leading: Icon(Icons.info_outline),
-                        title: Text('Biometric Authentication'),
-                        subtitle: Text('Not available on this device'),
-                      ),
-                    if (_biometricAvailable) ...[
-                      SwitchListTile(
-                        secondary: const Icon(Icons.fingerprint),
-                        title: const Text('Biometric Login'),
-                        subtitle: const Text('Use fingerprint or Face ID to login'),
-                        value: _biometricEnabled,
-                        onChanged: _toggleBiometric,
-                      ),
-                      if (_biometricEnabled)
-                        SwitchListTile(
-                          secondary: const Icon(Icons.touch_app),
-                          title: const Text('Fingerprint Only'),
-                          subtitle: const Text('Restrict to fingerprint authentication only'),
-                          value: _fingerprintOnly,
-                          onChanged: _toggleFingerprintOnly,
-                        ),
-                    ],
-                    const Divider(),
-                    const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'About',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  ),
+                ),
+                if (!_biometricAvailable)
+                  const ListTile(
+                    leading: Icon(Icons.info_outline),
+                    title: Text('Biometric Authentication'),
+                    subtitle: Text('Not available on this device'),
+                  ),
+                if (_biometricAvailable) ...[
+                  SwitchListTile(
+                    secondary: const Icon(Icons.fingerprint),
+                    title: const Text('Biometric Login'),
+                    subtitle: const Text('Use fingerprint or Face ID to login'),
+                    value: _biometricEnabled,
+                    onChanged: _toggleBiometric,
+                  ),
+                  if (_biometricEnabled)
+                    SwitchListTile(
+                      secondary: const Icon(Icons.touch_app),
+                      title: const Text('Fingerprint Only'),
+                      subtitle: const Text('Restrict to fingerprint authentication only'),
+                      value: _fingerprintOnly,
+                      onChanged: _toggleFingerprintOnly,
                     ),
-                    const ListTile(
-                      leading: Icon(Icons.info),
-                      title: Text('App Version'),
-                      subtitle: Text('1.0.0'),
+                ],
+                const Divider(),
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    'About',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
+                  ),
+                ),
+                const ListTile(
+                  leading: Icon(Icons.info),
+                  title: Text('App Version'),
+                  subtitle: Text('1.0.0'),
+                ),
+              ],
                 );
                   },
                 );

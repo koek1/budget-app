@@ -60,10 +60,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() {
-            _currentIndex = index;
-          }),
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() {
+          _currentIndex = index;
+        }),
           selectedItemColor: Color(0xFF2563EB),
           unselectedItemColor: theme.brightness == Brightness.dark 
               ? Colors.grey[400] 
@@ -73,16 +73,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? theme.cardColor 
                   : Colors.white),
           elevation: 0,
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard),
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
               label: 'Home',
-            ),
-            BottomNavigationBarItem(
+          ),
+          BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long),
-              label: 'Transactions',
-            ),
-          ],
+            label: 'Transactions',
+          ),
+        ],
         ),
       ),
       drawer: Drawer(
