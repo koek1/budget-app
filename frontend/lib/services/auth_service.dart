@@ -31,8 +31,8 @@ class AuthService {
         // Save user to users box
         await usersBox.add(user.toJson());
         
-        // Set as current user
-        await LocalStorageService.saveUser(user);
+        // Don't auto-login after registration - user should login manually
+        // await LocalStorageService.saveUser(user);
 
         return user;
     }
@@ -42,20 +42,23 @@ class AuthService {
         final usersBox = Hive.box('usersBox');
         final users = usersBox.values.toList();
         
-        // Find user by username (name field)
-        final userData = users.firstWhere(
-            (u) => (u as Map)['name']?.toString().toLowerCase() == username.toLowerCase(),
-            orElse: () => null,
-        );
+        // Find user by username (name field) - safer retrieval using where
+        final matchingUsers = users.where((u) {
+            final userMap = u as Map;
+            return userMap['name']?.toString().toLowerCase() == username.toLowerCase();
+        }).toList();
 
-        if (userData == null) {
+        if (matchingUsers.isEmpty) {
             throw Exception('Invalid username or password');
         }
 
+        final userData = matchingUsers.first as Map;
         final userMap = Map<String, dynamic>.from(userData);
+        
         // In a real app, verify password hash here
         // For now, simple comparison
-        if (userMap['password'] != password) {
+        final storedPassword = userMap['password']?.toString();
+        if (storedPassword == null || storedPassword != password) {
             throw Exception('Invalid username or password');
         }
 

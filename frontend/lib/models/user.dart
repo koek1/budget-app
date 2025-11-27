@@ -37,6 +37,7 @@ class User {
       'id': id,
       'name': name,
       'email': email,
+      'password': password, // Include password for authentication
       'currency': currency,
       'monthlyBudget': monthlyBudget,
     };
@@ -47,6 +48,7 @@ class User {
       id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
+      password: json['password']?.toString(), // Include password if present
       currency: json['currency'] ?? 'R',
       monthlyBudget: (json['monthlyBudget'] ?? 0).toDouble(),
     );

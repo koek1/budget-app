@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -193,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   centerTitle: true,
                   title: Text(
-                    'Panel',
+                    'Home',
                     style: TextStyle(
                       color: theme.textTheme.bodyLarge?.color ?? Colors.black,
                       fontSize: 18,
@@ -263,21 +264,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         // Combined Saving Card with Graph
                         Container(
                           width: double.infinity,
-                          padding: EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Color(0xFF14B8A6), // Teal color
                             borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF14B8A6),
+                                Color(0xFF0D9488),
+                              ],
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Color(0xFF14B8A6).withOpacity(0.3),
-                                blurRadius: 15,
-                                offset: Offset(0, 5),
+                                color: Color(0xFF14B8A6).withOpacity(0.25),
+                                blurRadius: 20,
+                                offset: Offset(0, 8),
+                                spreadRadius: 0,
                               ),
                             ],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                              child: Container(
+                                padding: EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                               // Saving Label
                               Row(
                                 children: [
@@ -482,7 +500,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                             ],
+                              ),
+                            ),
                           ),
+                        ),
                         ),
                         SizedBox(height: 24),
 
@@ -491,43 +512,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Expanded(
                               child: Container(
-                                padding: EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: theme.cardColor,
                                   borderRadius: BorderRadius.circular(16),
+                                  color: theme.brightness == Brightness.dark
+                                      ? theme.cardColor
+                                      : Colors.white,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 2),
+                                      color: Colors.black.withOpacity(0.06),
+                                      blurRadius: 12,
+                                      offset: Offset(0, 4),
+                                      spreadRadius: 0,
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: theme.dividerColor.withOpacity(0.1),
+                                    width: 1,
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Total balance',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: theme.textTheme.bodyMedium?.color
-                                                ?.withOpacity(0.7) ??
-                                            Colors.grey[600],
-                                        fontWeight: FontWeight.w500,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                    child: Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: theme.brightness == Brightness.dark
+                                            ? theme.cardColor.withOpacity(0.7)
+                                            : Colors.white.withOpacity(0.7),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Total balance',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: theme.textTheme.bodyMedium?.color
+                                                      ?.withOpacity(0.7) ??
+                                                  Colors.grey[600],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          SizedBox(height: 8),
+                                          Text(
+                                            Helpers.formatCurrency(monthlyBalance),
+                                            style: TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.bold,
+                                              color:
+                                                  theme.textTheme.bodyLarge?.color ??
+                                                      Colors.black87,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      Helpers.formatCurrency(monthlyBalance),
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color:
-                                            theme.textTheme.bodyLarge?.color ??
-                                                Colors.black87,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -540,92 +582,126 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Expanded(
                               child: Container(
-                                padding: EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(16),
+                                  color: Colors.green.withOpacity(0.1),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 2),
+                                      color: Colors.green.withOpacity(0.1),
+                                      blurRadius: 12,
+                                      offset: Offset(0, 4),
+                                      spreadRadius: 0,
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: Colors.green.withOpacity(0.2),
+                                    width: 1,
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.arrow_upward,
-                                            color: Colors.green, size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Income',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                    child: Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.arrow_upward,
+                                                  color: Colors.green, size: 20),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Income',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey[600],
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      Helpers.formatCurrency(monthlyIncome),
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green[700],
+                                          SizedBox(height: 8),
+                                          Text(
+                                            Helpers.formatCurrency(monthlyIncome),
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.green[700],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
                             SizedBox(width: 16),
                             Expanded(
                               child: Container(
-                                padding: EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(16),
+                                  color: Colors.red.withOpacity(0.1),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 2),
+                                      color: Colors.red.withOpacity(0.1),
+                                      blurRadius: 12,
+                                      offset: Offset(0, 4),
+                                      spreadRadius: 0,
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: Colors.red.withOpacity(0.2),
+                                    width: 1,
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.arrow_downward,
-                                            color: Colors.red, size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Expenses',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                    child: Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.arrow_downward,
+                                                  color: Colors.red, size: 20),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Expenses',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey[600],
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      Helpers.formatCurrency(monthlyExpenses),
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.red[700],
+                                          SizedBox(height: 8),
+                                          Text(
+                                            Helpers.formatCurrency(monthlyExpenses),
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.red[700],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -665,8 +741,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return Container(
         padding: EdgeInsets.all(40),
         decoration: BoxDecoration(
-          color: theme.cardColor,
+          color: theme.brightness == Brightness.dark
+              ? theme.cardColor
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.dividerColor.withOpacity(0.1),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -787,18 +876,36 @@ class _HomeTransactionCard extends StatelessWidget {
 
     return Container(
       margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: theme.brightness == Brightness.dark
+            ? theme.cardColor
+            : Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+          child: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.brightness == Brightness.dark
+                  ? theme.cardColor.withOpacity(0.6)
+                  : Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
       child: Row(
         children: [
           Container(
@@ -853,6 +960,9 @@ class _HomeTransactionCard extends StatelessWidget {
             ),
           ),
         ],
+            ),
+          ),
+        ),
       ),
     );
   }

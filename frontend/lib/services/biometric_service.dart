@@ -64,17 +64,17 @@ class BiometricService {
   }
 
   // Save user credentials securely for biometric login
-  static Future<void> saveCredentialsForBiometric(String email, String password) async {
-    await _secureStorage.write(key: 'biometric_email', value: email);
+  static Future<void> saveCredentialsForBiometric(String username, String password) async {
+    await _secureStorage.write(key: 'biometric_username', value: username);
     await _secureStorage.write(key: 'biometric_password', value: password);
     await _secureStorage.write(key: 'biometric_enabled', value: 'true');
   }
 
   // Get saved credentials
   static Future<Map<String, String?>> getSavedCredentials() async {
-    final email = await _secureStorage.read(key: 'biometric_email');
+    final username = await _secureStorage.read(key: 'biometric_username');
     final password = await _secureStorage.read(key: 'biometric_password');
-    return {'email': email, 'password': password};
+    return {'username': username, 'password': password};
   }
 
   // Check if biometric login is enabled
@@ -85,7 +85,7 @@ class BiometricService {
 
   // Disable biometric login
   static Future<void> disableBiometric() async {
-    await _secureStorage.delete(key: 'biometric_email');
+    await _secureStorage.delete(key: 'biometric_username');
     await _secureStorage.delete(key: 'biometric_password');
     await _secureStorage.delete(key: 'biometric_enabled');
     await _secureStorage.delete(key: 'fingerprint_only');
@@ -113,13 +113,13 @@ class BiometricService {
 
       // Get saved credentials
       final credentials = await getSavedCredentials();
-      if (credentials['email'] == null || credentials['password'] == null) {
+      if (credentials['username'] == null || credentials['password'] == null) {
         return null;
       }
 
       // Login with saved credentials
       return await AuthService.login(
-        credentials['email']!,
+        credentials['username']!,
         credentials['password']!,
       );
     } catch (e) {

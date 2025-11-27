@@ -17,7 +17,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
-  
+
   late String _selectedType;
   late String _selectedCategory;
   late DateTime _selectedDate;
@@ -27,7 +27,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void initState() {
     super.initState();
     _isEditing = widget.transaction != null;
-    
+
     if (_isEditing && widget.transaction != null) {
       final transaction = widget.transaction!;
       _amountController.text = transaction.amount.toString();
@@ -113,7 +113,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onChanged: (value) {
                           setState(() {
                             _selectedType = value!;
-                            _selectedCategory = AppConstants.incomeCategories.first;
+                            _selectedCategory =
+                                AppConstants.incomeCategories.first;
                           });
                         },
                       ),
@@ -128,7 +129,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onChanged: (value) {
                           setState(() {
                             _selectedType = value!;
-                            _selectedCategory = AppConstants.expenseCategories.first;
+                            _selectedCategory =
+                                AppConstants.expenseCategories.first;
                           });
                         },
                       ),
@@ -137,7 +139,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ],
               ),
               SizedBox(height: 20),
-              
+
               // Amount
               TextFormField(
                 controller: _amountController,
@@ -158,7 +160,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 },
               ),
               SizedBox(height: 20),
-              
+
               // Category
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
@@ -166,10 +168,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   labelText: 'Category',
                   border: OutlineInputBorder(),
                 ),
-                items: (_selectedType == 'income' 
-                    ? AppConstants.incomeCategories 
-                    : AppConstants.expenseCategories
-                ).map((category) {
+                items: (_selectedType == 'income'
+                        ? AppConstants.incomeCategories
+                        : AppConstants.expenseCategories)
+                    .map((category) {
                   return DropdownMenuItem(
                     value: category,
                     child: Text(category),
@@ -180,7 +182,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 },
               ),
               SizedBox(height: 20),
-              
+
               // Description
               TextFormField(
                 controller: _descriptionController,
@@ -191,12 +193,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 maxLines: 2,
               ),
               SizedBox(height: 20),
-              
+
               // Date
               ListTile(
                 leading: Icon(Icons.calendar_today),
                 title: Text('Date'),
-                subtitle: Text('${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
+                subtitle: Text(
+                    '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
                 trailing: Icon(Icons.arrow_drop_down),
                 onTap: _selectDate,
               ),

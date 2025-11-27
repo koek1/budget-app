@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/services/settings_service.dart';
+import 'package:budget_app/services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -94,29 +95,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _toggleBiometric(bool value) async {
     if (value) {
-      // Enable biometric - need to authenticate first
-      final authenticated = await BiometricService.authenticate();
-      if (authenticated) {
-        // Get current user credentials to save
-        final credentials = await BiometricService.getSavedCredentials();
-        if (credentials['email'] != null && credentials['password'] != null) {
-          await BiometricService.saveCredentialsForBiometric(
-            credentials['email']!,
-            credentials['password']!,
-          );
-          setState(() {
-            _biometricEnabled = true;
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Biometric login enabled')),
+      // Enable biometric - just save credentials, don't authenticate yet
+      // Authentication will happen when user actually tries to login with biometric
+      final currentUser = await AuthService.getCurrentUser();
+      
+      if (currentUser != null) {
+        // Get the user's password from the usersBox
+        final usersBox = Hive.box('usersBox');
+        final users = usersBox.values.toList();
+        final userData = users.firstWhere(
+          (u) {
+            final userMap = u as Map;
+            return userMap['name']?.toString().toLowerCase() == currentUser.name.toLowerCase();
+          },
+          orElse: () => null,
+        );
+        
+        if (userData != null) {
+          final userMap = Map<String, dynamic>.from(userData as Map);
+          final password = userMap['password']?.toString();
+          
+          if (password != null) {
+            // Save credentials for biometric login
+            await BiometricService.saveCredentialsForBiometric(
+              currentUser.name,
+              password,
             );
+            setState(() {
+              _biometricEnabled = true;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Biometric login enabled')),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Unable to enable biometric login. Please login again.'),
+                ),
+              );
+              setState(() {
+                _biometricEnabled = false;
+              });
+            }
           }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Please login with password first to enable biometric login'),
+                content: Text('Unable to enable biometric login. Please login again.'),
               ),
             );
             setState(() {
@@ -125,9 +154,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         }
       } else {
-        setState(() {
-          _biometricEnabled = false;
-        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please login first to enable biometric login'),
+            ),
+          );
+          setState(() {
+            _biometricEnabled = false;
+          });
+        }
       }
     } else {
       // Disable biometric

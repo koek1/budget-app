@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:budget_app/services/auth_service.dart';
-import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/home/home_screen.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -110,29 +107,16 @@ class _MyAppState extends State<MyApp> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const SplashScreen();
           }
-          return snapshot.data == true
-              ? const HomeScreen()
-              : const LoginScreen();
+          // Always show login screen - don't persist login across app restarts
+          return const LoginScreen();
         },
       ),
     );
   }
 
   Future<bool> _checkLoginStatus() async {
-    // First check if user is already logged in
-    final isLoggedIn = await AuthService.isLoggedIn();
-    if (isLoggedIn) return true;
-
-    // If not logged in, check if biometric is enabled and available
-    final biometricEnabled = await BiometricService.isBiometricEnabled();
-    final biometricAvailable = await BiometricService.isAvailable();
-
-    if (biometricEnabled && biometricAvailable) {
-      // Try biometric login automatically
-      final user = await BiometricService.loginWithBiometric();
-      return user != null;
-    }
-
+    // Don't persist login - user must login every time app opens
+    // This ensures security and prevents auto-login after app close
     return false;
   }
 }
