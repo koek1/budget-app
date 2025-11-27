@@ -11,22 +11,32 @@ class LocalStorageService {
 
   static Future<void> addTransaction(Transaction transaction) async {
     final box = Hive.box<Transaction>('transactionsBox');
+    // Use add to ensure proper auto-incrementing and listener notifications
+    // ValueListenableBuilder will automatically update when box.add() is called
     await box.add(transaction);
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
     final box = Hive.box<Transaction>('transactionsBox');
-    final index = box.values.toList().indexWhere((t) => t.id == transaction.id);
-    if (index != -1) {
-      await box.putAt(index, transaction);
+    // Find the transaction by ID and get its key
+    for (var i = 0; i < box.length; i++) {
+      final existingTransaction = box.getAt(i);
+      if (existingTransaction?.id == transaction.id) {
+        await box.putAt(i, transaction);
+        return;
+      }
     }
   }
 
   static Future<void> deleteTransaction(String transactionId) async {
     final box = Hive.box<Transaction>('transactionsBox');
-    final index = box.values.toList().indexWhere((t) => t.id == transactionId);
-    if (index != -1) {
-      await box.deleteAt(index);
+    // Find the transaction by ID and get its key
+    for (var i = 0; i < box.length; i++) {
+      final transaction = box.getAt(i);
+      if (transaction?.id == transactionId) {
+        await box.deleteAt(i);
+        return;
+      }
     }
   }
 
