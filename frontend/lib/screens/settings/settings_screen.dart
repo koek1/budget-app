@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:budget_app/services/biometric_service.dart';
+import 'package:budget_app/services/settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,6 +16,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _fingerprintOnly = false;
   bool _biometricAvailable = false;
   bool _isLoading = true;
+  String _selectedCurrency = SettingsService.defaultCurrency;
+  String _themeMode = SettingsService.defaultThemeMode;
 
   @override
   void initState() {
@@ -30,8 +34,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _biometricEnabled = enabled;
       _biometricAvailable = available;
       _fingerprintOnly = fingerprintOnly;
+      _selectedCurrency = SettingsService.getCurrency();
+      _themeMode = SettingsService.getThemeMode();
       _isLoading = false;
     });
+  }
+
+  Future<void> _selectCurrency() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Select Currency'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: SettingsService.availableCurrencies.map((currency) {
+              return ListTile(
+                title: Text(currency['name']!),
+                leading: Text(
+                  currency['symbol']!,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                onTap: () {
+                  Navigator.pop(context, currency['code']);
+                },
+                selected: currency['code'] == _selectedCurrency,
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+
+    if (result != null) {
+      await SettingsService.setCurrency(result);
+      setState(() {
+        _selectedCurrency = result;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Currency updated to ${result}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleThemeMode() async {
+    final newMode = _themeMode == 'light' ? 'dark' : 'light';
+    await SettingsService.setThemeMode(newMode);
+    setState(() {
+      _themeMode = newMode;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Theme changed to ${newMode} mode')),
+      );
+    }
   }
 
   Future<void> _toggleBiometric(bool value) async {
@@ -135,8 +193,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
+          : Builder(
+              builder: (context) {
+                if (!Hive.isBoxOpen('settingsBox')) {
+                  return Center(
+                    child: Text('Settings box not initialized'),
+                  );
+                }
+                
+                return ValueListenableBuilder(
+                  valueListenable: Hive.box('settingsBox').listenable(),
+                  builder: (context, box, _) {
+                    // Refresh settings when box changes
+                    _selectedCurrency = SettingsService.getCurrency();
+                    _themeMode = SettingsService.getThemeMode();
+                    
+                    return ListView(
               children: [
+                    const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text(
+                        'Appearance',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.currency_exchange),
+                      title: const Text('Currency'),
+                      subtitle: Text(
+                        SettingsService.availableCurrencies
+                            .firstWhere((c) => c['code'] == _selectedCurrency)['name']!,
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _selectCurrency,
+                    ),
+                    SwitchListTile(
+                      secondary: Icon(
+                        _themeMode == 'dark' ? Icons.dark_mode : Icons.light_mode,
+                      ),
+                      title: const Text('Dark Mode'),
+                      subtitle: Text(
+                        _themeMode == 'dark' 
+                            ? 'Dark theme enabled' 
+                            : 'Light theme enabled',
+                      ),
+                      value: _themeMode == 'dark',
+                      onChanged: (value) => _toggleThemeMode(),
+                    ),
+                    const Divider(),
                 const Padding(
                   padding: EdgeInsets.all(16.0),
                   child: Text(
@@ -187,6 +294,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text('1.0.0'),
                 ),
               ],
+                );
+                  },
+                );
+              },
             ),
     );
   }

@@ -5,25 +5,24 @@ import 'package:uuid/uuid.dart';
 
 class AuthService {
     // Register user locally
-    static Future<User> register(String name, String email, String password) async {
+    static Future<User> register(String username, String password) async {
         // Check if user already exists
-        final box = Hive.box('userBox');
         final usersBox = Hive.box('usersBox');
         
-        // Get all users to check for duplicate email
+        // Get all users to check for duplicate username
         final existingUsers = usersBox.values.toList();
         final userExists = existingUsers.any((u) => 
-            (u as Map)['email']?.toString().toLowerCase() == email.toLowerCase());
+            (u as Map)['name']?.toString().toLowerCase() == username.toLowerCase());
         
         if (userExists) {
-            throw Exception('User with this email already exists');
+            throw Exception('Username already exists');
         }
 
-        // Create new user
+        // Create new user (using username as name, and empty email)
         final user = User(
             id: Uuid().v4(),
-            name: name,
-            email: email.toLowerCase(),
+            name: username,
+            email: '', // Email not required
             password: password, // In a real app, hash this
             currency: 'R',
             monthlyBudget: 0,
@@ -39,25 +38,25 @@ class AuthService {
     }
 
     // Login user locally
-    static Future<User?> login(String email, String password) async {
+    static Future<User?> login(String username, String password) async {
         final usersBox = Hive.box('usersBox');
         final users = usersBox.values.toList();
         
-        // Find user by email
+        // Find user by username (name field)
         final userData = users.firstWhere(
-            (u) => (u as Map)['email']?.toString().toLowerCase() == email.toLowerCase(),
+            (u) => (u as Map)['name']?.toString().toLowerCase() == username.toLowerCase(),
             orElse: () => null,
         );
 
         if (userData == null) {
-            throw Exception('Invalid email or password');
+            throw Exception('Invalid username or password');
         }
 
         final userMap = Map<String, dynamic>.from(userData);
         // In a real app, verify password hash here
         // For now, simple comparison
         if (userMap['password'] != password) {
-            throw Exception('Invalid email or password');
+            throw Exception('Invalid username or password');
         }
 
         final user = User.fromJson(userMap);

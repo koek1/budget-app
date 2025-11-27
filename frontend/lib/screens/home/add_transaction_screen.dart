@@ -5,7 +5,9 @@ import 'package:budget_app/utils/constants.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key});
+  final Transaction? transaction;
+
+  const AddTransactionScreen({super.key, this.transaction});
 
   @override
   _AddTransactionScreenState createState() => _AddTransactionScreenState();
@@ -16,27 +18,57 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   
-  String _selectedType = 'expense';
-  String _selectedCategory = 'Food & Dining';
-  DateTime _selectedDate = DateTime.now();
+  late String _selectedType;
+  late String _selectedCategory;
+  late DateTime _selectedDate;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isEditing = widget.transaction != null;
+    
+    if (_isEditing && widget.transaction != null) {
+      final transaction = widget.transaction!;
+      _amountController.text = transaction.amount.toString();
+      _descriptionController.text = transaction.description;
+      _selectedType = transaction.type;
+      _selectedCategory = transaction.category;
+      _selectedDate = transaction.date;
+    } else {
+      _selectedType = 'expense';
+      _selectedCategory = 'Food & Dining';
+      _selectedDate = DateTime.now();
+    }
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   Future<void> _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
 
     final transaction = Transaction(
-      id: Uuid().v4(),
+      id: _isEditing ? widget.transaction!.id : Uuid().v4(),
       amount: double.parse(_amountController.text),
       type: _selectedType,
       category: _selectedCategory,
       description: _descriptionController.text,
       date: _selectedDate,
-      isSynced: true, // Always synced since we're using local storage
+      isSynced: true,
     );
 
-    // Save to local storage
-    await LocalStorageService.addTransaction(transaction);
+    if (_isEditing) {
+      await LocalStorageService.updateTransaction(transaction);
+    } else {
+      await LocalStorageService.addTransaction(transaction);
+    }
 
-    Navigator.pop(context);
+    Navigator.pop(context, true);
   }
 
   Future<void> _selectDate() async {
@@ -55,7 +87,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Add Transaction'),
+        title: Text(_isEditing ? 'Edit Transaction' : 'Add Transaction'),
         actions: [
           IconButton(
             icon: Icon(Icons.save),
@@ -67,7 +99,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: Column(
+          child: ListView(
             children: [
               // Transaction Type
               Row(

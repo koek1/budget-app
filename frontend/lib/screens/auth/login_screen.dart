@@ -12,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _biometricAvailable = false;
@@ -22,6 +22,13 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _checkBiometricAvailability();
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -40,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final user = await AuthService.login(
-        _emailController.text.trim(),
+        _usernameController.text.trim(),
         _passwordController.text,
       );
       
@@ -113,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: () async {
               Navigator.pop(context);
               await BiometricService.saveCredentialsForBiometric(
-                _emailController.text.trim(),
+                _usernameController.text.trim(),
                 _passwordController.text,
               );
               setState(() => _biometricEnabled = true);
@@ -178,18 +185,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ],
               
               TextFormField(
-                controller: _emailController,
+                controller: _usernameController,
                 decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
+                  labelText: 'Username',
+                  prefixIcon: Icon(Icons.person),
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Please enter a valid email';
+                    return 'Please enter your username';
                   }
                   return null;
                 },
@@ -251,10 +255,16 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
@@ -263,8 +273,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       await AuthService.register(
-        _nameController.text.trim(),
-        _emailController.text.trim(),
+        _usernameController.text.trim(),
         _passwordController.text,
       );
       
@@ -290,35 +299,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Form(
           key: _formKey,
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Icon(
+                Icons.account_balance_wallet,
+                size: 80,
+                color: Theme.of(context).primaryColor,
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Create Account',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 30),
               TextFormField(
-                controller: _nameController,
+                controller: _usernameController,
                 decoration: InputDecoration(
-                  labelText: 'Full Name',
+                  labelText: 'Username',
                   prefixIcon: Icon(Icons.person),
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter your name';
+                    return 'Please enter a username';
                   }
-                  return null;
-                },
-              ),
-              SizedBox(height: 20),
-              TextFormField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Please enter a valid email';
+                  if (value.length < 3) {
+                    return 'Username must be at least 3 characters';
                   }
                   return null;
                 },
