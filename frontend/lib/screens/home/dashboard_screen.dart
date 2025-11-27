@@ -12,7 +12,7 @@ import 'package:intl/intl.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onMenuTap;
-  
+
   const DashboardScreen({super.key, this.onMenuTap});
 
   @override
@@ -41,16 +41,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Transaction> _getTransactionsForMonth() {
     // Get all transactions and filter by month
     final allTransactions = transactionsBox.values.toList();
-    
+
     if (allTransactions.isEmpty) {
       return [];
     }
-    
+
     return allTransactions.where((transaction) {
       final transactionDate = transaction.date;
       // Normalize dates to compare only year and month (ignore time)
-      final transactionYearMonth = DateTime(transactionDate.year, transactionDate.month);
-      final selectedYearMonth = DateTime(_selectedMonth.year, _selectedMonth.month);
+      final transactionYearMonth =
+          DateTime(transactionDate.year, transactionDate.month);
+      final selectedYearMonth =
+          DateTime(_selectedMonth.year, _selectedMonth.month);
       return transactionYearMonth == selectedYearMonth;
     }).toList();
   }
@@ -86,17 +88,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<FlSpot> _getGraphData() {
     final transactions = _getTransactionsForMonth();
-    final daysInMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
-    
+    final daysInMonth =
+        DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+
     // Get all transactions up to the selected month to calculate starting balance
     final allTransactions = transactionsBox.values.toList()
       ..sort((a, b) => a.date.compareTo(b.date));
-    
+
     // Calculate starting balance (all transactions before this month)
     double startingBalance = 0;
     for (var transaction in allTransactions) {
       if (transaction.date.year < _selectedMonth.year ||
-          (transaction.date.year == _selectedMonth.year && transaction.date.month < _selectedMonth.month)) {
+          (transaction.date.year == _selectedMonth.year &&
+              transaction.date.month < _selectedMonth.month)) {
         if (transaction.type == 'income') {
           startingBalance += transaction.amount;
         } else {
@@ -104,7 +108,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
     }
-    
+
     // Sort transactions by date (chronological order)
     final sortedTransactions = List<Transaction>.from(transactions)
       ..sort((a, b) {
@@ -116,44 +120,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (a.type == 'expense' && b.type == 'income') return 1;
         return 0;
       });
-    
+
     // Create a map to track balance for each day
     Map<int, double> dailyBalances = {};
     double runningBalance = startingBalance;
-    
+
     // Initialize all days with starting balance
     for (int day = 1; day <= daysInMonth; day++) {
       dailyBalances[day] = startingBalance;
     }
-    
+
     // Process transactions in order and update balances
     for (var transaction in sortedTransactions) {
       final day = transaction.date.day;
-      
+
       // Update running balance
       if (transaction.type == 'income') {
         runningBalance += transaction.amount;
       } else {
         runningBalance -= transaction.amount;
       }
-      
+
       // Update balance for this day and all subsequent days
       for (int d = day; d <= daysInMonth; d++) {
         dailyBalances[d] = runningBalance;
       }
     }
-    
+
     // Create spots for the graph
     List<FlSpot> spots = [];
     for (int day = 1; day <= daysInMonth; day++) {
       spots.add(FlSpot(day.toDouble(), dailyBalances[day] ?? startingBalance));
     }
-    
+
     // Always return at least one spot to ensure graph renders
     if (spots.isEmpty) {
       spots.add(FlSpot(1.0, startingBalance));
     }
-    
+
     return spots;
   }
 
@@ -176,12 +180,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               slivers: [
                 // Header with time, menu, title, and profile
                 SliverAppBar(
-                  backgroundColor: theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
+                  backgroundColor: theme.appBarTheme.backgroundColor ??
+                      theme.scaffoldBackgroundColor,
                   elevation: 0,
                   leading: Padding(
                     padding: EdgeInsets.only(left: 16),
                     child: IconButton(
-                      icon: Icon(Icons.menu, color: theme.iconTheme.color, size: 24),
+                      icon: Icon(Icons.menu,
+                          color: theme.iconTheme.color, size: 24),
                       onPressed: widget.onMenuTap,
                     ),
                   ),
@@ -189,7 +195,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title: Text(
                     'Panel',
                     style: TextStyle(
-                          color: theme.textTheme.bodyLarge?.color ?? Colors.black,
+                      color: theme.textTheme.bodyLarge?.color ?? Colors.black,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
@@ -210,8 +216,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             CircleAvatar(
                               radius: 18,
-                              backgroundColor: Color(0xFF2563EB).withOpacity(0.1),
-                              child: Icon(Icons.person, color: Color(0xFF2563EB), size: 20),
+                              backgroundColor:
+                                  Color(0xFF2563EB).withOpacity(0.1),
+                              child: Icon(Icons.person,
+                                  color: Color(0xFF2563EB), size: 20),
                             ),
                             Positioned(
                               right: 0,
@@ -222,7 +230,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 decoration: BoxDecoration(
                                   color: Color(0xFF2563EB),
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border:
+                                      Border.all(color: Colors.white, width: 2),
                                 ),
                               ),
                             ),
@@ -289,10 +298,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ],
                               ),
                               SizedBox(height: 12),
-                              
+
                               // Amount Saved
                               Text(
-                                Helpers.formatCurrency(savings > 0 ? savings : 0),
+                                Helpers.formatCurrency(
+                                    savings > 0 ? savings : 0),
                                 style: TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.bold,
@@ -300,7 +310,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               SizedBox(height: 16),
-                              
+
                               // Date Selector
                               InkWell(
                                 onTap: () async {
@@ -313,15 +323,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   );
                                   if (picked != null) {
                                     setState(() {
-                                      _selectedMonth = DateTime(picked.year, picked.month);
+                                      _selectedMonth =
+                                          DateTime(picked.year, picked.month);
                                     });
                                   }
                                 },
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      DateFormat('MMMM yyyy').format(_selectedMonth),
+                                      DateFormat('MMMM yyyy')
+                                          .format(_selectedMonth),
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 16,
@@ -337,7 +350,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               SizedBox(height: 20),
-                              
+
                               // Graph
                               Container(
                                 height: 150,
@@ -356,10 +369,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     titlesData: FlTitlesData(
                                       show: true,
                                       rightTitles: AxisTitles(
-                                        sideTitles: SideTitles(showTitles: false),
+                                        sideTitles:
+                                            SideTitles(showTitles: false),
                                       ),
                                       topTitles: AxisTitles(
-                                        sideTitles: SideTitles(showTitles: false),
+                                        sideTitles:
+                                            SideTitles(showTitles: false),
                                       ),
                                       bottomTitles: AxisTitles(
                                         sideTitles: SideTitles(
@@ -368,7 +383,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           interval: 5,
                                           getTitlesWidget: (value, meta) {
                                             final day = value.toInt();
-                                            if ([1, 5, 10, 15, 20, 25, 30].contains(day)) {
+                                            if ([1, 5, 10, 15, 20, 25, 30]
+                                                .contains(day)) {
                                               return Text(
                                                 day.toString(),
                                                 style: TextStyle(
@@ -383,7 +399,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         ),
                                       ),
                                       leftTitles: AxisTitles(
-                                        sideTitles: SideTitles(showTitles: false),
+                                        sideTitles:
+                                            SideTitles(showTitles: false),
                                       ),
                                     ),
                                     borderData: FlBorderData(show: false),
@@ -391,14 +408,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       touchTooltipData: LineTouchTooltipData(
                                         tooltipRoundedRadius: 8,
                                         tooltipPadding: EdgeInsets.all(8),
-                                        tooltipBgColor: Colors.white.withOpacity(0.9),
-                                        getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+                                        tooltipBgColor:
+                                            Colors.white.withOpacity(0.9),
+                                        getTooltipItems: (List<LineBarSpot>
+                                            touchedBarSpots) {
                                           return touchedBarSpots.map((barSpot) {
                                             final day = barSpot.x.toInt();
-                                            final monthName = DateFormat('MMM').format(_selectedMonth);
+                                            final monthName = DateFormat('MMM')
+                                                .format(_selectedMonth);
                                             // Use the actual graph value (barSpot.y) which is the balance at that point
                                             final graphValue = barSpot.y;
-                                            final amountStr = Helpers.formatCurrency(graphValue);
+                                            final amountStr =
+                                                Helpers.formatCurrency(
+                                                    graphValue);
                                             return LineTooltipItem(
                                               '$amountStr\n$day $monthName',
                                               TextStyle(
@@ -421,9 +443,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         isStrokeCapRound: true,
                                         dotData: FlDotData(
                                           show: true,
-                                          getDotPainter: (spot, percent, barData, index) {
-                                            if (index == graphData.length - 1 || 
-                                                [1, 5, 10, 15, 20, 25, 30].contains(spot.x.toInt())) {
+                                          getDotPainter:
+                                              (spot, percent, barData, index) {
+                                            if (index == graphData.length - 1 ||
+                                                [1, 5, 10, 15, 20, 25, 30]
+                                                    .contains(spot.x.toInt())) {
                                               return FlDotCirclePainter(
                                                 radius: 4,
                                                 color: Colors.white,
@@ -431,7 +455,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                 strokeColor: Color(0xFF14B8A6),
                                               );
                                             }
-                                            return FlDotCirclePainter(radius: 0);
+                                            return FlDotCirclePainter(
+                                                radius: 0);
                                           },
                                         ),
                                         belowBarData: BarAreaData(
@@ -440,12 +465,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         ),
                                       ),
                                     ],
-                                    minY: graphData.isEmpty 
-                                        ? 0 
-                                        : (graphData.map((e) => e.y).reduce((a, b) => a < b ? a : b) * 0.95).clamp(0, double.infinity),
-                                    maxY: graphData.isEmpty || graphData.every((e) => e.y == 0)
+                                    minY: graphData.isEmpty
+                                        ? 0
+                                        : (graphData.map((e) => e.y).reduce(
+                                                    (a, b) => a < b ? a : b) *
+                                                0.95)
+                                            .clamp(0, double.infinity),
+                                    maxY: graphData.isEmpty ||
+                                            graphData.every((e) => e.y == 0)
                                         ? 1000
-                                        : (graphData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.1).clamp(100, double.infinity),
+                                        : (graphData.map((e) => e.y).reduce(
+                                                    (a, b) => a > b ? a : b) *
+                                                1.1)
+                                            .clamp(100, double.infinity),
                                   ),
                                 ),
                               ),
@@ -478,7 +510,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       'Total balance',
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey[600],
+                                        color: theme.textTheme.bodyMedium?.color
+                                                ?.withOpacity(0.7) ??
+                                            Colors.grey[600],
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -488,7 +522,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.bold,
-                                        color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
+                                        color:
+                                            theme.textTheme.bodyLarge?.color ??
+                                                Colors.black87,
                                       ),
                                     ),
                                   ],
@@ -521,7 +557,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(Icons.arrow_upward, color: Colors.green, size: 20),
+                                        Icon(Icons.arrow_upward,
+                                            color: Colors.green, size: 20),
                                         SizedBox(width: 8),
                                         Text(
                                           'Income',
@@ -566,7 +603,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(Icons.arrow_downward, color: Colors.red, size: 20),
+                                        Icon(Icons.arrow_downward,
+                                            color: Colors.red, size: 20),
                                         SizedBox(width: 8),
                                         Text(
                                           'Expenses',
@@ -594,14 +632,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
                         SizedBox(height: 24),
-                        
+
                         // Monthly Transactions Section
                         Text(
                           'Recent Transactions',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
+                            color: theme.textTheme.bodyLarge?.color ??
+                                Colors.black87,
                           ),
                         ),
                         SizedBox(height: 16),
@@ -621,7 +660,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildMonthlyTransactionsList() {
     final theme = Theme.of(context);
     final transactions = _getTransactionsForMonth();
-    
+
     if (transactions.isEmpty) {
       return Container(
         padding: EdgeInsets.all(40),
@@ -667,7 +706,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Column(
       children: [
-        ...displayTransactions.map((transaction) => _HomeTransactionCard(transaction: transaction)),
+        ...displayTransactions.map(
+            (transaction) => _HomeTransactionCard(transaction: transaction)),
         if (transactions.length > 5)
           Padding(
             padding: EdgeInsets.only(top: 8),
@@ -676,7 +716,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // Navigate to transactions screen - this will be handled by parent
                 // For now, just show a message
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('View all transactions in the Transactions tab')),
+                  SnackBar(
+                      content: Text(
+                          'View all transactions in the Transactions tab')),
                 );
               },
               child: Text('View all ${transactions.length} transactions'),
@@ -780,8 +822,8 @@ class _HomeTransactionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  transaction.description.isNotEmpty 
-                      ? transaction.description 
+                  transaction.description.isNotEmpty
+                      ? transaction.description
                       : transaction.category,
                   style: TextStyle(
                     fontSize: 16,
@@ -794,7 +836,9 @@ class _HomeTransactionCard extends StatelessWidget {
                   DateFormat('d MMMM').format(transaction.date),
                   style: TextStyle(
                     fontSize: 12,
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey[600],
+                    color:
+                        theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ??
+                            Colors.grey[600],
                   ),
                 ),
               ],
