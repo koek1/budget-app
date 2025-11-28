@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/services/settings_service.dart';
+import 'package:budget_app/services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 
 class MyApp extends StatefulWidget {
@@ -11,10 +12,14 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
+    // Listen to app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
     // Listen to settings changes - ensure box is open first
     _setupSettingsListener();
   }
@@ -27,10 +32,48 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if (Hive.isBoxOpen('settingsBox')) {
       Hive.box('settingsBox').listenable().removeListener(_onSettingsChanged);
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Log out user when app goes to background or becomes inactive
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _logoutOnBackground();
+    }
+
+    // When app resumes, navigate to login screen if not logged in
+    if (state == AppLifecycleState.resumed) {
+      _checkAndNavigateToLogin();
+    }
+  }
+
+  Future<void> _checkAndNavigateToLogin() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn && mounted && _navigatorKey.currentState != null) {
+      // Clear navigation stack and go to login screen
+      _navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  Future<void> _logoutOnBackground() async {
+    try {
+      // Clear user session when app goes to background
+      await AuthService.logout();
+      print('User logged out due to app going to background');
+    } catch (e) {
+      print('Error logging out on background: $e');
+    }
   }
 
   void _onSettingsChanged() {
@@ -102,6 +145,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'SpendSense',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
