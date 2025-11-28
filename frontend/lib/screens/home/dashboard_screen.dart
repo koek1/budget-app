@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/models/transaction.dart';
@@ -165,9 +166,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryTurquoise = const Color(0xFF14B8A6);
+    final primaryBlue = const Color(0xFF0EA5E9);
+    final accentBlue = const Color(0xFF3B82F6);
+    
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    Color(0xFF0F172A),
+                    Color(0xFF1E293B),
+                    Color(0xFF0F172A),
+                  ]
+                : [
+                    primaryTurquoise.withOpacity(0.15),
+                    primaryBlue.withOpacity(0.1),
+                    accentBlue.withOpacity(0.08),
+                  ],
+          ),
+        ),
+        child: SafeArea(
         child: ValueListenableBuilder<Box<Transaction>>(
           valueListenable: transactionsBox.listenable(),
           builder: (context, box, _) {
@@ -195,7 +219,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   centerTitle: true,
                   title: Text(
                     'Home',
-                    style: TextStyle(
+                    style: GoogleFonts.inter(
                       color: theme.textTheme.bodyLarge?.color ?? Colors.black,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -218,9 +242,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             CircleAvatar(
                               radius: 18,
                               backgroundColor:
-                                  Color(0xFF2563EB).withOpacity(0.1),
+                                  primaryTurquoise.withOpacity(0.1),
                               child: Icon(Icons.person,
-                                  color: Color(0xFF2563EB), size: 20),
+                                  color: primaryTurquoise, size: 20),
                             ),
                             Positioned(
                               right: 0,
@@ -229,7 +253,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 width: 10,
                                 height: 10,
                                 decoration: BoxDecoration(
-                                  color: Color(0xFF2563EB),
+                                  color: primaryTurquoise,
                                   shape: BoxShape.circle,
                                   border:
                                       Border.all(color: Colors.white, width: 2),
@@ -253,10 +277,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         // Greeting
                         Text(
                           'Hello ${currentUser?.name.split(' ').first ?? 'User'}',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                          style: GoogleFonts.poppins(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
+                            color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
                           ),
                         ),
                         SizedBox(height: 24),
@@ -307,7 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   SizedBox(width: 8),
                                   Text(
                                     'Saving',
-                                    style: TextStyle(
+                                    style: GoogleFonts.inter(
                                       fontSize: 14,
                                       color: Colors.white.withOpacity(0.9),
                                       fontWeight: FontWeight.w500,
@@ -321,9 +346,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 Helpers.formatCurrency(
                                     savings > 0 ? savings : 0),
-                                style: TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5,
                                   color: Colors.white,
                                 ),
                               ),
@@ -353,7 +379,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Text(
                                       DateFormat('MMMM yyyy')
                                           .format(_selectedMonth),
-                                      style: TextStyle(
+                                      style: GoogleFonts.inter(
                                         color: Colors.white,
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
@@ -547,7 +573,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         children: [
                                           Text(
                                             'Total balance',
-                                            style: TextStyle(
+                                            style: GoogleFonts.inter(
                                               fontSize: 14,
                                               color: theme.textTheme.bodyMedium?.color
                                                       ?.withOpacity(0.7) ??
@@ -558,9 +584,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           SizedBox(height: 8),
                                           Text(
                                             Helpers.formatCurrency(monthlyBalance),
-                                            style: TextStyle(
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.bold,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 26,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.5,
                                               color:
                                                   theme.textTheme.bodyLarge?.color ??
                                                       Colors.black87,
@@ -583,13 +610,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Expanded(
                               child: Container(
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(24),
                                   color: Colors.green.withOpacity(0.1),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.green.withOpacity(0.1),
-                                      blurRadius: 12,
-                                      offset: Offset(0, 4),
+                                      color: Colors.green.withOpacity(0.15),
+                                      blurRadius: 20,
+                                      offset: Offset(0, 10),
                                       spreadRadius: 0,
                                     ),
                                   ],
@@ -618,7 +645,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               SizedBox(width: 8),
                                               Text(
                                                 'Income',
-                                                style: TextStyle(
+                                                style: GoogleFonts.inter(
                                                   fontSize: 14,
                                                   color: Colors.grey[600],
                                                   fontWeight: FontWeight.w500,
@@ -629,9 +656,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           SizedBox(height: 8),
                                           Text(
                                             Helpers.formatCurrency(monthlyIncome),
-                                            style: TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.5,
                                               color: Colors.green[700],
                                             ),
                                           ),
@@ -646,13 +674,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Expanded(
                               child: Container(
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(24),
                                   color: Colors.red.withOpacity(0.1),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.red.withOpacity(0.1),
-                                      blurRadius: 12,
-                                      offset: Offset(0, 4),
+                                      color: Colors.red.withOpacity(0.15),
+                                      blurRadius: 20,
+                                      offset: Offset(0, 10),
                                       spreadRadius: 0,
                                     ),
                                   ],
@@ -681,7 +709,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               SizedBox(width: 8),
                                               Text(
                                                 'Expenses',
-                                                style: TextStyle(
+                                                style: GoogleFonts.inter(
                                                   fontSize: 14,
                                                   color: Colors.grey[600],
                                                   fontWeight: FontWeight.w500,
@@ -692,9 +720,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           SizedBox(height: 8),
                                           Text(
                                             Helpers.formatCurrency(monthlyExpenses),
-                                            style: TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.5,
                                               color: Colors.red[700],
                                             ),
                                           ),
@@ -712,9 +741,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         // Monthly Transactions Section
                         Text(
                           'Recent Transactions',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
                             color: theme.textTheme.bodyLarge?.color ??
                                 Colors.black87,
                           ),
@@ -728,6 +758,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             );
           },
+        ),
         ),
       ),
     );
@@ -763,7 +794,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(height: 16),
             Text(
               'No transactions for ${DateFormat('MMMM yyyy').format(_selectedMonth)}',
-              style: TextStyle(
+              style: GoogleFonts.inter(
                 fontSize: 16,
                 color: Colors.grey[600],
                 fontWeight: FontWeight.w500,
@@ -781,7 +812,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               },
               icon: Icon(Icons.add),
-              label: Text('Add Transaction'),
+              label: Text(
+                'Add Transaction',
+                style: GoogleFonts.inter(),
+              ),
             ),
           ],
         ),
@@ -932,7 +966,7 @@ class _HomeTransactionCard extends StatelessWidget {
                   transaction.description.isNotEmpty
                       ? transaction.description
                       : transaction.category,
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
@@ -941,7 +975,7 @@ class _HomeTransactionCard extends StatelessWidget {
                 SizedBox(height: 4),
                 Text(
                   DateFormat('d MMMM').format(transaction.date),
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 12,
                     color:
                         theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ??
@@ -953,9 +987,9 @@ class _HomeTransactionCard extends StatelessWidget {
           ),
           Text(
             '${isIncome ? '+' : '-'}${Helpers.formatCurrency(transaction.amount)}',
-            style: TextStyle(
+            style: GoogleFonts.poppins(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: isIncome ? Colors.green : Colors.red,
             ),
           ),

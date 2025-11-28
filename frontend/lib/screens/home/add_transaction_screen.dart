@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/utils/constants.dart';
 import 'package:budget_app/services/local_storage_service.dart';
+import 'package:budget_app/services/settings_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final Transaction? transaction;
@@ -105,34 +107,105 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: ListTile(
-                      title: Text('Income'),
-                      leading: Radio<String>(
-                        value: 'income',
-                        groupValue: _selectedType,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedType = value!;
-                            _selectedCategory =
-                                AppConstants.incomeCategories.first;
-                          });
-                        },
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedType = 'income';
+                          _selectedCategory =
+                              AppConstants.incomeCategories.first;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding:
+                            EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _selectedType == 'income'
+                              ? Colors.green.withOpacity(0.15)
+                              : Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _selectedType == 'income'
+                                ? Colors.green
+                                : Colors.grey.withOpacity(0.3),
+                            width: _selectedType == 'income' ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_upward_rounded,
+                              color: _selectedType == 'income'
+                                  ? Colors.green[700]
+                                  : Colors.grey[600],
+                              size: 24,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Income',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: _selectedType == 'income'
+                                    ? Colors.green[700]
+                                    : Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
+                  SizedBox(width: 16),
                   Expanded(
-                    child: ListTile(
-                      title: Text('Expense'),
-                      leading: Radio<String>(
-                        value: 'expense',
-                        groupValue: _selectedType,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedType = value!;
-                            _selectedCategory =
-                                AppConstants.expenseCategories.first;
-                          });
-                        },
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedType = 'expense';
+                          _selectedCategory =
+                              AppConstants.expenseCategories.first;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding:
+                            EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _selectedType == 'expense'
+                              ? Colors.red.withOpacity(0.15)
+                              : Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _selectedType == 'expense'
+                                ? Colors.red
+                                : Colors.grey.withOpacity(0.3),
+                            width: _selectedType == 'expense' ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_downward_rounded,
+                              color: _selectedType == 'expense'
+                                  ? Colors.red[700]
+                                  : Colors.grey[600],
+                              size: 24,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Expense',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: _selectedType == 'expense'
+                                    ? Colors.red[700]
+                                    : Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -145,8 +218,37 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 controller: _amountController,
                 decoration: InputDecoration(
                   labelText: 'Amount',
-                  prefixIcon: Icon(Icons.attach_money),
-                  border: OutlineInputBorder(),
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      SettingsService.getCurrencySymbol(),
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).primaryColor,
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).scaffoldBackgroundColor
+                      : Colors.grey[50],
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
