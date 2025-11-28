@@ -5,6 +5,7 @@ import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/utils/constants.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/services/settings_service.dart';
+import 'package:budget_app/utils/helpers.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final Transaction? transaction;
@@ -54,8 +55,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Get current user to associate transaction
+    final currentUser = await LocalStorageService.getCurrentUser();
+    if (currentUser == null) {
+      Helpers.showErrorSnackBar(
+          context, 'You must be logged in to add transactions');
+      return;
+    }
+
     final transaction = Transaction(
       id: _isEditing ? widget.transaction!.id : Uuid().v4(),
+      userId: _isEditing
+          ? (widget.transaction!.userId.isNotEmpty
+              ? widget.transaction!.userId
+              : currentUser.id) // Use existing userId or current user's id
+          : currentUser.id, // Associate new transaction with current user
       amount: double.parse(_amountController.text),
       type: _selectedType,
       category: _selectedCategory,

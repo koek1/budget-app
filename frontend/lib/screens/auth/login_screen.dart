@@ -180,16 +180,23 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       final user = await BiometricService.loginWithBiometric();
       if (user != null && mounted) {
+        // Ask user if they want to enable biometric login (if not already enabled)
+        if (_biometricAvailable && !_biometricEnabled) {
+          _showBiometricEnableDialog();
+        }
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } else if (mounted) {
-        Helpers.showErrorSnackBar(context, 'Fingerprint authentication failed');
+        Helpers.showErrorSnackBar(
+            context, 'Fingerprint authentication failed. Please try again.');
       }
     } catch (e) {
       if (mounted) {
         String errorMessage = e.toString();
+        // Remove "Exception: " prefix if present
         if (errorMessage.startsWith('Exception: ')) {
           errorMessage = errorMessage.substring(11);
         }

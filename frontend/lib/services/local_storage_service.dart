@@ -6,38 +6,90 @@ class LocalStorageService {
   // Transaction operations
   static Future<List<Transaction>> getTransactions() async {
     final box = Hive.box<Transaction>('transactionsBox');
-    return box.values.toList();
+    final currentUser = await getCurrentUser();
+    
+    if (currentUser == null) {
+      return [];
+    }
+    
+    // Filter transactions by current user
+    return box.values.where((t) => t.userId == currentUser.id).toList();
   }
 
   static Future<void> addTransaction(Transaction transaction) async {
     final box = Hive.box<Transaction>('transactionsBox');
+    final currentUser = await getCurrentUser();
+    
+    if (currentUser == null) {
+      throw Exception('User must be logged in to add transactions');
+    }
+    
+    // Ensure transaction is associated with current user
+    final userTransaction = Transaction(
+      id: transaction.id,
+      userId: currentUser.id,
+      amount: transaction.amount,
+      type: transaction.type,
+      category: transaction.category,
+      description: transaction.description,
+      date: transaction.date,
+      isSynced: transaction.isSynced,
+    );
+    
     // Use add to ensure proper auto-incrementing and listener notifications
     // ValueListenableBuilder will automatically update when box.add() is called
-    await box.add(transaction);
+    await box.add(userTransaction);
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
     final box = Hive.box<Transaction>('transactionsBox');
-    // Find the transaction by ID and get its key
+    final currentUser = await getCurrentUser();
+    
+    if (currentUser == null) {
+      throw Exception('User must be logged in to update transactions');
+    }
+    
+    // Find the transaction by ID and user ID
     for (var i = 0; i < box.length; i++) {
       final existingTransaction = box.getAt(i);
-      if (existingTransaction?.id == transaction.id) {
-        await box.putAt(i, transaction);
+      if (existingTransaction?.id == transaction.id && 
+          existingTransaction?.userId == currentUser.id) {
+        // Ensure transaction remains associated with current user
+        final userTransaction = Transaction(
+          id: transaction.id,
+          userId: currentUser.id,
+          amount: transaction.amount,
+          type: transaction.type,
+          category: transaction.category,
+          description: transaction.description,
+          date: transaction.date,
+          isSynced: transaction.isSynced,
+        );
+        await box.putAt(i, userTransaction);
         return;
       }
     }
+    throw Exception('Transaction not found or does not belong to current user');
   }
 
   static Future<void> deleteTransaction(String transactionId) async {
     final box = Hive.box<Transaction>('transactionsBox');
-    // Find the transaction by ID and get its key
+    final currentUser = await getCurrentUser();
+    
+    if (currentUser == null) {
+      throw Exception('User must be logged in to delete transactions');
+    }
+    
+    // Find the transaction by ID and user ID
     for (var i = 0; i < box.length; i++) {
       final transaction = box.getAt(i);
-      if (transaction?.id == transactionId) {
+      if (transaction?.id == transactionId && 
+          transaction?.userId == currentUser.id) {
         await box.deleteAt(i);
         return;
       }
     }
+    throw Exception('Transaction not found or does not belong to current user');
   }
 
   static Future<List<Transaction>> getTransactionsByDateRange(
@@ -72,6 +124,8 @@ class LocalStorageService {
   static Future<void> clearUser() async {
     final box = Hive.box('userBox');
     await box.clear();
+    // Note: We don't clear transactions here because they're filtered by userId
+    // Transactions will be automatically filtered when a new user logs in
   }
 
   static Future<bool> isLoggedIn() async {
@@ -91,6 +145,25 @@ class LocalStorageService {
     await Hive.box<Transaction>('transactionsBox').clear();
     
     // Note: We don't clear settingsBox to preserve user preferences
+  }
+  
+  // Clear transactions for a specific user (when user is deleted)
+  static Future<void> clearUserTransactions(String userId) async {
+    final box = Hive.box<Transaction>('transactionsBox');
+    final transactionsToDelete = <int>[];
+    
+    // Find all transactions for this user
+    for (var i = 0; i < box.length; i++) {
+      final transaction = box.getAt(i);
+      if (transaction?.userId == userId) {
+        transactionsToDelete.add(i);
+      }
+    }
+    
+    // Delete in reverse order to maintain indices
+    for (var i = transactionsToDelete.length - 1; i >= 0; i--) {
+      await box.deleteAt(transactionsToDelete[i]);
+    }
   }
 }
 

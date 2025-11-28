@@ -59,6 +59,8 @@ class BiometricService {
       final bool isDeviceSupported = await _localAuth.isDeviceSupported();
       final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
       
+      print('Device supported: $isDeviceSupported, Can check biometrics: $canCheckBiometrics');
+      
       if (!isDeviceSupported && !canCheckBiometrics) {
         throw PlatformException(
           code: 'FINGERPRINT_NOT_AVAILABLE',
@@ -66,7 +68,12 @@ class BiometricService {
         );
       }
 
+      // Check available biometrics
+      final availableBiometrics = await getAvailableBiometrics();
+      print('Available biometrics: $availableBiometrics');
+
       // Try to authenticate - biometricOnly: true will use fingerprint if available
+      print('Starting fingerprint authentication...');
       final bool didAuthenticate = await _localAuth.authenticate(
         localizedReason: 'Please use your fingerprint to access SpendSense',
         options: const AuthenticationOptions(
@@ -75,28 +82,76 @@ class BiometricService {
           useErrorDialogs: true,
         ),
       );
+      
+      print('Fingerprint authentication result: $didAuthenticate');
       return didAuthenticate;
     } on PlatformException catch (e) {
-      print('Fingerprint authentication error: $e');
-      // If it's a not available error, rethrow it
+      print('Fingerprint authentication PlatformException: ${e.code} - ${e.message}');
+      
+      // Handle specific error codes
       if (e.code == 'NotAvailable' || e.code == 'NotEnrolled') {
         throw PlatformException(
           code: 'FINGERPRINT_NOT_AVAILABLE',
           message: 'Please set up fingerprint authentication in your device settings',
         );
+      } else if (e.code == 'NotAuthenticated') {
+        // User failed authentication (wrong fingerprint)
+        throw PlatformException(
+          code: 'AUTHENTICATION_FAILED',
+          message: 'Fingerprint not recognized. Please try again.',
+        );
+      } else if (e.code == 'UserCancel' || e.code == 'cancel') {
+        // User cancelled
+        throw PlatformException(
+          code: 'USER_CANCELLED',
+          message: 'Fingerprint authentication was cancelled',
+        );
+      } else if (e.code == 'LockedOut' || e.code == 'PermanentlyLockedOut') {
+        throw PlatformException(
+          code: 'LOCKED_OUT',
+          message: 'Too many failed attempts. Please try again later or use your password.',
+        );
       }
-      return false;
+      
+      // For other errors, throw with the original message
+      throw PlatformException(
+        code: e.code,
+        message: e.message ?? 'Fingerprint authentication failed',
+      );
     } catch (e) {
       print('Fingerprint authentication error: $e');
-      return false;
+      if (e is PlatformException) {
+        rethrow;
+      }
+      throw Exception('Fingerprint authentication failed: ${e.toString()}');
     }
   }
 
   // Save user credentials securely for biometric login
   static Future<void> saveCredentialsForBiometric(String username, String password) async {
-    await _secureStorage.write(key: 'biometric_username', value: username);
-    await _secureStorage.write(key: 'biometric_password', value: password);
-    await _secureStorage.write(key: 'biometric_enabled', value: 'true');
+    try {
+      if (username.isEmpty || password.isEmpty) {
+        throw Exception('Username and password cannot be empty');
+      }
+      
+      print('Saving biometric credentials for user: $username');
+      await _secureStorage.write(key: 'biometric_username', value: username.trim());
+      await _secureStorage.write(key: 'biometric_password', value: password);
+      await _secureStorage.write(key: 'biometric_enabled', value: 'true');
+      
+      // Verify the credentials were saved
+      final savedUsername = await _secureStorage.read(key: 'biometric_username');
+      final savedPassword = await _secureStorage.read(key: 'biometric_password');
+      
+      if (savedUsername != username.trim() || savedPassword != password) {
+        throw Exception('Failed to save credentials securely');
+      }
+      
+      print('Biometric credentials saved successfully');
+    } catch (e) {
+      print('Error saving biometric credentials: $e');
+      rethrow;
+    }
   }
 
   // Get saved credentials
@@ -123,25 +178,52 @@ class BiometricService {
   static Future<User?> loginWithBiometric() async {
     try {
       // First authenticate with biometric
+      print('Starting fingerprint authentication...');
       final authenticated = await authenticate();
       if (!authenticated) {
-        return null;
+        print('Fingerprint authentication returned false');
+        throw Exception('Fingerprint authentication was not successful. Please try again.');
       }
+      print('Fingerprint authentication successful');
 
       // Get saved credentials
+      print('Retrieving saved credentials...');
       final credentials = await getSavedCredentials();
+      print('Retrieved credentials - username: ${credentials['username'] != null ? 'present' : 'missing'}, password: ${credentials['password'] != null ? 'present' : 'missing'}');
+      
       if (credentials['username'] == null || credentials['password'] == null) {
-        return null;
+        print('Saved credentials are missing');
+        throw Exception('Saved login credentials not found. Please login with username and password, then enable fingerprint login again.');
       }
 
       // Login with saved credentials
-      return await AuthService.login(
-        credentials['username']!,
-        credentials['password']!,
-      );
+      print('Attempting login with saved credentials...');
+      try {
+        final user = await AuthService.login(
+          credentials['username']!,
+          credentials['password']!,
+        );
+        print('Login successful with saved credentials');
+        return user;
+      } catch (e) {
+        print('Login with saved credentials failed: $e');
+        // If login fails, the credentials might be outdated - clear them
+        await disableBiometric();
+        rethrow;
+      }
+    } on PlatformException catch (e) {
+      print('Platform exception during biometric login: $e');
+      if (e.code == 'FINGERPRINT_NOT_AVAILABLE') {
+        throw Exception('Fingerprint authentication is not available. Please set up fingerprint in your device settings.');
+      }
+      throw Exception('Fingerprint authentication error: ${e.message ?? e.code}');
     } catch (e) {
       print('Biometric login error: $e');
-      return null;
+      final errorMsg = e.toString();
+      if (errorMsg.contains('Exception: ')) {
+        rethrow; // Re-throw if it's already a formatted exception
+      }
+      throw Exception('Fingerprint login failed: ${e.toString()}');
     }
   }
 }

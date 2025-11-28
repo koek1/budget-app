@@ -8,25 +8,29 @@ class Transaction {
     final String id;
 
     @HiveField(1)
-    final double amount;
+    final String userId;  // Associate transaction with user
 
     @HiveField(2)
-    final String type;    // 'income' or 'expense'
+    final double amount;
 
     @HiveField(3)
-    final String category;
+    final String type;    // 'income' or 'expense'
 
     @HiveField(4)
-    final String description;
+    final String category;
 
     @HiveField(5)
-    final DateTime date;
+    final String description;
 
     @HiveField(6)
+    final DateTime date;
+
+    @HiveField(7)
     bool isSynced;
 
     Transaction({
         required this.id,
+        required this.userId,
         required this.amount,
         required this.type,
         required this.category,
@@ -37,6 +41,7 @@ class Transaction {
 
     Map<String, dynamic> toJson() {
         return {
+            'userId': userId,
             'amount': amount,
             'type': type,
             'category': category,
@@ -47,7 +52,8 @@ class Transaction {
 
     factory Transaction.fromJson(Map<String, dynamic> json) {
         return Transaction(
-            id: json['_id'] ?? '',
+            id: json['_id'] ?? json['id'] ?? '',
+            userId: json['userId'] ?? '',
             amount: (json['amount'] as num).toDouble(),
             type: json['type'],
             category: json['category'],
