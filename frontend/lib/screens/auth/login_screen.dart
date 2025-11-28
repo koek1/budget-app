@@ -4,6 +4,24 @@ import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/screens/home/home_screen.dart';
 
+// Custom page route with fade transition
+class FadePageRoute<T> extends PageRouteBuilder<T> {
+  final Widget page;
+
+  FadePageRoute({required this.page})
+      : super(
+          pageBuilder: (context, animation, secondaryAnimation) => page,
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+        );
+}
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -213,6 +231,7 @@ class _LoginScreenState extends State<LoginScreen>
     final accentBlue = const Color(0xFF3B82F6); // Blue
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -630,9 +649,8 @@ class _LoginScreenState extends State<LoginScreen>
                               onPressed: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const RegisterScreen(),
+                                  FadePageRoute(
+                                    page: const RegisterScreen(),
                                   ),
                                 );
                               },
@@ -654,6 +672,8 @@ class _LoginScreenState extends State<LoginScreen>
                       ],
                     ),
                   ),
+                  // Add bottom padding to prevent white bar
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 20),
                 ],
               ),
             ),
@@ -801,6 +821,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     final accentBlue = const Color(0xFF3B82F6); // Blue
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -1144,7 +1165,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                         ),
                       ),
                       TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
@@ -1160,6 +1183,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                       ),
                     ],
                   ),
+                  // Add bottom padding to prevent white bar
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 20),
                 ],
               ),
             ),

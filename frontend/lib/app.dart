@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'screens/auth/login_screen.dart';
@@ -131,39 +132,70 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _logoController;
+  late AnimationController _textController;
+  late Animation<double> _logoScale;
+  late Animation<double> _logoRotation;
+  late Animation<double> _textSlide;
+  late Animation<double> _textFade;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+
+    // Logo animation controller
+    _logoController = AnimationController(
+      duration: const Duration(milliseconds: 2500),
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    // Text animation controller
+    _textController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
-        parent: _controller,
+        parent: _logoController,
         curve: Curves.elasticOut,
       ),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _logoRotation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
-        parent: _controller,
+        parent: _logoController,
+        curve: Curves.easeOut,
+      ),
+    );
+
+    _textSlide = Tween<double>(begin: 50.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _textController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _textController,
         curve: Curves.easeIn,
       ),
     );
 
-    _controller.forward();
+    // Start animations
+    _logoController.forward();
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _textController.forward();
+    });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _logoController.dispose();
+    _textController.dispose();
     super.dispose();
   }
 
@@ -171,70 +203,100 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     final primaryTurquoise = const Color(0xFF14B8A6);
     final primaryBlue = const Color(0xFF0EA5E9);
+    final accentBlue = const Color(0xFF3B82F6);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              primaryTurquoise,
-              primaryBlue,
-              const Color(0xFF3B82F6),
+              primaryTurquoise.withOpacity(0.15),
+              primaryBlue.withOpacity(0.1),
+              accentBlue.withOpacity(0.08),
             ],
           ),
         ),
         child: Center(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              return Opacity(
-                opacity: _fadeAnimation.value,
-                child: Transform.scale(
-                  scale: _scaleAnimation.value,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Animated Logo
+              AnimatedBuilder(
+                animation: _logoController,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _logoScale.value,
+                    child: Transform.rotate(
+                      angle: (_logoRotation.value - 1.0) * 0.1,
+                      child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              primaryTurquoise.withOpacity(0.2),
+                              primaryBlue.withOpacity(0.15),
+                            ],
+                          ),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(0.3),
-                              blurRadius: 20,
-                              spreadRadius: 2,
+                              color: primaryTurquoise.withOpacity(0.3),
+                              blurRadius: 30,
+                              spreadRadius: 3,
                             ),
                           ],
                         ),
                         child: Image.asset(
                           'images/logo.png',
-                          width: 100,
-                          height: 100,
+                          width: 120,
+                          height: 120,
                         ),
                       ),
-                      const SizedBox(height: 30),
-                      Text(
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 40),
+              // Animated SpendSense Text
+              AnimatedBuilder(
+                animation: _textController,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(0, _textSlide.value),
+                    child: Opacity(
+                      opacity: _textFade.value,
+                      child: Text(
                         'SpendSense',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
+                        style: GoogleFonts.poppins(
+                          fontSize: 42,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                          color: primaryTurquoise,
+                          shadows: [
+                            Shadow(
+                              color: primaryTurquoise.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 40),
-                      CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        strokeWidth: 3,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 50),
+              // Loading indicator
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(primaryTurquoise),
+                strokeWidth: 3,
+              ),
+            ],
           ),
         ),
       ),
