@@ -25,9 +25,13 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   List<Transaction> _getTransactionsForDateRange() {
+    final startOfDay = DateTime(_selectedStartDate.year, _selectedStartDate.month, _selectedStartDate.day);
+    final endOfDay = DateTime(_selectedEndDate.year, _selectedEndDate.month, _selectedEndDate.day, 23, 59, 59);
+    
     return transactionsBox.values.where((transaction) {
-      return transaction.date.isAfter(_selectedStartDate.subtract(Duration(days: 1))) &&
-          transaction.date.isBefore(_selectedEndDate.add(Duration(days: 1)));
+      final transactionDate = DateTime(transaction.date.year, transaction.date.month, transaction.date.day);
+      final transactionStartOfDay = DateTime(transactionDate.year, transactionDate.month, transactionDate.day);
+      return !transactionStartOfDay.isBefore(startOfDay) && !transactionStartOfDay.isAfter(endOfDay);
     }).toList();
   }
 
@@ -94,6 +98,11 @@ class _StatsScreenState extends State<StatsScreen> {
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
+    if (incomeTransactions.isEmpty) {
+      return [FlSpot(0, 0), FlSpot(1, 0)];
+    }
+
+    // Group by day and calculate cumulative totals
     Map<String, double> dailyIncome = {};
     for (var transaction in incomeTransactions) {
       final dateKey = DateFormat('yyyy-MM-dd').format(transaction.date);
@@ -102,12 +111,16 @@ class _StatsScreenState extends State<StatsScreen> {
 
     final sortedDates = dailyIncome.keys.toList()..sort();
     List<FlSpot> spots = [];
+    double cumulativeTotal = 0;
+    
     for (int i = 0; i < sortedDates.length; i++) {
-      spots.add(FlSpot(i.toDouble(), dailyIncome[sortedDates[i]]!));
+      cumulativeTotal += dailyIncome[sortedDates[i]]!;
+      spots.add(FlSpot(i.toDouble(), cumulativeTotal));
     }
 
-    if (spots.isEmpty) {
-      spots.add(FlSpot(0, 0));
+    // Ensure at least 2 points for a line
+    if (spots.length == 1) {
+      spots.add(FlSpot(spots[0].x + 1, spots[0].y));
     }
 
     return spots;
@@ -120,6 +133,11 @@ class _StatsScreenState extends State<StatsScreen> {
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
+    if (expenseTransactions.isEmpty) {
+      return [FlSpot(0, 0), FlSpot(1, 0)];
+    }
+
+    // Group by day and calculate cumulative totals
     Map<String, double> dailyExpenses = {};
     for (var transaction in expenseTransactions) {
       final dateKey = DateFormat('yyyy-MM-dd').format(transaction.date);
@@ -128,12 +146,16 @@ class _StatsScreenState extends State<StatsScreen> {
 
     final sortedDates = dailyExpenses.keys.toList()..sort();
     List<FlSpot> spots = [];
+    double cumulativeTotal = 0;
+    
     for (int i = 0; i < sortedDates.length; i++) {
-      spots.add(FlSpot(i.toDouble(), dailyExpenses[sortedDates[i]]!));
+      cumulativeTotal += dailyExpenses[sortedDates[i]]!;
+      spots.add(FlSpot(i.toDouble(), cumulativeTotal));
     }
 
-    if (spots.isEmpty) {
-      spots.add(FlSpot(0, 0));
+    // Ensure at least 2 points for a line
+    if (spots.length == 1) {
+      spots.add(FlSpot(spots[0].x + 1, spots[0].y));
     }
 
     return spots;
@@ -414,17 +436,28 @@ class _StatsScreenState extends State<StatsScreen> {
                                   isCurved: true,
                                   color: Colors.green,
                                   barWidth: 3,
-                                  dotData: FlDotData(show: false),
+                                  isStrokeCapRound: true,
+                                  dotData: FlDotData(
+                                    show: incomeData.length <= 10,
+                                    getDotPainter: (spot, percent, barData, index) {
+                                      return FlDotCirclePainter(
+                                        radius: 4,
+                                        color: Colors.green,
+                                        strokeWidth: 2,
+                                        strokeColor: Colors.white,
+                                      );
+                                    },
+                                  ),
                                   belowBarData: BarAreaData(
                                     show: true,
-                                    color: Colors.green.withOpacity(0.1),
+                                    color: Colors.green.withOpacity(0.15),
                                   ),
                                 ),
                               ],
                               minY: 0,
-                              maxY: incomeData.isEmpty
+                              maxY: incomeData.isEmpty || incomeData.every((e) => e.y == 0)
                                   ? 1000
-                                  : incomeData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2,
+                                  : (incomeData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2).clamp(100, double.infinity),
                             ),
                           ),
                         ),
@@ -482,17 +515,28 @@ class _StatsScreenState extends State<StatsScreen> {
                                   isCurved: true,
                                   color: Colors.red,
                                   barWidth: 3,
-                                  dotData: FlDotData(show: false),
+                                  isStrokeCapRound: true,
+                                  dotData: FlDotData(
+                                    show: expensesData.length <= 10,
+                                    getDotPainter: (spot, percent, barData, index) {
+                                      return FlDotCirclePainter(
+                                        radius: 4,
+                                        color: Colors.red,
+                                        strokeWidth: 2,
+                                        strokeColor: Colors.white,
+                                      );
+                                    },
+                                  ),
                                   belowBarData: BarAreaData(
                                     show: true,
-                                    color: Colors.red.withOpacity(0.1),
+                                    color: Colors.red.withOpacity(0.15),
                                   ),
                                 ),
                               ],
                               minY: 0,
-                              maxY: expensesData.isEmpty
+                              maxY: expensesData.isEmpty || expensesData.every((e) => e.y == 0)
                                   ? 1000
-                                  : expensesData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2,
+                                  : (expensesData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2).clamp(100, double.infinity),
                             ),
                           ),
                         ),

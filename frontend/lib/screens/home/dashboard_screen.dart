@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/models/transaction.dart';
@@ -164,9 +166,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryTurquoise = const Color(0xFF14B8A6);
+    final primaryBlue = const Color(0xFF0EA5E9);
+    final accentBlue = const Color(0xFF3B82F6);
+    
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    Color(0xFF0F172A),
+                    Color(0xFF1E293B),
+                    Color(0xFF0F172A),
+                  ]
+                : [
+                    primaryTurquoise.withOpacity(0.15),
+                    primaryBlue.withOpacity(0.1),
+                    accentBlue.withOpacity(0.08),
+                  ],
+          ),
+        ),
+        child: SafeArea(
         child: ValueListenableBuilder<Box<Transaction>>(
           valueListenable: transactionsBox.listenable(),
           builder: (context, box, _) {
@@ -193,8 +218,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   centerTitle: true,
                   title: Text(
-                    'Panel',
-                    style: TextStyle(
+                    'Home',
+                    style: GoogleFonts.inter(
                       color: theme.textTheme.bodyLarge?.color ?? Colors.black,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -217,9 +242,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             CircleAvatar(
                               radius: 18,
                               backgroundColor:
-                                  Color(0xFF2563EB).withOpacity(0.1),
+                                  primaryTurquoise.withOpacity(0.1),
                               child: Icon(Icons.person,
-                                  color: Color(0xFF2563EB), size: 20),
+                                  color: primaryTurquoise, size: 20),
                             ),
                             Positioned(
                               right: 0,
@@ -228,7 +253,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 width: 10,
                                 height: 10,
                                 decoration: BoxDecoration(
-                                  color: Color(0xFF2563EB),
+                                  color: primaryTurquoise,
                                   shape: BoxShape.circle,
                                   border:
                                       Border.all(color: Colors.white, width: 2),
@@ -252,10 +277,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         // Greeting
                         Text(
                           'Hello ${currentUser?.name.split(' ').first ?? 'User'}',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                          style: GoogleFonts.poppins(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
+                            color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
                           ),
                         ),
                         SizedBox(height: 24),
@@ -263,21 +289,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         // Combined Saving Card with Graph
                         Container(
                           width: double.infinity,
-                          padding: EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Color(0xFF14B8A6), // Teal color
                             borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF14B8A6),
+                                Color(0xFF0D9488),
+                              ],
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Color(0xFF14B8A6).withOpacity(0.3),
-                                blurRadius: 15,
-                                offset: Offset(0, 5),
+                                color: Color(0xFF14B8A6).withOpacity(0.25),
+                                blurRadius: 20,
+                                offset: Offset(0, 8),
+                                spreadRadius: 0,
                               ),
                             ],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                              child: Container(
+                                padding: EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                               // Saving Label
                               Row(
                                 children: [
@@ -289,7 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   SizedBox(width: 8),
                                   Text(
                                     'Saving',
-                                    style: TextStyle(
+                                    style: GoogleFonts.inter(
                                       fontSize: 14,
                                       color: Colors.white.withOpacity(0.9),
                                       fontWeight: FontWeight.w500,
@@ -303,9 +346,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 Helpers.formatCurrency(
                                     savings > 0 ? savings : 0),
-                                style: TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5,
                                   color: Colors.white,
                                 ),
                               ),
@@ -335,7 +379,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Text(
                                       DateFormat('MMMM yyyy')
                                           .format(_selectedMonth),
-                                      style: TextStyle(
+                                      style: GoogleFonts.inter(
                                         color: Colors.white,
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
@@ -482,7 +526,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                             ],
+                              ),
+                            ),
                           ),
+                        ),
                         ),
                         SizedBox(height: 24),
 
@@ -491,43 +538,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Expanded(
                               child: Container(
-                                padding: EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: theme.cardColor,
                                   borderRadius: BorderRadius.circular(16),
+                                  color: theme.brightness == Brightness.dark
+                                      ? theme.cardColor
+                                      : Colors.white,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 2),
+                                      color: Colors.black.withOpacity(0.06),
+                                      blurRadius: 12,
+                                      offset: Offset(0, 4),
+                                      spreadRadius: 0,
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: theme.dividerColor.withOpacity(0.1),
+                                    width: 1,
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Total balance',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: theme.textTheme.bodyMedium?.color
-                                                ?.withOpacity(0.7) ??
-                                            Colors.grey[600],
-                                        fontWeight: FontWeight.w500,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                    child: Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: theme.brightness == Brightness.dark
+                                            ? theme.cardColor.withOpacity(0.7)
+                                            : Colors.white.withOpacity(0.7),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Total balance',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              color: theme.textTheme.bodyMedium?.color
+                                                      ?.withOpacity(0.7) ??
+                                                  Colors.grey[600],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          SizedBox(height: 8),
+                                          Text(
+                                            Helpers.formatCurrency(monthlyBalance),
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 26,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.5,
+                                              color:
+                                                  theme.textTheme.bodyLarge?.color ??
+                                                      Colors.black87,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      Helpers.formatCurrency(monthlyBalance),
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color:
-                                            theme.textTheme.bodyLarge?.color ??
-                                                Colors.black87,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -540,92 +609,128 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Expanded(
                               child: Container(
-                                padding: EdgeInsets.all(20),
                                 decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
                                   color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 2),
+                                      color: Colors.green.withOpacity(0.15),
+                                      blurRadius: 20,
+                                      offset: Offset(0, 10),
+                                      spreadRadius: 0,
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: Colors.green.withOpacity(0.2),
+                                    width: 1,
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.arrow_upward,
-                                            color: Colors.green, size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Income',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                    child: Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.arrow_upward,
+                                                  color: Colors.green, size: 20),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Income',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  color: Colors.grey[600],
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      Helpers.formatCurrency(monthlyIncome),
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green[700],
+                                          SizedBox(height: 8),
+                                          Text(
+                                            Helpers.formatCurrency(monthlyIncome),
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.5,
+                                              color: Colors.green[700],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
                             SizedBox(width: 16),
                             Expanded(
                               child: Container(
-                                padding: EdgeInsets.all(20),
                                 decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
                                   color: Colors.red.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 2),
+                                      color: Colors.red.withOpacity(0.15),
+                                      blurRadius: 20,
+                                      offset: Offset(0, 10),
+                                      spreadRadius: 0,
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: Colors.red.withOpacity(0.2),
+                                    width: 1,
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.arrow_downward,
-                                            color: Colors.red, size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Expenses',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                    child: Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.arrow_downward,
+                                                  color: Colors.red, size: 20),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Expenses',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  color: Colors.grey[600],
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      Helpers.formatCurrency(monthlyExpenses),
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.red[700],
+                                          SizedBox(height: 8),
+                                          Text(
+                                            Helpers.formatCurrency(monthlyExpenses),
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.5,
+                                              color: Colors.red[700],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -636,9 +741,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         // Monthly Transactions Section
                         Text(
                           'Recent Transactions',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
                             color: theme.textTheme.bodyLarge?.color ??
                                 Colors.black87,
                           ),
@@ -653,6 +759,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             );
           },
         ),
+        ),
       ),
     );
   }
@@ -665,8 +772,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return Container(
         padding: EdgeInsets.all(40),
         decoration: BoxDecoration(
-          color: theme.cardColor,
+          color: theme.brightness == Brightness.dark
+              ? theme.cardColor
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.dividerColor.withOpacity(0.1),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -674,7 +794,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(height: 16),
             Text(
               'No transactions for ${DateFormat('MMMM yyyy').format(_selectedMonth)}',
-              style: TextStyle(
+              style: GoogleFonts.inter(
                 fontSize: 16,
                 color: Colors.grey[600],
                 fontWeight: FontWeight.w500,
@@ -692,7 +812,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               },
               icon: Icon(Icons.add),
-              label: Text('Add Transaction'),
+              label: Text(
+                'Add Transaction',
+                style: GoogleFonts.inter(),
+              ),
             ),
           ],
         ),
@@ -787,18 +910,36 @@ class _HomeTransactionCard extends StatelessWidget {
 
     return Container(
       margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: theme.brightness == Brightness.dark
+            ? theme.cardColor
+            : Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+          child: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.brightness == Brightness.dark
+                  ? theme.cardColor.withOpacity(0.6)
+                  : Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
       child: Row(
         children: [
           Container(
@@ -825,7 +966,7 @@ class _HomeTransactionCard extends StatelessWidget {
                   transaction.description.isNotEmpty
                       ? transaction.description
                       : transaction.category,
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
@@ -834,7 +975,7 @@ class _HomeTransactionCard extends StatelessWidget {
                 SizedBox(height: 4),
                 Text(
                   DateFormat('d MMMM').format(transaction.date),
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 12,
                     color:
                         theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ??
@@ -846,13 +987,16 @@ class _HomeTransactionCard extends StatelessWidget {
           ),
           Text(
             '${isIncome ? '+' : '-'}${Helpers.formatCurrency(transaction.amount)}',
-            style: TextStyle(
+            style: GoogleFonts.poppins(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: isIncome ? Colors.green : Colors.red,
             ),
           ),
         ],
+            ),
+          ),
+        ),
       ),
     );
   }

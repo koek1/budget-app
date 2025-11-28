@@ -3,8 +3,8 @@ import 'package:budget_app/services/settings_service.dart';
 
 class Helpers {
     static String formatCurrency(double amount) {
-        // Get currency from settings
-        final currency = SettingsService.getCurrency();
+        // Get currency symbol from settings
+        final currencySymbol = SettingsService.getCurrencySymbol();
         
         // Format like "$ 7 380,16" - currency symbol, spaces for thousands, comma for decimal
         final absAmount = amount.abs();
@@ -23,7 +23,7 @@ class Helpers {
           count++;
         }
         
-        return '$currency $formattedInteger,${decimalPart.toString().padLeft(2, '0')}';
+        return '$currencySymbol $formattedInteger,${decimalPart.toString().padLeft(2, '0')}';
     }
 
     static String FormatDate(DateTime date) {

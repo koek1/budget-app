@@ -11,12 +11,10 @@ class SettingsService {
 
   // Available currencies
   static const List<Map<String, String>> availableCurrencies = [
-    {'code': 'R', 'symbol': 'R', 'name': 'Rand (ZAR)'},
-    {'code': '\$', 'symbol': '\$', 'name': 'Dollar (USD)'},
+    {'code': 'R', 'symbol': 'R', 'name': 'South African Rand (ZAR)'},
+    {'code': '\$', 'symbol': '\$', 'name': 'US Dollar (USD)'},
+    {'code': '£', 'symbol': '£', 'name': 'British Pound (GBP)'},
     {'code': '€', 'symbol': '€', 'name': 'Euro (EUR)'},
-    {'code': '£', 'symbol': '£', 'name': 'Pound (GBP)'},
-    {'code': '¥', 'symbol': '¥', 'name': 'Yen (JPY)'},
-    {'code': '₹', 'symbol': '₹', 'name': 'Rupee (INR)'},
   ];
 
   // Initialize settings box (called from main.dart after box is opened)
@@ -66,6 +64,16 @@ class SettingsService {
   // Check if dark mode is enabled
   static bool isDarkMode() {
     return getThemeMode() == 'dark';
+  }
+
+  // Get currency symbol
+  static String getCurrencySymbol() {
+    final currencyCode = getCurrency();
+    final currency = availableCurrencies.firstWhere(
+      (c) => c['code'] == currencyCode,
+      orElse: () => availableCurrencies[0],
+    );
+    return currency['symbol']!;
   }
 }
 
