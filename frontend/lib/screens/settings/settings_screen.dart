@@ -5,6 +5,9 @@ import 'package:local_auth/local_auth.dart';
 import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/services/auth_service.dart';
+import 'package:budget_app/services/local_storage_service.dart';
+import 'package:budget_app/screens/auth/login_screen.dart';
+import 'package:budget_app/utils/helpers.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -144,9 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _selectedCurrency = result;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Currency updated to ${result}')),
-        );
+        Helpers.showSuccessSnackBar(context, 'Currency updated to ${result}');
       }
     }
   }
@@ -157,11 +158,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _themeMode = newMode;
     });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Theme changed to ${newMode} mode')),
-      );
-    }
+      if (mounted) {
+        Helpers.showSuccessSnackBar(context, 'Theme changed to ${newMode} mode');
+      }
   }
 
   Future<void> _toggleBiometric(bool value) async {
@@ -196,16 +195,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _biometricEnabled = true;
             });
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Biometric login enabled')),
-              );
+              Helpers.showSuccessSnackBar(context, 'Biometric login enabled');
             }
           } else {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Unable to enable biometric login. Please login again.'),
-                ),
+              Helpers.showErrorSnackBar(
+                context,
+                'Unable to enable biometric login. Please login again.',
               );
               setState(() {
                 _biometricEnabled = false;
@@ -214,10 +210,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Unable to enable biometric login. Please login again.'),
-              ),
+            Helpers.showErrorSnackBar(
+              context,
+              'Unable to enable biometric login. Please login again.',
             );
             setState(() {
               _biometricEnabled = false;
@@ -226,10 +221,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please login first to enable biometric login'),
-            ),
+          Helpers.showErrorSnackBar(
+            context,
+            'Please login first to enable biometric login',
           );
           setState(() {
             _biometricEnabled = false;
@@ -244,9 +238,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _fingerprintOnly = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Biometric login disabled')),
-        );
+        Helpers.showInfoSnackBar(context, 'Biometric login disabled');
+      }
+    }
+  }
+
+  Future<void> _showResetDataDialog() async {
+    final theme = Theme.of(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: Text(
+          'Reset App Data',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'This will delete all users, transactions, and sessions. This action cannot be undone.\n\nYour settings (currency, theme) will be preserved.',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Reset',
+              style: GoogleFonts.inter(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      try {
+        // Logout first
+        await AuthService.logout();
+        
+        // Clear all data
+        await LocalStorageService.clearAllData();
+        
+        // Disable biometric
+        await BiometricService.disableBiometric();
+        
+        if (mounted) {
+          Helpers.showSuccessSnackBar(context, 'App data reset successfully');
+          
+          // Navigate to login screen
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          String errorMessage = e.toString();
+          if (errorMessage.startsWith('Exception: ')) {
+            errorMessage = errorMessage.substring(11);
+          }
+          Helpers.showErrorSnackBar(context, 'Error resetting data: $errorMessage');
+        }
       }
     }
   }
@@ -254,9 +321,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _toggleFingerprintOnly(bool value) async {
     if (!_biometricEnabled) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enable biometric login first')),
-        );
+        Helpers.showInfoSnackBar(context, 'Please enable biometric login first');
       }
       return;
     }
@@ -266,10 +331,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final availableBiometrics = await BiometricService.getAvailableBiometrics();
       if (!availableBiometrics.contains(BiometricType.fingerprint)) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Fingerprint is not available on this device'),
-            ),
+          Helpers.showErrorSnackBar(
+            context,
+            'Fingerprint is not available on this device',
           );
         }
         return;
@@ -282,12 +346,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
     
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(value 
-            ? 'Fingerprint-only mode enabled' 
-            : 'All biometric types enabled'),
-        ),
+      Helpers.showSuccessSnackBar(
+        context,
+        value 
+          ? 'Fingerprint-only mode enabled' 
+          : 'All biometric types enabled',
       );
     }
   }
@@ -638,11 +701,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         _buildSettingsCard(
-                          child: _buildSettingsItem(
-                            icon: Icons.info_rounded,
-                            title: 'App Version',
-                            subtitle: '1.0.0',
-                            iconColor: Colors.grey,
+                          child: Column(
+                            children: [
+                              _buildSettingsItem(
+                                icon: Icons.info_rounded,
+                                title: 'App Version',
+                                subtitle: '1.0.0',
+                                iconColor: Colors.grey,
+                              ),
+                              Divider(height: 32),
+                              _buildSettingsItem(
+                                icon: Icons.refresh_rounded,
+                                title: 'Reset App Data',
+                                subtitle: 'Clear all users, transactions, and sessions',
+                                iconColor: Colors.orange,
+                                onTap: _showResetDataDialog,
+                              ),
+                            ],
                           ),
                         ),
                       ],

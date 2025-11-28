@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/screens/home/home_screen.dart';
+import 'package:budget_app/utils/helpers.dart';
 
 // Custom page route with fade transition
 class FadePageRoute<T> extends PageRouteBuilder<T> {
@@ -150,8 +151,20 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = e.toString();
+        // Remove "Exception: " prefix if present
+        if (errorMessage.startsWith('Exception: ')) {
+          errorMessage = errorMessage.substring(11);
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(
+            content: Text(
+              errorMessage,
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
         );
       }
     } finally {
@@ -172,15 +185,15 @@ class _LoginScreenState extends State<LoginScreen>
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Biometric authentication failed')),
-        );
+        Helpers.showErrorSnackBar(context, 'Biometric authentication failed');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+        String errorMessage = e.toString();
+        if (errorMessage.startsWith('Exception: ')) {
+          errorMessage = errorMessage.substring(11);
+        }
+        Helpers.showErrorSnackBar(context, errorMessage);
       }
     } finally {
       if (mounted) {
@@ -231,8 +244,9 @@ class _LoginScreenState extends State<LoginScreen>
     final accentBlue = const Color(0xFF3B82F6); // Blue
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -781,27 +795,20 @@ class _RegisterScreenState extends State<RegisterScreen>
 
       // Show success message and navigate back to login
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Account created successfully! Please login.',
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: const Color(0xFF14B8A6),
-          ),
+        Helpers.showSuccessSnackBar(
+          context,
+          'Account created successfully! Please login.',
         );
         Navigator.pop(context); // Go back to login screen
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.toString(),
-              style: GoogleFonts.inter(),
-            ),
-          ),
-        );
+        String errorMessage = e.toString();
+        // Remove "Exception: " prefix if present
+        if (errorMessage.startsWith('Exception: ')) {
+          errorMessage = errorMessage.substring(11);
+        }
+        Helpers.showErrorSnackBar(context, errorMessage);
       }
     } finally {
       if (mounted) {
@@ -821,7 +828,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     final accentBlue = const Color(0xFF3B82F6); // Blue
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -838,6 +845,8 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
