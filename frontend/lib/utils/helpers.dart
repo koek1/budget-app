@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:budget_app/services/settings_service.dart';
 
@@ -32,5 +34,146 @@ class Helpers {
 
     static String formatDateForAPI(DateTime date) {
         return DateFormat('yyyy-MM-dd').format(date);
+    }
+
+    // Show modern error SnackBar
+    static void showErrorSnackBar(BuildContext context, String message) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Container(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                        children: [
+                            Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                    Icons.error_outline_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                                child: Text(
+                                    message,
+                                    style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white,
+                                    ),
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+                backgroundColor: Colors.red[600],
+                behavior: SnackBarBehavior.floating,
+                margin: EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 6,
+                duration: Duration(seconds: 4),
+            ),
+        );
+    }
+
+    // Show modern success SnackBar
+    static void showSuccessSnackBar(BuildContext context, String message) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Container(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                        children: [
+                            Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                    Icons.check_circle_outline_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                                child: Text(
+                                    message,
+                                    style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white,
+                                    ),
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+                backgroundColor: Color(0xFF14B8A6),
+                behavior: SnackBarBehavior.floating,
+                margin: EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 6,
+                duration: Duration(seconds: 3),
+            ),
+        );
+    }
+
+    // Show modern info SnackBar
+    static void showInfoSnackBar(BuildContext context, String message) {
+        final theme = Theme.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Container(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                        children: [
+                            Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                    Icons.info_outline_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                                child: Text(
+                                    message,
+                                    style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white,
+                                    ),
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+                backgroundColor: theme.brightness == Brightness.dark
+                    ? Color(0xFF1E293B)
+                    : Color(0xFF3B82F6),
+                behavior: SnackBarBehavior.floating,
+                margin: EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 6,
+                duration: Duration(seconds: 3),
+            ),
+        );
     }
 }

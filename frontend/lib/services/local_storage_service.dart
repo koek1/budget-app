@@ -78,5 +78,19 @@ class LocalStorageService {
     final box = Hive.box('userBox');
     return box.get('userId') != null;
   }
+
+  // Clear all app data (for troubleshooting/reset)
+  static Future<void> clearAllData() async {
+    // Clear user session
+    await Hive.box('userBox').clear();
+    
+    // Clear all users
+    await Hive.box('usersBox').clear();
+    
+    // Clear all transactions
+    await Hive.box<Transaction>('transactionsBox').clear();
+    
+    // Note: We don't clear settingsBox to preserve user preferences
+  }
 }
 

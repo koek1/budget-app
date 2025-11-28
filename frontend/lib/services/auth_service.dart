@@ -6,16 +6,34 @@ import 'package:uuid/uuid.dart';
 class AuthService {
     // Register user locally
     static Future<User> register(String username, String password) async {
+        // Validate input
+        if (username.trim().isEmpty) {
+            throw Exception('Username cannot be empty');
+        }
+        if (password.isEmpty) {
+            throw Exception('Password cannot be empty');
+        }
+        if (password.length < 4) {
+            throw Exception('Password must be at least 4 characters');
+        }
+        
         // Check if user already exists
         final usersBox = Hive.box('usersBox');
         
         // Get all users to check for duplicate username
         final existingUsers = usersBox.values.toList();
-        final userExists = existingUsers.any((u) => 
-            (u as Map)['name']?.toString().toLowerCase() == username.toLowerCase());
+        final userExists = existingUsers.any((u) {
+            try {
+                final userMap = u as Map;
+                return userMap['name']?.toString().toLowerCase() == username.trim().toLowerCase();
+            } catch (e) {
+                // If data is corrupted, skip it
+                return false;
+            }
+        });
         
         if (userExists) {
-            throw Exception('Username already exists');
+            throw Exception('Username already exists. Please choose a different username or reset the app data.');
         }
 
         // Create new user (using username as name, and empty email)
@@ -39,31 +57,52 @@ class AuthService {
 
     // Login user locally
     static Future<User?> login(String username, String password) async {
+        // Validate input
+        if (username.trim().isEmpty) {
+            throw Exception('Please enter your username');
+        }
+        if (password.isEmpty) {
+            throw Exception('Please enter your password');
+        }
+        
         final usersBox = Hive.box('usersBox');
         final users = usersBox.values.toList();
         
         // Find user by username (name field) - safer retrieval using where
         final matchingUsers = users.where((u) {
-            final userMap = u as Map;
-            return userMap['name']?.toString().toLowerCase() == username.toLowerCase();
+            try {
+                final userMap = u as Map;
+                return userMap['name']?.toString().toLowerCase() == username.trim().toLowerCase();
+            } catch (e) {
+                // If data is corrupted, skip it
+                return false;
+            }
         }).toList();
 
         if (matchingUsers.isEmpty) {
-            throw Exception('Invalid username or password');
+            throw Exception('Username not found. Please check your username or register a new account.');
         }
 
-        final userData = matchingUsers.first as Map;
-        final userMap = Map<String, dynamic>.from(userData);
-        
-        // In a real app, verify password hash here
-        // For now, simple comparison
-        final storedPassword = userMap['password']?.toString();
-        if (storedPassword == null || storedPassword != password) {
-            throw Exception('Invalid username or password');
-        }
+        User? user;
+        try {
+            final userData = matchingUsers.first as Map;
+            final userMap = Map<String, dynamic>.from(userData);
+            
+            // In a real app, verify password hash here
+            // For now, simple comparison
+            final storedPassword = userMap['password']?.toString();
+            if (storedPassword == null || storedPassword != password) {
+                throw Exception('Incorrect password. Please try again.');
+            }
 
-        final user = User.fromJson(userMap);
-        await LocalStorageService.saveUser(user);
+            user = User.fromJson(userMap);
+            await LocalStorageService.saveUser(user);
+        } catch (e) {
+            if (e.toString().contains('Incorrect password')) {
+                rethrow;
+            }
+            throw Exception('Error reading user data. Please try resetting the app data from Settings.');
+        }
 
         return user;
     }
