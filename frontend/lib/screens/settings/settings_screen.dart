@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/services/auth_service.dart';
@@ -18,7 +17,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _biometricEnabled = false;
-  bool _fingerprintOnly = false;
   bool _biometricAvailable = false;
   bool _isLoading = true;
   String _selectedCurrency = SettingsService.defaultCurrency;
@@ -33,12 +31,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final enabled = await BiometricService.isBiometricEnabled();
     final available = await BiometricService.isAvailable();
-    final fingerprintOnly = await BiometricService.isFingerprintOnly();
     
     setState(() {
       _biometricEnabled = enabled;
       _biometricAvailable = available;
-      _fingerprintOnly = fingerprintOnly;
       _selectedCurrency = SettingsService.getCurrency();
       _themeMode = SettingsService.getThemeMode();
       _isLoading = false;
@@ -195,7 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _biometricEnabled = true;
             });
             if (mounted) {
-              Helpers.showSuccessSnackBar(context, 'Biometric login enabled');
+              Helpers.showSuccessSnackBar(context, 'Fingerprint login enabled');
             }
           } else {
             if (mounted) {
@@ -235,10 +231,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await BiometricService.disableBiometric();
       setState(() {
         _biometricEnabled = false;
-        _fingerprintOnly = false;
       });
       if (mounted) {
-        Helpers.showInfoSnackBar(context, 'Biometric login disabled');
+        Helpers.showInfoSnackBar(context, 'Fingerprint login disabled');
       }
     }
   }
@@ -318,42 +313,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _toggleFingerprintOnly(bool value) async {
-    if (!_biometricEnabled) {
-      if (mounted) {
-        Helpers.showInfoSnackBar(context, 'Please enable biometric login first');
-      }
-      return;
-    }
-
-    if (value) {
-      // Check if fingerprint is available
-      final availableBiometrics = await BiometricService.getAvailableBiometrics();
-      if (!availableBiometrics.contains(BiometricType.fingerprint)) {
-        if (mounted) {
-          Helpers.showErrorSnackBar(
-            context,
-            'Fingerprint is not available on this device',
-          );
-        }
-        return;
-      }
-    }
-
-    await BiometricService.setFingerprintOnly(value);
-    setState(() {
-      _fingerprintOnly = value;
-    });
-    
-    if (mounted) {
-      Helpers.showSuccessSnackBar(
-        context,
-        value 
-          ? 'Fingerprint-only mode enabled' 
-          : 'All biometric types enabled',
-      );
-    }
-  }
 
   Widget _buildSettingsCard({
     required Widget child,
@@ -583,8 +542,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: !_biometricAvailable
                               ? _buildSettingsItem(
                                   icon: Icons.info_outline_rounded,
-                                  title: 'Biometric Authentication',
-                                  subtitle: 'Not available on this device',
+                                  title: 'Fingerprint Authentication',
+                                  subtitle: 'Fingerprint not available on this device',
                                   iconColor: Colors.grey,
                                 )
                               : Column(
@@ -610,7 +569,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                'Biometric Login',
+                                                'Fingerprint Login',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w600,
@@ -619,7 +578,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               ),
                                               SizedBox(height: 4),
                                               Text(
-                                                'Use fingerprint or Face ID to login',
+                                                'Use fingerprint to login',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 14,
                                                   color: theme.textTheme.bodyMedium?.color,
@@ -635,55 +594,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         ),
                                       ],
                                     ),
-                                    if (_biometricEnabled) ...[
-                                      Divider(height: 32),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            width: 48,
-                                            height: 48,
-                                            decoration: BoxDecoration(
-                                              color: Color(0xFF14B8A6).withOpacity(0.15),
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: Icon(
-                                              Icons.touch_app_rounded,
-                                              color: Color(0xFF14B8A6),
-                                              size: 24,
-                                            ),
-                                          ),
-                                          SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  'Fingerprint Only',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: theme.textTheme.bodyLarge?.color,
-                                                  ),
-                                                ),
-                                                SizedBox(height: 4),
-                                                Text(
-                                                  'Restrict to fingerprint authentication only',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 14,
-                                                    color: theme.textTheme.bodyMedium?.color,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Switch(
-                                            value: _fingerprintOnly,
-                                            onChanged: _toggleFingerprintOnly,
-                                            activeColor: Color(0xFF14B8A6),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
                                   ],
                                 ),
                         ),
