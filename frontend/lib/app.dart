@@ -41,9 +41,10 @@ class _MyAppState extends State<MyApp> {
   }
 
   ThemeData _buildLightTheme() {
+    final primaryTurquoise = const Color(0xFF14B8A6); // Turquoise
     return ThemeData(
       primarySwatch: Colors.blue,
-      primaryColor: Color(0xFF2563EB),
+      primaryColor: primaryTurquoise,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       useMaterial3: true,
       scaffoldBackgroundColor: Colors.white,
@@ -63,14 +64,15 @@ class _MyAppState extends State<MyApp> {
   }
 
   ThemeData _buildDarkTheme() {
-    final darkGrey = Color(0xFF1E1E1E);
+    final darkGrey = Color(0xFF1E293B);
+    final primaryTurquoise = const Color(0xFF14B8A6); // Turquoise
     return ThemeData(
       primarySwatch: Colors.blue,
-      primaryColor: Color(0xFF2563EB),
+      primaryColor: primaryTurquoise,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: Color(0xFF121212),
+      scaffoldBackgroundColor: Color(0xFF0F172A),
       appBarTheme: AppBarTheme(
         backgroundColor: darkGrey,
         elevation: 0,
@@ -85,7 +87,7 @@ class _MyAppState extends State<MyApp> {
       dividerColor: Colors.grey[700],
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: darkGrey,
-        selectedItemColor: Color(0xFF2563EB),
+        selectedItemColor: primaryTurquoise,
         unselectedItemColor: Colors.grey[400],
         elevation: 0,
       ),
@@ -98,6 +100,7 @@ class _MyAppState extends State<MyApp> {
 
     return MaterialApp(
       title: 'SpendSense',
+      debugShowCheckedModeBanner: false,
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
@@ -121,34 +124,118 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.elasticOut,
+      ),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeIn,
+      ),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final primaryTurquoise = const Color(0xFF14B8A6);
+    final primaryBlue = const Color(0xFF0EA5E9);
+
     return Scaffold(
-      backgroundColor: Colors.blue,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.account_balance_wallet,
-              size: 80,
-              color: Colors.white,
-            ),
-            SizedBox(height: 20),
-            Text(
-              'SpendSense',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 20),
-            CircularProgressIndicator(color: Colors.white),
-          ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              primaryTurquoise,
+              primaryBlue,
+              const Color(0xFF3B82F6),
+            ],
+          ),
+        ),
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              return Opacity(
+                opacity: _fadeAnimation.value,
+                child: Transform.scale(
+                  scale: _scaleAnimation.value,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.3),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'images/logo.png',
+                          width: 100,
+                          height: 100,
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      Text(
+                        'SpendSense',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        strokeWidth: 3,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

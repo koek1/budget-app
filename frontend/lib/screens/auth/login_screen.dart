@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/screens/home/home_screen.dart';
@@ -10,7 +11,8 @@ class LoginScreen extends StatefulWidget {
   _LoginScreenState createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -18,16 +20,82 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _biometricAvailable = false;
   bool _biometricEnabled = false;
 
+  late AnimationController _logoController;
+  late AnimationController _textController;
+  late AnimationController _fadeController;
+  late Animation<double> _logoScale;
+  late Animation<double> _logoRotation;
+  late Animation<double> _textSlide;
+  late Animation<double> _fadeAnimation;
+
   @override
   void initState() {
     super.initState();
     _checkBiometricAvailability();
+
+    // Logo animation controller
+    _logoController = AnimationController(
+      duration: const Duration(milliseconds: 2500),
+      vsync: this,
+    );
+
+    // Text animation controller
+    _textController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    // Fade animation controller
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: Curves.elasticOut,
+      ),
+    );
+
+    _logoRotation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: Curves.easeOut,
+      ),
+    );
+
+    _textSlide = Tween<double>(begin: 50.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _textController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _fadeController,
+        curve: Curves.easeIn,
+      ),
+    );
+
+    // Start animations
+    _logoController.forward();
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _textController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      _fadeController.forward();
+    });
   }
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _logoController.dispose();
+    _textController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -50,12 +118,12 @@ class _LoginScreenState extends State<LoginScreen> {
         _usernameController.text.trim(),
         _passwordController.text,
       );
-      
+
       // Ask user if they want to enable biometric login
       if (_biometricAvailable && !_biometricEnabled && user != null) {
         _showBiometricEnableDialog();
       }
-      
+
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -77,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _loginWithBiometric() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final user = await BiometricService.loginWithBiometric();
       if (user != null && mounted) {
@@ -138,7 +206,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
+    // Turquoise/Blue color scheme
+    final primaryTurquoise = const Color(0xFF14B8A6); // Turquoise
+    final primaryBlue = const Color(0xFF0EA5E9); // Sky Blue
+    final accentBlue = const Color(0xFF3B82F6); // Blue
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -147,280 +220,439 @@ class _LoginScreenState extends State<LoginScreen> {
             end: Alignment.bottomRight,
             colors: isDark
                 ? [
-                    Color(0xFF121212),
-                    Color(0xFF1E1E1E),
-                    Color(0xFF121212),
+                    Color(0xFF0F172A), // Dark blue-gray
+                    Color(0xFF1E293B), // Darker blue-gray
+                    Color(0xFF0F172A),
                   ]
                 : [
-                    Color(0xFF2563EB).withOpacity(0.05),
-                    Colors.white,
-                    Color(0xFF14B8A6).withOpacity(0.05),
+                    primaryTurquoise.withOpacity(0.15),
+                    primaryBlue.withOpacity(0.1),
+                    accentBlue.withOpacity(0.08),
                   ],
           ),
         ),
         child: SafeArea(
+          bottom: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 40),
-                  // Logo and Welcome Section
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: theme.primaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.account_balance_wallet,
-                      size: 64,
-                      color: theme.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'Welcome Back',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textTheme.bodyLarge?.color,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign in to continue to SpendSense',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.textTheme.bodySmall?.color,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 48),
-                  
-                  // Biometric login button (if available and enabled)
-                  if (_biometricAvailable && _biometricEnabled) ...[
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.primaryColor.withOpacity(0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _loginWithBiometric,
-                        icon: Icon(Icons.fingerprint, size: 24),
-                        label: const Text(
-                          'Login with Biometric',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Divider(
-                            color: theme.dividerColor,
-                            thickness: 1,
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'OR',
-                            style: TextStyle(
-                              color: theme.textTheme.bodySmall?.color,
-                              fontWeight: FontWeight.w500,
+                  const SizedBox(height: 20),
+                  // Animated Logo and Brand Section
+                  AnimatedBuilder(
+                    animation: _logoController,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _logoScale.value,
+                        child: Transform.rotate(
+                          angle: (_logoRotation.value - 1.0) * 0.1,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  primaryTurquoise.withOpacity(0.2),
+                                  primaryBlue.withOpacity(0.15),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryTurquoise.withOpacity(0.3),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'images/logo.png',
+                              width: 80,
+                              height: 80,
                             ),
                           ),
                         ),
-                        Expanded(
-                          child: Divider(
-                            color: theme.dividerColor,
-                            thickness: 1,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  // Animated SpendSense Text
+                  AnimatedBuilder(
+                    animation: _textController,
+                    builder: (context, child) {
+                      return Transform.translate(
+                        offset: Offset(0, _textSlide.value),
+                        child: Opacity(
+                          opacity: _textController.value,
+                          child: Column(
+                            children: [
+                              Text(
+                                'SpendSense',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 42,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5,
+                                  foreground: Paint()
+                                    ..shader = LinearGradient(
+                                      colors: [
+                                        primaryTurquoise,
+                                        primaryBlue,
+                                        accentBlue
+                                      ],
+                                    ).createShader(
+                                      const Rect.fromLTWH(0, 0, 200, 70),
+                                    ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Welcome Back',
+                                style: GoogleFonts.inter(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? Colors.grey[300]
+                                      : Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Sign in to continue',
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  color: isDark
+                                      ? Colors.grey[400]
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  
-                  // Login Form Card
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: theme.cardColor,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 48),
+
+                  // Fade in form elements
+                  FadeTransition(
+                    opacity: _fadeAnimation,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        TextFormField(
-                          controller: _usernameController,
-                          style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                          decoration: InputDecoration(
-                            labelText: 'Username',
-                            labelStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
-                            prefixIcon: Icon(Icons.person_outline, color: theme.primaryColor),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
+                        // Biometric login button (if available and enabled)
+                        if (_biometricAvailable && _biometricEnabled) ...[
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: LinearGradient(
+                                colors: [primaryTurquoise, primaryBlue],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryTurquoise.withOpacity(0.4),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  _isLoading ? null : _loginWithBiometric,
+                              icon: const Icon(Icons.fingerprint, size: 24),
+                              label: Text(
+                                'Login with Biometric',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                shadowColor: Colors.transparent,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.primaryColor, width: 2),
-                            ),
-                            filled: true,
-                            fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your username';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            labelStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
-                            prefixIcon: Icon(Icons.lock_outline, color: theme.primaryColor),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.primaryColor, width: 2),
-                            ),
-                            filled: true,
-                            fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Divider(
+                                  color: isDark
+                                      ? Colors.grey[700]
+                                      : Colors.grey[300],
+                                  thickness: 1,
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  'OR',
+                                  style: GoogleFonts.inter(
+                                    color: isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Divider(
+                                  color: isDark
+                                      ? Colors.grey[700]
+                                      : Colors.grey[300],
+                                  thickness: 1,
+                                ),
+                              ),
+                            ],
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
-                            }
-                            if (value.length < 6) {
-                              return 'Password must be at least 6 characters';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 32),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Login Form Card
                         Container(
+                          padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
+                            color: isDark ? Color(0xFF1E293B) : Colors.white,
+                            borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
-                                color: theme.primaryColor.withOpacity(0.3),
+                                color: isDark
+                                    ? Colors.black.withOpacity(0.3)
+                                    : primaryTurquoise.withOpacity(0.1),
                                 blurRadius: 20,
                                 offset: const Offset(0, 10),
                               ),
                             ],
                           ),
-                          child: _isLoading
-                              ? Container(
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: theme.primaryColor,
-                                    borderRadius: BorderRadius.circular(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextFormField(
+                                controller: _usernameController,
+                                style: TextStyle(
+                                  color: theme.textTheme.bodyLarge?.color,
+                                  fontFamily: GoogleFonts.inter().fontFamily,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Username',
+                                  labelStyle: TextStyle(
+                                    color: isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600],
+                                    fontFamily: GoogleFonts.inter().fontFamily,
                                   ),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  prefixIcon: Icon(Icons.person_outline,
+                                      color: primaryTurquoise),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: isDark
+                                          ? Colors.grey[700]!
+                                          : Colors.grey[300]!,
                                     ),
                                   ),
-                                )
-                              : ElevatedButton(
-                                  onPressed: _login,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: theme.primaryColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 18),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: isDark
+                                          ? Colors.grey[700]!
+                                          : Colors.grey[300]!,
                                     ),
-                                    elevation: 0,
                                   ),
-                                  child: const Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2,
-                                    ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                        color: primaryTurquoise, width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: isDark
+                                      ? Color(0xFF0F172A)
+                                      : Colors.grey[50],
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
                                   ),
                                 ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your username';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 20),
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: true,
+                                style: TextStyle(
+                                  color: theme.textTheme.bodyLarge?.color,
+                                  fontFamily: GoogleFonts.inter().fontFamily,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Password',
+                                  labelStyle: TextStyle(
+                                    color: isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600],
+                                    fontFamily: GoogleFonts.inter().fontFamily,
+                                  ),
+                                  prefixIcon: Icon(Icons.lock_outline,
+                                      color: primaryTurquoise),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: isDark
+                                          ? Colors.grey[700]!
+                                          : Colors.grey[300]!,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: isDark
+                                          ? Colors.grey[700]!
+                                          : Colors.grey[300]!,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                        color: primaryTurquoise, width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: isDark
+                                      ? Color(0xFF0F172A)
+                                      : Colors.grey[50],
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your password';
+                                  }
+                                  if (value.length < 6) {
+                                    return 'Password must be at least 6 characters';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 32),
+                              Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  gradient: LinearGradient(
+                                    colors: [primaryTurquoise, primaryBlue],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: primaryTurquoise.withOpacity(0.4),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: _isLoading
+                                    ? Container(
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              primaryTurquoise,
+                                              primaryBlue
+                                            ],
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    Colors.white),
+                                          ),
+                                        ),
+                                      )
+                                    : ElevatedButton(
+                                        onPressed: _login,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.transparent,
+                                          foregroundColor: Colors.white,
+                                          shadowColor: Colors.transparent,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 18),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        child: Text(
+                                          'Login',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.2,
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Don\'t have an account? ',
+                              style: GoogleFonts.inter(
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const RegisterScreen(),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                              ),
+                              child: Text(
+                                'Sign up',
+                                style: GoogleFonts.inter(
+                                  color: primaryTurquoise,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Don\'t have an account? ',
-                        style: TextStyle(
-                          color: theme.textTheme.bodySmall?.color,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const RegisterScreen()),
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: Text(
-                          'Sign up',
-                          style: TextStyle(
-                            color: theme.primaryColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -439,16 +671,80 @@ class RegisterScreen extends StatefulWidget {
   _RegisterScreenState createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  late AnimationController _logoController;
+  late AnimationController _textController;
+  late AnimationController _fadeController;
+  late Animation<double> _logoScale;
+  late Animation<double> _textSlide;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Logo animation controller
+    _logoController = AnimationController(
+      duration: const Duration(milliseconds: 2500),
+      vsync: this,
+    );
+
+    // Text animation controller
+    _textController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    // Fade animation controller
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: Curves.elasticOut,
+      ),
+    );
+
+    _textSlide = Tween<double>(begin: 50.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _textController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _fadeController,
+        curve: Curves.easeIn,
+      ),
+    );
+
+    // Start animations
+    _logoController.forward();
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _textController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      _fadeController.forward();
+    });
+  }
+
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _logoController.dispose();
+    _textController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -462,13 +758,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _usernameController.text.trim(),
         _passwordController.text,
       );
-      
+
       // Show success message and navigate back to login
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully! Please login.'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(
+              'Account created successfully! Please login.',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: const Color(0xFF14B8A6),
           ),
         );
         Navigator.pop(context); // Go back to login screen
@@ -476,7 +775,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(
+            content: Text(
+              e.toString(),
+              style: GoogleFonts.inter(),
+            ),
+          ),
         );
       }
     } finally {
@@ -490,7 +794,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
+    // Turquoise/Blue color scheme
+    final primaryTurquoise = const Color(0xFF14B8A6); // Turquoise
+    final primaryBlue = const Color(0xFF0EA5E9); // Sky Blue
+    final accentBlue = const Color(0xFF3B82F6); // Blue
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -501,7 +810,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         title: Text(
           'Create Account',
-          style: TextStyle(
+          style: GoogleFonts.inter(
             color: theme.textTheme.bodyLarge?.color,
             fontWeight: FontWeight.bold,
           ),
@@ -514,194 +823,314 @@ class _RegisterScreenState extends State<RegisterScreen> {
             end: Alignment.bottomRight,
             colors: isDark
                 ? [
-                    Color(0xFF121212),
-                    Color(0xFF1E1E1E),
-                    Color(0xFF121212),
+                    Color(0xFF0F172A), // Dark blue-gray
+                    Color(0xFF1E293B), // Darker blue-gray
+                    Color(0xFF0F172A),
                   ]
                 : [
-                    Color(0xFF2563EB).withOpacity(0.05),
-                    Colors.white,
-                    Color(0xFF14B8A6).withOpacity(0.05),
+                    primaryTurquoise.withOpacity(0.15),
+                    primaryBlue.withOpacity(0.1),
+                    accentBlue.withOpacity(0.08),
                   ],
           ),
         ),
         child: SafeArea(
+          bottom: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 20),
-                  // Logo Section
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: theme.primaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.person_add,
-                      size: 64,
-                      color: theme.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'Create Account',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textTheme.bodyLarge?.color,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign up to start managing your budget',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.textTheme.bodySmall?.color,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 48),
-                  
-                  // Registration Form Card
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: theme.cardColor,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextFormField(
-                          controller: _usernameController,
-                          style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                          decoration: InputDecoration(
-                            labelText: 'Username',
-                            labelStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
-                            prefixIcon: Icon(Icons.person_outline, color: theme.primaryColor),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.primaryColor, width: 2),
-                            ),
-                            filled: true,
-                            fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            helperText: 'At least 3 characters',
-                            helperStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a username';
-                            }
-                            if (value.length < 3) {
-                              return 'Username must be at least 3 characters';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            labelStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
-                            prefixIcon: Icon(Icons.lock_outline, color: theme.primaryColor),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.dividerColor),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: theme.primaryColor, width: 2),
-                            ),
-                            filled: true,
-                            fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            helperText: 'At least 6 characters',
-                            helperStyle: TextStyle(color: theme.textTheme.bodySmall?.color),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
-                            }
-                            if (value.length < 6) {
-                              return 'Password must be at least 6 characters';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 32),
-                        Container(
+                  // Animated Logo Section
+                  AnimatedBuilder(
+                    animation: _logoController,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _logoScale.value,
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                primaryTurquoise.withOpacity(0.2),
+                                primaryBlue.withOpacity(0.15),
+                              ],
+                            ),
+                            shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: theme.primaryColor.withOpacity(0.3),
+                                color: primaryTurquoise.withOpacity(0.3),
                                 blurRadius: 20,
-                                offset: const Offset(0, 10),
+                                spreadRadius: 2,
                               ),
                             ],
                           ),
-                          child: _isLoading
-                              ? Container(
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: theme.primaryColor,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          child: Image.asset(
+                            'images/logo.png',
+                            width: 80,
+                            height: 80,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  // Animated Text
+                  AnimatedBuilder(
+                    animation: _textController,
+                    builder: (context, child) {
+                      return Transform.translate(
+                        offset: Offset(0, _textSlide.value),
+                        child: Opacity(
+                          opacity: _textController.value,
+                          child: Column(
+                            children: [
+                              Text(
+                                'Create Account',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5,
+                                  foreground: Paint()
+                                    ..shader = LinearGradient(
+                                      colors: [
+                                        primaryTurquoise,
+                                        primaryBlue,
+                                        accentBlue
+                                      ],
+                                    ).createShader(
+                                      const Rect.fromLTWH(0, 0, 200, 70),
                                     ),
-                                  ),
-                                )
-                              : ElevatedButton(
-                                  onPressed: _register,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: theme.primaryColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 18),
-                                    shape: RoundedRectangleBorder(
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Sign up to start managing your budget',
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  color: isDark
+                                      ? Colors.grey[400]
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 48),
+
+                  // Fade in form elements
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: isDark ? Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isDark
+                                ? Colors.black.withOpacity(0.3)
+                                : primaryTurquoise.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextFormField(
+                            controller: _usernameController,
+                            style: TextStyle(
+                              color: theme.textTheme.bodyLarge?.color,
+                              fontFamily: GoogleFonts.inter().fontFamily,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Username',
+                              labelStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                                fontFamily: GoogleFonts.inter().fontFamily,
+                              ),
+                              prefixIcon: Icon(Icons.person_outline,
+                                  color: primaryTurquoise),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: isDark
+                                      ? Colors.grey[700]!
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: isDark
+                                      ? Colors.grey[700]!
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                    color: primaryTurquoise, width: 2),
+                              ),
+                              filled: true,
+                              fillColor:
+                                  isDark ? Color(0xFF0F172A) : Colors.grey[50],
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              helperText: 'At least 3 characters',
+                              helperStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[500]
+                                    : Colors.grey[600],
+                                fontFamily: GoogleFonts.inter().fontFamily,
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter a username';
+                              }
+                              if (value.length < 3) {
+                                return 'Username must be at least 3 characters';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            style: TextStyle(
+                              color: theme.textTheme.bodyLarge?.color,
+                              fontFamily: GoogleFonts.inter().fontFamily,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              labelStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                                fontFamily: GoogleFonts.inter().fontFamily,
+                              ),
+                              prefixIcon: Icon(Icons.lock_outline,
+                                  color: primaryTurquoise),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: isDark
+                                      ? Colors.grey[700]!
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: isDark
+                                      ? Colors.grey[700]!
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                    color: primaryTurquoise, width: 2),
+                              ),
+                              filled: true,
+                              fillColor:
+                                  isDark ? Color(0xFF0F172A) : Colors.grey[50],
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              helperText: 'At least 6 characters',
+                              helperStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[500]
+                                    : Colors.grey[600],
+                                fontFamily: GoogleFonts.inter().fontFamily,
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              if (value.length < 6) {
+                                return 'Password must be at least 6 characters';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 32),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: LinearGradient(
+                                colors: [primaryTurquoise, primaryBlue],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryTurquoise.withOpacity(0.4),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: _isLoading
+                                ? Container(
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [primaryTurquoise, primaryBlue],
+                                      ),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
-                                    elevation: 0,
-                                  ),
-                                  child: const Text(
-                                    'Sign Up',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2,
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
+                                      ),
+                                    ),
+                                  )
+                                : ElevatedButton(
+                                    onPressed: _register,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      foregroundColor: Colors.white,
+                                      shadowColor: Colors.transparent,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 18),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: Text(
+                                      'Sign Up',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.2,
+                                      ),
                                     ),
                                   ),
-                                ),
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -710,19 +1139,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       Text(
                         'Already have an account? ',
-                        style: TextStyle(
-                          color: theme.textTheme.bodySmall?.color,
+                        style: GoogleFonts.inter(
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
                         ),
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                         ),
                         child: Text(
                           'Sign in',
-                          style: TextStyle(
-                            color: theme.primaryColor,
+                          style: GoogleFonts.inter(
+                            color: primaryTurquoise,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
