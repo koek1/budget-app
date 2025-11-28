@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen>
         _passwordController.text,
       );
 
-      // Ask user if they want to enable biometric login
+      // Ask user if they want to enable fingerprint login
       if (_biometricAvailable && !_biometricEnabled && user != null) {
         _showBiometricEnableDialog();
       }
@@ -185,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen>
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } else if (mounted) {
-        Helpers.showErrorSnackBar(context, 'Biometric authentication failed');
+        Helpers.showErrorSnackBar(context, 'Fingerprint authentication failed');
       }
     } catch (e) {
       if (mounted) {
@@ -206,9 +206,13 @@ class _LoginScreenState extends State<LoginScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Enable Biometric Login?'),
-        content: const Text(
-          'Would you like to enable biometric authentication for faster login?',
+        title: Text(
+          'Enable Fingerprint Login?',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Would you like to enable fingerprint authentication for faster login?',
+          style: GoogleFonts.inter(),
         ),
         actions: [
           TextButton(

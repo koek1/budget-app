@@ -8,12 +8,11 @@ class BiometricService {
   static final LocalAuthentication _localAuth = LocalAuthentication();
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
-  // Check if biometric authentication is available
+  // Check if fingerprint authentication is available
   static Future<bool> isAvailable() async {
     try {
-      final bool canAuthenticate = await _localAuth.canCheckBiometrics;
-      final bool isDeviceSupported = await _localAuth.isDeviceSupported();
-      return canAuthenticate || isDeviceSupported;
+      final availableBiometrics = await getAvailableBiometrics();
+      return availableBiometrics.contains(BiometricType.fingerprint);
     } catch (e) {
       return false;
     }
@@ -28,37 +27,32 @@ class BiometricService {
     }
   }
 
-  // Authenticate using biometrics
+  // Authenticate using fingerprint only
   static Future<bool> authenticate() async {
     try {
-      // Check if fingerprint-only mode is enabled
-      final fingerprintOnly = await isFingerprintOnly();
-      
-      // Get available biometrics
+      // Check if fingerprint is available
       final availableBiometrics = await getAvailableBiometrics();
-      
-      // If fingerprint-only is enabled, check if fingerprint is available
-      if (fingerprintOnly) {
-        if (!availableBiometrics.contains(BiometricType.fingerprint)) {
-          throw PlatformException(
-            code: 'FINGERPRINT_NOT_AVAILABLE',
-            message: 'Fingerprint authentication is not available on this device',
-          );
-        }
-        // If fingerprint-only is enabled, we still use biometricOnly: true
-        // The system will use fingerprint if it's the only available biometric
+      if (!availableBiometrics.contains(BiometricType.fingerprint)) {
+        throw PlatformException(
+          code: 'FINGERPRINT_NOT_AVAILABLE',
+          message: 'Fingerprint authentication is not available on this device',
+        );
       }
 
       final bool didAuthenticate = await _localAuth.authenticate(
-        localizedReason: 'Please authenticate to access SpendSense',
+        localizedReason: 'Please use your fingerprint to access SpendSense',
         options: const AuthenticationOptions(
           biometricOnly: true,
           stickyAuth: true,
+          useErrorDialogs: true,
         ),
       );
       return didAuthenticate;
     } on PlatformException catch (e) {
-      print('Biometric authentication error: $e');
+      print('Fingerprint authentication error: $e');
+      return false;
+    } catch (e) {
+      print('Fingerprint authentication error: $e');
       return false;
     }
   }
@@ -88,18 +82,6 @@ class BiometricService {
     await _secureStorage.delete(key: 'biometric_username');
     await _secureStorage.delete(key: 'biometric_password');
     await _secureStorage.delete(key: 'biometric_enabled');
-    await _secureStorage.delete(key: 'fingerprint_only');
-  }
-
-  // Check if fingerprint-only mode is enabled
-  static Future<bool> isFingerprintOnly() async {
-    final fingerprintOnly = await _secureStorage.read(key: 'fingerprint_only');
-    return fingerprintOnly == 'true';
-  }
-
-  // Set fingerprint-only mode
-  static Future<void> setFingerprintOnly(bool value) async {
-    await _secureStorage.write(key: 'fingerprint_only', value: value.toString());
   }
 
   // Perform biometric login
