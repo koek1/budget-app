@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/screens/home/add_transaction_screen.dart';
