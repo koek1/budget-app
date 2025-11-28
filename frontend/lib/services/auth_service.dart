@@ -71,10 +71,15 @@ class AuthService {
         // Find user by username (name field) - safer retrieval using where
         final matchingUsers = users.where((u) {
             try {
-                final userMap = u as Map;
-                return userMap['name']?.toString().toLowerCase() == username.trim().toLowerCase();
+                if (u == null) return false;
+                final userMap = u is Map ? Map<String, dynamic>.from(u) : null;
+                if (userMap == null) return false;
+                final name = userMap['name']?.toString();
+                if (name == null || name.isEmpty) return false;
+                return name.toLowerCase().trim() == username.trim().toLowerCase();
             } catch (e) {
                 // If data is corrupted, skip it
+                print('Error checking user: $e');
                 return false;
             }
         }).toList();
@@ -85,22 +90,41 @@ class AuthService {
 
         User? user;
         try {
-            final userData = matchingUsers.first as Map;
-            final userMap = Map<String, dynamic>.from(userData);
+            final userData = matchingUsers.first;
+            if (userData == null) {
+                throw Exception('User data is null');
+            }
+            
+            final userMap = userData is Map 
+                ? Map<String, dynamic>.from(userData) 
+                : throw Exception('Invalid user data format');
+            
+            // Validate required fields
+            final storedName = userMap['name']?.toString();
+            final storedPassword = userMap['password']?.toString();
+            
+            if (storedName == null || storedName.isEmpty) {
+                throw Exception('User data is missing username');
+            }
+            
+            if (storedPassword == null || storedPassword.isEmpty) {
+                throw Exception('User data is missing password');
+            }
             
             // In a real app, verify password hash here
-            // For now, simple comparison
-            final storedPassword = userMap['password']?.toString();
-            if (storedPassword == null || storedPassword != password) {
+            // For now, simple comparison - ensure exact match
+            if (storedPassword != password) {
                 throw Exception('Incorrect password. Please try again.');
             }
 
             user = User.fromJson(userMap);
             await LocalStorageService.saveUser(user);
         } catch (e) {
-            if (e.toString().contains('Incorrect password')) {
+            final errorMsg = e.toString();
+            if (errorMsg.contains('Incorrect password')) {
                 rethrow;
             }
+            print('Login error: $e');
             throw Exception('Error reading user data. Please try resetting the app data from Settings.');
         }
 

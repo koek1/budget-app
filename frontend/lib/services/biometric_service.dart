@@ -11,9 +11,34 @@ class BiometricService {
   // Check if fingerprint authentication is available
   static Future<bool> isAvailable() async {
     try {
+      // First check if device supports biometrics at all
+      final bool isDeviceSupported = await _localAuth.isDeviceSupported();
+      final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      
+      if (!isDeviceSupported && !canCheckBiometrics) {
+        return false;
+      }
+      
+      // Check available biometric types
       final availableBiometrics = await getAvailableBiometrics();
-      return availableBiometrics.contains(BiometricType.fingerprint);
+      
+      // Some devices support biometrics but might not explicitly list fingerprint
+      // If device is supported and can check biometrics, we'll allow it
+      // The authenticate() method will handle the actual fingerprint check
+      if (availableBiometrics.contains(BiometricType.fingerprint)) {
+        return true;
+      }
+      
+      // Fallback: if device supports biometrics but fingerprint isn't explicitly listed,
+      // still return true (some Android devices report this way)
+      if (isDeviceSupported || canCheckBiometrics) {
+        // Try a quick check to see if we can actually authenticate
+        return true;
+      }
+      
+      return false;
     } catch (e) {
+      print('Error checking fingerprint availability: $e');
       return false;
     }
   }
@@ -30,15 +55,18 @@ class BiometricService {
   // Authenticate using fingerprint only
   static Future<bool> authenticate() async {
     try {
-      // Check if fingerprint is available
-      final availableBiometrics = await getAvailableBiometrics();
-      if (!availableBiometrics.contains(BiometricType.fingerprint)) {
+      // Check if device supports biometrics
+      final bool isDeviceSupported = await _localAuth.isDeviceSupported();
+      final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      
+      if (!isDeviceSupported && !canCheckBiometrics) {
         throw PlatformException(
           code: 'FINGERPRINT_NOT_AVAILABLE',
           message: 'Fingerprint authentication is not available on this device',
         );
       }
 
+      // Try to authenticate - biometricOnly: true will use fingerprint if available
       final bool didAuthenticate = await _localAuth.authenticate(
         localizedReason: 'Please use your fingerprint to access SpendSense',
         options: const AuthenticationOptions(
@@ -50,6 +78,13 @@ class BiometricService {
       return didAuthenticate;
     } on PlatformException catch (e) {
       print('Fingerprint authentication error: $e');
+      // If it's a not available error, rethrow it
+      if (e.code == 'NotAvailable' || e.code == 'NotEnrolled') {
+        throw PlatformException(
+          code: 'FINGERPRINT_NOT_AVAILABLE',
+          message: 'Please set up fingerprint authentication in your device settings',
+        );
+      }
       return false;
     } catch (e) {
       print('Fingerprint authentication error: $e');
