@@ -2,7 +2,7 @@
 
 A modern, full-stack budgeting application built with Flutter (frontend) and Node.js/Express (backend) to help users plan and track their monthly spending. The app features local-first storage, biometric authentication, dark mode support, and comprehensive financial reporting.
 
-## 🎯 Features
+##  Features
 
 ### Core Functionality
 - **User Authentication**: Secure registration and login system
@@ -21,7 +21,7 @@ A modern, full-stack budgeting application built with Flutter (frontend) and Nod
 - **Responsive Design**: Modern Material Design 3 UI with smooth animations
 - **App Lifecycle Security**: Automatic logout when app goes to background
 
-## 🛠 Tech Stack
+##  Tech Stack
 
 ### Frontend
 - **Flutter** (v3.0+) - Cross-platform mobile framework
@@ -43,7 +43,7 @@ A modern, full-stack budgeting application built with Flutter (frontend) and Nod
 - **bcryptjs** - Password hashing
 - **CORS** - Cross-origin resource sharing
 
-## 📋 Prerequisites
+##  Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -52,7 +52,7 @@ Before you begin, ensure you have the following installed:
 - **Android Studio** / **Xcode** - For mobile development
 - **Git** - Version control
 
-## 🚀 Setup Instructions
+##  Setup Instructions
 
 ### Backend Setup
 
@@ -120,7 +120,7 @@ Before you begin, ensure you have the following installed:
    flutter run
    ```
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 budget-app/
@@ -191,7 +191,7 @@ budget-app/
     └── analysis_options.yaml   # Dart analyzer config
 ```
 
-## 🔐 Security Features
+##  Security Features
 
 ### Authentication & Authorization
 - **Password-based Authentication**: Secure user registration and login
@@ -241,7 +241,7 @@ The backend provides RESTful API endpoints (though the app primarily uses local 
 - `POST /api/export/excel` - Generate Excel report (requires auth)
 - `GET /api/export/summary` - Get report summary (requires auth)
 
-## 🎨 Features in Detail
+##  Features in Detail
 
 ### Biometric Authentication
 - Supports fingerprint sensors, Face ID, and other biometric methods
@@ -269,7 +269,7 @@ The backend provides RESTful API endpoints (though the app primarily uses local 
 - Income vs expense comparison
 - Monthly/weekly/daily views
 
-## 🧪 Testing
+##  Testing
 
 ### Backend Testing
 ```bash
@@ -283,12 +283,12 @@ cd frontend
 flutter test
 ```
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
 1. **MongoDB Connection Error**
-   - ✅ **Solution**: The app no longer uses MongoDB. It uses local file storage. Ensure the `backend/data/` directory is writable.
+   -  **Solution**: The app no longer uses MongoDB. It uses local file storage. Ensure the `backend/data/` directory is writable.
 
 2. **Flutter Build Errors**
    ```bash
@@ -331,7 +331,7 @@ flutter test
    - App logs out when going to background
    - Users must re-authenticate when app resumes
 
-## 📝 Development Notes
+##  Development Notes
 
 ### Local Storage Architecture
 - **Frontend**: Uses Hive for all data storage (users, transactions, settings)
@@ -342,18 +342,16 @@ flutter test
 ### Migration from MongoDB
 The app was migrated from MongoDB to local file storage. See `MIGRATION_NOTES.md` for details.
 
-## 📄 License
+##  License
 
 ISC
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📧 Support
+##  Support
 
 For issues, questions, or feature requests, please open an issue on the repository.
 
 ---
-
-**Built with ❤️ using Flutter and Node.js**
