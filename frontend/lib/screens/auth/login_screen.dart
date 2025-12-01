@@ -38,6 +38,7 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLoading = false;
   bool _biometricAvailable = false;
   bool _biometricEnabled = false;
+  bool _obscurePassword = true;
 
   late AnimationController _logoController;
   late AnimationController _textController;
@@ -540,7 +541,7 @@ class _LoginScreenState extends State<LoginScreen>
                               const SizedBox(height: 20),
                               TextFormField(
                                 controller: _passwordController,
-                                obscureText: true,
+                                obscureText: _obscurePassword,
                                 style: TextStyle(
                                   color: theme.textTheme.bodyLarge?.color,
                                   fontFamily: GoogleFonts.inter().fontFamily,
@@ -555,6 +556,21 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                   prefixIcon: Icon(Icons.lock_outline,
                                       color: primaryTurquoise),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                      color: isDark
+                                          ? Colors.grey[400]
+                                          : Colors.grey[600],
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                  ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
@@ -722,6 +738,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   late AnimationController _logoController;
   late AnimationController _textController;
@@ -1054,7 +1071,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                           const SizedBox(height: 20),
                           TextFormField(
                             controller: _passwordController,
-                            obscureText: true,
+                            obscureText: _obscurePassword,
                             style: TextStyle(
                               color: theme.textTheme.bodyLarge?.color,
                               fontFamily: GoogleFonts.inter().fontFamily,
@@ -1069,6 +1086,21 @@ class _RegisterScreenState extends State<RegisterScreen>
                               ),
                               prefixIcon: Icon(Icons.lock_outline,
                                   color: primaryTurquoise),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: isDark
+                                      ? Colors.grey[400]
+                                      : Colors.grey[600],
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
