@@ -3,7 +3,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app.dart';
 import 'models/user.dart';
 import 'models/transaction.dart';
+import 'models/custom_criteria.dart';
 import 'services/settings_service.dart';
+import 'services/custom_criteria_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +16,7 @@ void main() async {
   // Register adapters
   Hive.registerAdapter(TransactionAdapter());
   Hive.registerAdapter(UserAdapter());
+  Hive.registerAdapter(CustomCriteriaAdapter());
 
   // Check if this is a fresh install by checking for app version marker
   final isFreshInstall = await _checkIfFreshInstall();
@@ -67,6 +70,9 @@ void main() async {
 
   await Hive.openBox('settingsBox'); // Settings (currency, theme)
 
+  // Open custom criteria box
+  await Hive.openBox<CustomCriteria>('customCriteriaBox');
+
   // If fresh install, clear transactions box
   if (isFreshInstall) {
     try {
@@ -88,6 +94,9 @@ void main() async {
 
   // Initialize settings service
   await SettingsService.init();
+
+  // Initialize custom criteria service
+  await CustomCriteriaService.init();
 
   runApp(const MyApp());
 }
