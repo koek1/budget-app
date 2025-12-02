@@ -21,7 +21,17 @@ This guide provides information for developers working on the SpendSense project
 - **Flutter SDK** v3.0+
 - **Git** for version control
 - **VS Code** or **Android Studio** (recommended IDEs)
-- **Android Studio** or **Xcode** for mobile development
+
+**For Android Development:**
+- **Android Studio** for mobile development
+- **Android SDK** (API level 21+)
+- **Java Development Kit (JDK)**
+
+**For iOS Development:**
+- **macOS** (required for iOS development)
+- **Xcode** (latest version) for mobile development
+- **CocoaPods** (`sudo gem install cocoapods`)
+- **Apple Developer Account** (for device testing and App Store)
 
 ### Initial Setup
 
@@ -46,9 +56,26 @@ This guide provides information for developers working on the SpendSense project
    flutter pub run build_runner build --delete-conflicting-outputs
    ```
 
-4. **Run the app:**
+4. **iOS Setup (macOS only):**
    ```bash
+   cd ios
+   pod install
+   cd ..
+   ```
+
+5. **Generate App Icons:**
+   ```bash
+   flutter pub run flutter_launcher_icons
+   ```
+
+6. **Run the app:**
+   ```bash
+   # Run on default device
    flutter run
+
+   # Run on specific platform
+   flutter run -d android
+   flutter run -d ios
    ```
 
 ## Project Structure
