@@ -49,8 +49,18 @@ Before you begin, ensure you have the following installed:
 
 - **Node.js** (v14 or higher) - [Download](https://nodejs.org/)
 - **Flutter SDK** (v3.0 or higher) - [Download](https://flutter.dev/docs/get-started/install)
-- **Android Studio** / **Xcode** - For mobile development
 - **Git** - Version control
+
+**For Android Development:**
+- **Android Studio** - [Download](https://developer.android.com/studio)
+- **Android SDK** (API level 21+)
+- **Java Development Kit (JDK)**
+
+**For iOS Development:**
+- **macOS** (required for iOS development)
+- **Xcode** (latest version) - [Download from App Store](https://apps.apple.com/us/app/xcode/id497799835)
+- **CocoaPods** - Install via: `sudo gem install cocoapods`
+- **Apple Developer Account** (for device testing and App Store distribution)
 
 ##  Setup Instructions
 
@@ -108,7 +118,25 @@ Before you begin, ensure you have the following installed:
    - For Physical Device: Use your computer's IP address (e.g., `http://192.168.1.100:5000/api`)
    - Update in `lib/services/api_service.dart` if needed
 
-5. **Run the app:**
+5. **iOS-Specific Setup (for iOS development):**
+   ```bash
+   # Install CocoaPods dependencies (required for iOS)
+   cd ios
+   pod install
+   cd ..
+   ```
+
+   **Note**: iOS development requires:
+   - macOS with Xcode installed
+   - Apple Developer account (for device testing and App Store)
+   - iOS Simulator or physical iOS device
+
+6. **Generate app icons (optional):**
+   ```bash
+   flutter pub run flutter_launcher_icons
+   ```
+
+7. **Run the app:**
    ```bash
    # List available devices
    flutter devices
@@ -118,7 +146,28 @@ Before you begin, ensure you have the following installed:
 
    # Or simply run (will use default device)
    flutter run
+
+   # For iOS specifically
+   flutter run -d ios
+
+   # For Android specifically
+   flutter run -d android
    ```
+
+##  Platform-Specific Notes
+
+### Android
+- Minimum SDK: 21 (Android 5.0)
+- Biometric authentication: Fingerprint and Face Unlock
+- File export: Downloads directory
+- Tested on Android 5.0+
+
+### iOS
+- Minimum iOS version: 12.0
+- Biometric authentication: Face ID and Touch ID
+- File export: Files app integration
+- Requires Xcode for building
+- Tested on iOS 12.0+
 
 ##  Project Structure
 

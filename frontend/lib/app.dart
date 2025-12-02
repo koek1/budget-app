@@ -43,31 +43,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Only log out when app is truly paused (in background)
-    // Don't log out on 'inactive' as it happens during lock screen transitions
-    // and can conflict with the phone's biometric authentication
-    if (state == AppLifecycleState.paused) {
+    // Log out user when app goes to background or becomes inactive
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       _logoutOnBackground();
     }
 
-    // When app resumes, wait a bit for phone lock screen to finish
-    // then navigate to login screen if not logged in
+    // When app resumes, navigate to login screen if not logged in
     if (state == AppLifecycleState.resumed) {
-      // Add a delay to let the phone's lock screen biometric prompt finish first
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _checkAndNavigateToLogin();
-      });
+      _checkAndNavigateToLogin();
     }
   }
 
   Future<void> _checkAndNavigateToLogin() async {
-    // Don't navigate if widget is no longer mounted
-    if (!mounted) return;
-
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn && mounted && _navigatorKey.currentState != null) {
       // Clear navigation stack and go to login screen
-      // The navigation system will handle if we're already on login screen
       _navigatorKey.currentState?.pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
         (route) => false,
