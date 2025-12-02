@@ -22,9 +22,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _descriptionController = TextEditingController();
 
   late String _selectedType;
-  late String _selectedCategory;
+  String? _selectedCategory;
   late DateTime _selectedDate;
   bool _isEditing = false;
+  List<String> _availableCategories = [];
 
   @override
   void initState() {
@@ -40,9 +41,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _selectedDate = transaction.date;
     } else {
       _selectedType = 'expense';
-      _selectedCategory = 'Food & Dining';
       _selectedDate = DateTime.now();
     }
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final categories = await AppConstants.getCategories(_selectedType);
+    setState(() {
+      _availableCategories = categories;
+      if (_selectedCategory == null || !_availableCategories.contains(_selectedCategory)) {
+        _selectedCategory = _availableCategories.isNotEmpty ? _availableCategories.first : null;
+      }
+    });
   }
 
   @override
@@ -54,6 +65,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Future<void> _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedCategory == null) {
+      Helpers.showErrorSnackBar(context, 'Please select a category');
+      return;
+    }
 
     // Get current user to associate transaction
     final currentUser = await LocalStorageService.getCurrentUser();
@@ -72,7 +88,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           : currentUser.id, // Associate new transaction with current user
       amount: double.parse(_amountController.text),
       type: _selectedType,
-      category: _selectedCategory,
+      category: _selectedCategory!,
       description: _descriptionController.text,
       date: _selectedDate,
       isSynced: true,
@@ -122,12 +138,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 children: [
                   Expanded(
                     child: InkWell(
-                      onTap: () {
+                      onTap: () async {
                         setState(() {
                           _selectedType = 'income';
-                          _selectedCategory =
-                              AppConstants.incomeCategories.first;
                         });
+                        await _loadCategories();
                       },
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
@@ -174,12 +189,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   SizedBox(width: 16),
                   Expanded(
                     child: InkWell(
-                      onTap: () {
+                      onTap: () async {
                         setState(() {
                           _selectedType = 'expense';
-                          _selectedCategory =
-                              AppConstants.expenseCategories.first;
                         });
+                        await _loadCategories();
                       },
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
@@ -278,25 +292,56 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               SizedBox(height: 20),
 
               // Category
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                ),
-                items: (_selectedType == 'income'
-                        ? AppConstants.incomeCategories
-                        : AppConstants.expenseCategories)
-                    .map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() => _selectedCategory = value!);
-                },
-              ),
+              _availableCategories.isEmpty
+                  ? Container(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    )
+                  : DropdownButtonFormField<String>(
+                      value: _selectedCategory,
+                      decoration: InputDecoration(
+                        labelText: 'Category',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Theme.of(context).primaryColor,
+                            width: 2,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark
+                            ? Theme.of(context).scaffoldBackgroundColor
+                            : Colors.grey[50],
+                      ),
+                      items: _availableCategories.map((category) {
+                        return DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() => _selectedCategory = value);
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a category';
+                        }
+                        return null;
+                      },
+                    ),
               SizedBox(height: 20),
 
               // Description

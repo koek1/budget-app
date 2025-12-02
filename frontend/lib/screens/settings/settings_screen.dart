@@ -6,6 +6,7 @@ import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/screens/auth/login_screen.dart';
+import 'package:budget_app/screens/settings/manage_criteria_screen.dart';
 import 'package:budget_app/utils/helpers.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -596,6 +597,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                   ],
                                 ),
+                        ),
+                        
+                        // Categories Section
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Text(
+                            'Categories',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ),
+                        _buildSettingsCard(
+                          child: _buildSettingsItem(
+                            icon: Icons.category_rounded,
+                            title: 'Manage Categories',
+                            subtitle: 'Add, edit, or delete custom income and expense categories',
+                            iconColor: Color(0xFF14B8A6),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ManageCriteriaScreen(),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         
                         // About Section
