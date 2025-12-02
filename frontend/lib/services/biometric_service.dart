@@ -8,37 +8,76 @@ class BiometricService {
   static final LocalAuthentication _localAuth = LocalAuthentication();
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
-  // Check if fingerprint authentication is available
+  // Check if biometric authentication is available (fingerprint, face, etc.)
   static Future<bool> isAvailable() async {
     try {
-      // First check if device supports biometrics at all
-      final bool isDeviceSupported = await _localAuth.isDeviceSupported();
-      final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      // First, try a quick check without timeout to avoid false negatives
+      bool isDeviceSupported = false;
+      bool canCheckBiometrics = false;
       
-      if (!isDeviceSupported && !canCheckBiometrics) {
-        return false;
+      try {
+        isDeviceSupported = await _localAuth.isDeviceSupported();
+      } catch (e) {
+        print('Error checking device support: $e');
+        // Continue to next check
       }
       
-      // Check available biometric types
-      final availableBiometrics = await getAvailableBiometrics();
-      
-      // Some devices support biometrics but might not explicitly list fingerprint
-      // If device is supported and can check biometrics, we'll allow it
-      // The authenticate() method will handle the actual fingerprint check
-      if (availableBiometrics.contains(BiometricType.fingerprint)) {
-        return true;
+      try {
+        canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      } catch (e) {
+        print('Error checking canCheckBiometrics: $e');
+        // Continue to next check
       }
       
-      // Fallback: if device supports biometrics but fingerprint isn't explicitly listed,
-      // still return true (some Android devices report this way)
+      print('Biometric check - Device supported: $isDeviceSupported, Can check: $canCheckBiometrics');
+      
+      // If either check returns true, we likely have biometric support
+      // This is especially important for Samsung devices that may report support
+      // even if getAvailableBiometrics() doesn't return types immediately
       if (isDeviceSupported || canCheckBiometrics) {
-        // Try a quick check to see if we can actually authenticate
+        print('Device reports biometric support - checking available types...');
+        
+        // Try to get available biometric types (but don't fail if this times out)
+        List<BiometricType> availableBiometrics = [];
+        try {
+          availableBiometrics = await getAvailableBiometrics()
+              .timeout(Duration(seconds: 5), onTimeout: () => <BiometricType>[]);
+        } catch (e) {
+          print('Error getting available biometrics: $e');
+          // Continue with empty list - we'll use fallback
+        }
+        
+        print('Available biometric types: $availableBiometrics');
+        
+        // If we have any biometric type available, return true
+        if (availableBiometrics.isNotEmpty) {
+          print('Biometrics available: ${availableBiometrics.length} types');
+          return true;
+        }
+        
+        // Fallback: if device reports support, trust it (Samsung compatibility)
+        // Many Samsung devices support biometrics but may not list types immediately
+        print('Device supports biometrics but types not listed - allowing (Samsung compatibility)');
         return true;
       }
       
+      // If device doesn't support at all, return false
+      print('Device does not support biometrics');
       return false;
     } catch (e) {
-      print('Error checking fingerprint availability: $e');
+      print('Error checking biometric availability: $e');
+      // On error, try a simple fallback check
+      try {
+        final canCheck = await _localAuth.canCheckBiometrics
+            .timeout(Duration(seconds: 3), onTimeout: () => false);
+        if (canCheck) {
+          print('Biometrics available via fallback check');
+          return true;
+        }
+      } catch (e2) {
+        print('Fallback check also failed: $e2');
+      }
+      // On error, return false to be safe
       return false;
     }
   }
@@ -72,12 +111,12 @@ class BiometricService {
       final availableBiometrics = await getAvailableBiometrics();
       print('Available biometrics: $availableBiometrics');
 
-      // Try to authenticate - biometricOnly: true will use fingerprint if available
-      print('Starting fingerprint authentication...');
+      // Try to authenticate - use any available biometric (fingerprint, face, etc.)
+      print('Starting biometric authentication...');
       final bool didAuthenticate = await _localAuth.authenticate(
-        localizedReason: 'Please use your fingerprint to access SpendSense',
+        localizedReason: 'Please use your biometric to access SpendSense',
         options: const AuthenticationOptions(
-          biometricOnly: true,
+          biometricOnly: true, // Use biometrics only (fingerprint, face, etc.)
           stickyAuth: true,
           useErrorDialogs: true,
         ),

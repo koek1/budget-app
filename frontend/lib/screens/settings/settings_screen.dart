@@ -30,16 +30,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final enabled = await BiometricService.isBiometricEnabled();
-    final available = await BiometricService.isAvailable();
-    
-    setState(() {
-      _biometricEnabled = enabled;
-      _biometricAvailable = available;
-      _selectedCurrency = SettingsService.getCurrency();
-      _themeMode = SettingsService.getThemeMode();
-      _isLoading = false;
-    });
+    try {
+      // Load settings - don't timeout biometric check as it may need more time
+      final enabled = await BiometricService.isBiometricEnabled()
+          .timeout(Duration(seconds: 5), onTimeout: () => false);
+      
+      // Check availability with longer timeout and retry
+      bool available = false;
+      try {
+        available = await BiometricService.isAvailable()
+            .timeout(Duration(seconds: 8), onTimeout: () {
+          // If timeout, try one more time
+          print('Biometric check timed out, retrying...');
+          return false;
+        });
+        
+        // If first check failed, try once more
+        if (!available) {
+          print('First biometric check failed, retrying...');
+          await Future.delayed(Duration(milliseconds: 500));
+          available = await BiometricService.isAvailable()
+              .timeout(Duration(seconds: 5), onTimeout: () => false);
+        }
+      } catch (e) {
+        print('Error checking biometric availability: $e');
+        available = false;
+      }
+      
+      if (mounted) {
+        setState(() {
+          _biometricEnabled = enabled;
+          _biometricAvailable = available;
+          _selectedCurrency = SettingsService.getCurrency();
+          _themeMode = SettingsService.getThemeMode();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading settings: $e');
+      // Set defaults if loading fails, but try to check biometric one more time
+      if (mounted) {
+        // Try one final biometric check
+        bool available = false;
+        try {
+          available = await BiometricService.isAvailable()
+              .timeout(Duration(seconds: 3), onTimeout: () => false);
+        } catch (e2) {
+          print('Final biometric check failed: $e2');
+        }
+        
+        setState(() {
+          _biometricEnabled = false;
+          _biometricAvailable = available;
+          _selectedCurrency = SettingsService.getCurrency();
+          _themeMode = SettingsService.getThemeMode();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _selectCurrency() async {

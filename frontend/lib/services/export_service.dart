@@ -12,16 +12,33 @@ class ExportService {
     required Function(String) onError,
   }) async {
     try {
-      // Get transactions from local storage
-      final allTransactions = await LocalStorageService.getTransactions();
+      // Validate date range
+      if (startDate.isAfter(endDate)) {
+        onError('Start date must be before end date');
+        return;
+      }
       
-      // Filter by date range
+      // Get transactions from local storage with timeout
+      final allTransactions = await LocalStorageService.getTransactions()
+          .timeout(Duration(seconds: 10), onTimeout: () {
+        throw Exception('Loading transactions timed out');
+      });
+      
+      // Filter by date range - optimized
+      final startOfDay = DateTime(startDate.year, startDate.month, startDate.day);
+      final endOfDay = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+      
       var transactions = allTransactions.where((t) {
-        return t.date.isAfter(startDate.subtract(Duration(days: 1))) &&
-            t.date.isBefore(endDate.add(Duration(days: 1)));
+        final transactionDate = DateTime(t.date.year, t.date.month, t.date.day);
+        return !transactionDate.isBefore(startOfDay) && !transactionDate.isAfter(endOfDay);
       }).toList();
       
       // Filter by type if specified
+      if (reportType != 'all' && reportType != 'income' && reportType != 'expense') {
+        onError('Invalid report type');
+        return;
+      }
+      
       if (reportType != 'all') {
         transactions = transactions.where((t) => t.type == reportType).toList();
       }
@@ -29,13 +46,16 @@ class ExportService {
       // Sort by date
       transactions.sort((a, b) => a.date.compareTo(b.date));
 
-      // Calculate totals
-      final incomeTotal = transactions
-          .where((t) => t.type == 'income')
-          .fold(0.0, (sum, t) => sum + t.amount);
-      final expenseTotal = transactions
-          .where((t) => t.type == 'expense')
-          .fold(0.0, (sum, t) => sum + t.amount);
+      // Calculate totals - optimized single pass
+      double incomeTotal = 0.0;
+      double expenseTotal = 0.0;
+      for (final transaction in transactions) {
+        if (transaction.type == 'income') {
+          incomeTotal += transaction.amount;
+        } else if (transaction.type == 'expense') {
+          expenseTotal += transaction.amount;
+        }
+      }
       final netTotal = incomeTotal - expenseTotal;
 
       // Create CSV content
@@ -46,10 +66,19 @@ class ExportService {
       
       // Add data rows
       for (final transaction in transactions) {
-        final dateStr = '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}';
-        final typeStr = transaction.type[0].toUpperCase() + transaction.type.substring(1);
-        final description = transaction.description.replaceAll(',', ';'); // Replace commas to avoid CSV issues
-        csvBuffer.writeln('$dateStr,$typeStr,${transaction.category},$description,${transaction.amount}');
+        try {
+          final dateStr = '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}';
+          final typeStr = transaction.type.isNotEmpty
+              ? transaction.type[0].toUpperCase() + transaction.type.substring(1)
+              : transaction.type;
+          final description = transaction.description.replaceAll(',', ';'); // Replace commas to avoid CSV issues
+          final category = transaction.category.replaceAll(',', ';'); // Also sanitize category
+          csvBuffer.writeln('$dateStr,$typeStr,$category,$description,${transaction.amount}');
+        } catch (e) {
+          print('Error writing transaction to CSV: $e');
+          // Skip corrupted transactions
+          continue;
+        }
       }
       
       // Add summary
@@ -59,10 +88,11 @@ class ExportService {
       csvBuffer.writeln('Total Expenses,,,$expenseTotal');
       csvBuffer.writeln('Net Total,,,$netTotal');
 
-      // Get downloads directory
-      final directory = await getDownloadsDirectory();
+      // Get downloads directory with timeout
+      final directory = await getDownloadsDirectory()
+          .timeout(Duration(seconds: 5), onTimeout: () => null);
       if (directory == null) {
-        onError('Could not access downloads directory');
+        onError('Could not access downloads directory. Please check app permissions.');
         return;
       }
 
@@ -70,15 +100,35 @@ class ExportService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final file = File('${directory.path}/budget-report-$timestamp.csv');
       
-      // Write CSV data to file
-      await file.writeAsString(csvBuffer.toString());
+      // Write CSV data to file with error handling
+      try {
+        await file.writeAsString(csvBuffer.toString())
+            .timeout(Duration(seconds: 10));
+      } catch (e) {
+        onError('Failed to write file: ${e.toString()}');
+        return;
+      }
       
       // Open the file
-      await OpenFile.open(file.path);
+      try {
+        await OpenFile.open(file.path)
+            .timeout(Duration(seconds: 5));
+      } catch (e) {
+        // File was created successfully, even if opening fails
+        onSuccess('Report exported to: ${file.path}');
+        return;
+      }
       
       onSuccess('Report exported successfully!');
     } catch (e) {
-      onError('Export failed: $e');
+      print('Export error: $e');
+      String errorMessage = 'Export failed';
+      if (e.toString().contains('timeout')) {
+        errorMessage = 'Export timed out. Please try again.';
+      } else if (e.toString().contains('Exception:')) {
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
+      }
+      onError(errorMessage);
     }
   }
 
@@ -88,16 +138,31 @@ class ExportService {
     required String reportType,
   }) async {
     try {
-      // Get transactions from local storage
-      final allTransactions = await LocalStorageService.getTransactions();
+      // Validate date range
+      if (startDate.isAfter(endDate)) {
+        throw Exception('Start date must be before end date');
+      }
       
-      // Filter by date range
+      // Get transactions from local storage with timeout
+      final allTransactions = await LocalStorageService.getTransactions()
+          .timeout(Duration(seconds: 10), onTimeout: () {
+        throw Exception('Loading transactions timed out');
+      });
+      
+      // Filter by date range - optimized
+      final startOfDay = DateTime(startDate.year, startDate.month, startDate.day);
+      final endOfDay = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+      
       var transactions = allTransactions.where((t) {
-        return t.date.isAfter(startDate.subtract(Duration(days: 1))) &&
-            t.date.isBefore(endDate.add(Duration(days: 1)));
+        final transactionDate = DateTime(t.date.year, t.date.month, t.date.day);
+        return !transactionDate.isBefore(startOfDay) && !transactionDate.isAfter(endOfDay);
       }).toList();
       
       // Filter by type if specified
+      if (reportType != 'all' && reportType != 'income' && reportType != 'expense') {
+        throw Exception('Invalid report type');
+      }
+      
       if (reportType != 'all') {
         transactions = transactions.where((t) => t.type == reportType).toList();
       }
@@ -105,21 +170,20 @@ class ExportService {
       // Sort by date
       transactions.sort((a, b) => a.date.compareTo(b.date));
 
-      // Calculate daily income
+      // Calculate daily income and totals in single pass - optimized
       final dailyIncome = <String, double>{};
-      transactions
-          .where((t) => t.type == 'income')
-          .forEach((t) {
-        final dateStr = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}';
-        dailyIncome[dateStr] = (dailyIncome[dateStr] ?? 0) + t.amount;
-      });
-
-      final totalIncome = transactions
-          .where((t) => t.type == 'income')
-          .fold(0.0, (sum, t) => sum + t.amount);
-      final totalExpenses = transactions
-          .where((t) => t.type == 'expense')
-          .fold(0.0, (sum, t) => sum + t.amount);
+      double totalIncome = 0.0;
+      double totalExpenses = 0.0;
+      
+      for (final t in transactions) {
+        if (t.type == 'income') {
+          totalIncome += t.amount;
+          final dateStr = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}';
+          dailyIncome[dateStr] = (dailyIncome[dateStr] ?? 0) + t.amount;
+        } else if (t.type == 'expense') {
+          totalExpenses += t.amount;
+        }
+      }
 
       return {
         'totalTransactions': transactions.length,
@@ -138,7 +202,11 @@ class ExportService {
         }).toList(),
       };
     } catch (e) {
-      throw Exception('Summary failed: $e');
+      print('Error getting report summary: $e');
+      if (e.toString().contains('Exception:')) {
+        rethrow;
+      }
+      throw Exception('Summary failed: ${e.toString()}');
     }
   }
 }

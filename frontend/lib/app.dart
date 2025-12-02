@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 
@@ -140,25 +139,33 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = SettingsService.isDarkMode();
+    // Use ValueListenableBuilder to reactively update theme when settings change
+    return ValueListenableBuilder<Box>(
+      valueListenable: Hive.box('settingsBox').listenable(),
+      builder: (context, box, _) {
+        final themeMode = box.get('themeMode', defaultValue: 'light') as String;
+        // Ensure we only use 'light' or 'dark', default to 'light' if invalid
+        final isDarkMode = (themeMode == 'dark');
 
-    return MaterialApp(
-      title: 'SpendSense',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: _navigatorKey,
-      theme: _buildLightTheme(),
-      darkTheme: _buildDarkTheme(),
-      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: FutureBuilder(
-        future: _checkLoginStatus(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SplashScreen();
-          }
-          // Always show login screen - don't persist login across app restarts
-          return const LoginScreen();
-        },
-      ),
+        return MaterialApp(
+          title: 'SpendSense',
+          debugShowCheckedModeBanner: false,
+          navigatorKey: _navigatorKey,
+          theme: _buildLightTheme(),
+          darkTheme: _buildDarkTheme(),
+          themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          home: FutureBuilder(
+            future: _checkLoginStatus(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SplashScreen();
+              }
+              // Always show login screen - don't persist login across app restarts
+              return const LoginScreen();
+            },
+          ),
+        );
+      },
     );
   }
 
