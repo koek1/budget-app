@@ -5,6 +5,7 @@ import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/utils/constants.dart';
+import 'package:budget_app/screens/stats/stats_loading_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
@@ -21,15 +22,85 @@ class _StatsScreenState extends State<StatsScreen> {
   DateTime _selectedEndDate = DateTime.now();
   String _selectedTimeFrame = 'Last 30 Days';
 
+  // Cache for performance
+  List<Transaction>? _cachedTransactions;
+  DateTime? _cacheDateRangeStart;
+  DateTime? _cacheDateRangeEnd;
+
+  // Data loading state
+  Map<String, dynamic>? _loadedData;
+  bool _isLoading = true;
+  String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
-    transactionsBox = Hive.box<Transaction>('transactionsBox');
+    try {
+      transactionsBox = Hive.box<Transaction>('transactionsBox');
+    } catch (e) {
+      print('Error initializing StatsScreen: $e');
+      // Box will be accessed when needed, which will handle the error
+    }
+    _loadAllData();
   }
 
-  // Get user-filtered transactions for date range
+  // Load all statistics data in background
+  Future<void> _loadAllData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final data = await Future.wait([
+        _getTransactionsForDateRange(),
+        _getDualLineData(),
+        _getTotalIncome(),
+        _getTotalExpenses(),
+        _getIncomeExpensePieData(),
+        _getCategoryBreakdown(),
+        _getMonthlyExpenseBarData(),
+        _getMonthlyExpenseCategories(),
+        _getIncomeTrendData(),
+        _getExpenseTrendData(),
+        _getCategoryBreakdownPieData(),
+        _getCashFlowAnalysis(),
+      ]).timeout(Duration(seconds: 15), onTimeout: () {
+        throw Exception('Loading statistics timed out');
+      }).then((results) => {
+            'transactions': results[0],
+            'dualLineData': results[1],
+            'totalIncome': results[2],
+            'totalExpenses': results[3],
+            'incomeExpensePieData': results[4],
+            'categoryBreakdown': results[5],
+            'monthlyBarData': results[6],
+            'monthlyCategories': results[7],
+            'incomeTrendData': results[8],
+            'expenseTrendData': results[9],
+            'categoryPieData': results[10],
+            'cashFlowAnalysis': results[11],
+          });
+
+      if (mounted) {
+        setState(() {
+          _loadedData = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading statistics: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  // Get user-filtered transactions for date range (with caching)
   Future<List<Transaction>> _getTransactionsForDateRange() async {
-    final allTransactions = await LocalStorageService.getTransactions();
     final startOfDay = DateTime(
       _selectedStartDate.year,
       _selectedStartDate.month,
@@ -44,7 +115,15 @@ class _StatsScreenState extends State<StatsScreen> {
       59,
     );
 
-    return allTransactions.where((transaction) {
+    // Check cache
+    if (_cachedTransactions != null &&
+        _cacheDateRangeStart == startOfDay &&
+        _cacheDateRangeEnd == endOfDay) {
+      return _cachedTransactions!;
+    }
+
+    final allTransactions = await LocalStorageService.getTransactions();
+    final filtered = allTransactions.where((transaction) {
       final transactionDate = DateTime(
         transaction.date.year,
         transaction.date.month,
@@ -53,6 +132,13 @@ class _StatsScreenState extends State<StatsScreen> {
       return !transactionDate.isBefore(startOfDay) &&
           !transactionDate.isAfter(endOfDay);
     }).toList();
+
+    // Cache the result
+    _cachedTransactions = filtered;
+    _cacheDateRangeStart = startOfDay;
+    _cacheDateRangeEnd = endOfDay;
+
+    return filtered;
   }
 
   // Calculate total income (verified accurate)
@@ -74,13 +160,13 @@ class _StatsScreenState extends State<StatsScreen> {
   // Get dual line graph data (income and expenses over time)
   Future<Map<String, List<FlSpot>>> _getDualLineData() async {
     final transactions = await _getTransactionsForDateRange();
-    
+
     // Separate income and expenses
     final incomeTransactions = transactions
         .where((t) => t.type == 'income')
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
-    
+
     final expenseTransactions = transactions
         .where((t) => t.type == 'expense')
         .toList()
@@ -97,7 +183,8 @@ class _StatsScreenState extends State<StatsScreen> {
     Map<String, double> dailyExpenses = {};
     for (var transaction in expenseTransactions) {
       final dateKey = DateFormat('yyyy-MM-dd').format(transaction.date);
-      dailyExpenses[dateKey] = (dailyExpenses[dateKey] ?? 0) + transaction.amount;
+      dailyExpenses[dateKey] =
+          (dailyExpenses[dateKey] ?? 0) + transaction.amount;
     }
 
     // Get all unique dates and sort
@@ -198,7 +285,8 @@ class _StatsScreenState extends State<StatsScreen> {
   // Get category breakdown pie chart data
   Future<List<PieChartSectionData>> _getCategoryBreakdownPieData() async {
     final transactions = await _getTransactionsForDateRange();
-    final expenseTransactions = transactions.where((t) => t.type == 'expense').toList();
+    final expenseTransactions =
+        transactions.where((t) => t.type == 'expense').toList();
 
     if (expenseTransactions.isEmpty) {
       return [
@@ -224,7 +312,8 @@ class _StatsScreenState extends State<StatsScreen> {
     }
 
     // Calculate total expenses
-    final totalExpenses = expenseTransactions.fold(0.0, (sum, t) => sum + t.amount);
+    final totalExpenses =
+        expenseTransactions.fold(0.0, (sum, t) => sum + t.amount);
 
     if (totalExpenses == 0) {
       return [
@@ -259,8 +348,8 @@ class _StatsScreenState extends State<StatsScreen> {
     for (int i = 0; i < sortedCategories.length && i < 10; i++) {
       final entry = sortedCategories[i];
       final percentage = (entry.value / totalExpenses) * 100;
-      final color = AppConstants.categoryColors[entry.key] ??
-          colors[i % colors.length];
+      final color =
+          AppConstants.categoryColors[entry.key] ?? colors[i % colors.length];
 
       sections.add(PieChartSectionData(
         value: entry.value,
@@ -283,7 +372,8 @@ class _StatsScreenState extends State<StatsScreen> {
   // Get category breakdown map for legend
   Future<Map<String, double>> _getCategoryBreakdown() async {
     final transactions = await _getTransactionsForDateRange();
-    final expenseTransactions = transactions.where((t) => t.type == 'expense').toList();
+    final expenseTransactions =
+        transactions.where((t) => t.type == 'expense').toList();
 
     Map<String, double> categoryTotals = {};
     for (var transaction in expenseTransactions) {
@@ -347,8 +437,8 @@ class _StatsScreenState extends State<StatsScreen> {
 
     for (int i = 0; i < top5.length; i++) {
       final entry = top5[i];
-      final color = AppConstants.categoryColors[entry.key] ??
-          colors[i % colors.length];
+      final color =
+          AppConstants.categoryColors[entry.key] ?? colors[i % colors.length];
 
       barGroups.add(BarChartGroupData(
         x: i,
@@ -440,7 +530,8 @@ class _StatsScreenState extends State<StatsScreen> {
     Map<String, double> dailyExpenses = {};
     for (var transaction in expenseTransactions) {
       final dateKey = DateFormat('yyyy-MM-dd').format(transaction.date);
-      dailyExpenses[dateKey] = (dailyExpenses[dateKey] ?? 0) + transaction.amount;
+      dailyExpenses[dateKey] =
+          (dailyExpenses[dateKey] ?? 0) + transaction.amount;
     }
 
     final sortedDates = dailyExpenses.keys.toList()..sort();
@@ -470,7 +561,8 @@ class _StatsScreenState extends State<StatsScreen> {
     String recommendation = '';
 
     if (netCashFlow > 0) {
-      analysis = 'You have a positive cash flow of ${Helpers.formatCurrency(netCashFlow.abs())}.';
+      analysis =
+          'You have a positive cash flow of ${Helpers.formatCurrency(netCashFlow.abs())}.';
       if (savingsRate >= 20) {
         recommendation =
             'Excellent! You\'re saving ${savingsRate.toStringAsFixed(1)}% of your income. Keep up the great work!';
@@ -534,21 +626,27 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
             ),
             SizedBox(height: 20),
-            ...['Last 7 Days', 'Last 30 Days', 'Last 3 Months', 'Last 6 Months', 'Last Year', 'Custom']
-                .map((frame) => ListTile(
-                      title: Text(
-                        frame,
-                        style: GoogleFonts.inter(
-                          color: theme.textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                      trailing: _selectedTimeFrame == frame
-                          ? Icon(Icons.check, color: Color(0xFF14B8A6))
-                          : null,
-                      onTap: () {
-                        Navigator.pop(context, frame);
-                      },
-                    )),
+            ...[
+              'Last 7 Days',
+              'Last 30 Days',
+              'Last 3 Months',
+              'Last 6 Months',
+              'Last Year',
+              'Custom'
+            ].map((frame) => ListTile(
+                  title: Text(
+                    frame,
+                    style: GoogleFonts.inter(
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  trailing: _selectedTimeFrame == frame
+                      ? Icon(Icons.check, color: Color(0xFF14B8A6))
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context, frame);
+                  },
+                )),
             SizedBox(height: 20),
           ],
         ),
@@ -625,12 +723,85 @@ class _StatsScreenState extends State<StatsScreen> {
         ),
       ),
       body: SafeArea(
-        child: ValueListenableBuilder<Box<Transaction>>(
-          valueListenable: transactionsBox.listenable(),
-          builder: (context, box, _) {
-            return FutureBuilder<List<Transaction>>(
-              future: _getTransactionsForDateRange(),
-              builder: (context, snapshot) {
+        child: Builder(
+          builder: (context) {
+            // Show loading screen until data is ready
+            if (_isLoading) {
+              return StatsLoadingScreen(
+                loadingTask: Future.value(_loadedData ?? {}),
+              );
+            }
+
+            // Show error if loading failed
+            if (_errorMessage != null) {
+              return Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 64, color: Colors.red),
+                      SizedBox(height: 16),
+                      Text(
+                        'Failed to load statistics',
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        style: GoogleFonts.inter(
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadAllData,
+                        child: Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            // Safely get the transactions box
+            Box<Transaction>? box;
+            try {
+              box = Hive.box<Transaction>('transactionsBox');
+            } catch (e) {
+              print('Error accessing transactions box: $e');
+              return Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'Unable to load statistics. Please restart the app.',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: theme.textTheme.bodyMedium?.color,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
+
+            return ValueListenableBuilder<Box<Transaction>>(
+              valueListenable: box.listenable(),
+              builder: (context, box, _) {
+                // Use pre-loaded data
+                if (_loadedData == null) {
+                  return StatsLoadingScreen(
+                    loadingTask: Future.value({}),
+                  );
+                }
+
+                final data = _loadedData!;
+
                 return SingleChildScrollView(
                   padding: EdgeInsets.all(16),
                   child: Column(
@@ -641,135 +812,71 @@ class _StatsScreenState extends State<StatsScreen> {
                       SizedBox(height: 20),
 
                       // Dual Line Graph (Income + Expenses)
-                      FutureBuilder<Map<String, List<FlSpot>>>(
-                        future: _getDualLineData(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
-                            return _buildLoadingCard(theme);
-                          }
-                          return _buildDualLineChart(
-                            snapshot.data!,
-                            theme,
-                            isDark,
-                          );
-                        },
+                      _buildDualLineChart(
+                        data['dualLineData'] as Map<String, List<FlSpot>>,
+                        theme,
+                        isDark,
                       ),
                       SizedBox(height: 20),
 
                       // Income vs Expenses Pie Chart
-                      FutureBuilder<List<PieChartSectionData>>(
-                        future: _getIncomeExpensePieData(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
-                            return _buildLoadingCard(theme);
-                          }
-                          return _buildIncomeExpensePieChart(
-                            snapshot.data!,
-                            theme,
-                          );
-                        },
+                      _buildIncomeExpensePieChart(
+                        data['incomeExpensePieData']
+                            as List<PieChartSectionData>,
+                        theme,
                       ),
                       SizedBox(height: 20),
 
                       // Category Breakdown Pie Chart
-                      FutureBuilder<List<PieChartSectionData>>(
-                        future: _getCategoryBreakdownPieData(),
-                        builder: (context, pieSnapshot) {
-                          return FutureBuilder<Map<String, double>>(
-                            future: _getCategoryBreakdown(),
-                            builder: (context, catSnapshot) {
-                              if (!pieSnapshot.hasData || !catSnapshot.hasData) {
-                                return _buildLoadingCard(theme);
-                              }
-                              return Column(
-                                children: [
-                                  _buildCategoryBreakdownPieChart(
-                                    pieSnapshot.data!,
-                                    theme,
-                                  ),
-                                  SizedBox(height: 20),
-                                  _buildCategoryInsights(
-                                    catSnapshot.data!,
-                                    theme,
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
+                      Column(
+                        children: [
+                          _buildCategoryBreakdownPieChart(
+                            data['categoryPieData']
+                                as List<PieChartSectionData>,
+                            theme,
+                          ),
+                          SizedBox(height: 20),
+                          _buildCategoryInsights(
+                            data['categoryBreakdown'] as Map<String, double>,
+                            theme,
+                          ),
+                        ],
                       ),
                       SizedBox(height: 20),
 
                       // Monthly Expense Bar Chart
-                      FutureBuilder<List<BarChartGroupData>>(
-                        future: _getMonthlyExpenseBarData(),
-                        builder: (context, barSnapshot) {
-                          return FutureBuilder<List<String>>(
-                            future: _getMonthlyExpenseCategories(),
-                            builder: (context, catSnapshot) {
-                              if (!barSnapshot.hasData || !catSnapshot.hasData) {
-                                return _buildLoadingCard(theme);
-                              }
-                              return _buildMonthlyExpenseBarChart(
-                                barSnapshot.data!,
-                                catSnapshot.data!,
-                                theme,
-                                isDark,
-                              );
-                            },
-                          );
-                        },
+                      _buildMonthlyExpenseBarChart(
+                        data['monthlyBarData'] as List<BarChartGroupData>,
+                        data['monthlyCategories'] as List<String>,
+                        theme,
+                        isDark,
                       ),
                       SizedBox(height: 20),
 
                       // Income Trend
-                      FutureBuilder<List<FlSpot>>(
-                        future: _getIncomeTrendData(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
-                            return _buildLoadingCard(theme);
-                          }
-                          return _buildTrendChart(
-                            'Income Trend',
-                            snapshot.data!,
-                            Colors.green,
-                            theme,
-                            isDark,
-                          );
-                        },
+                      _buildTrendChart(
+                        'Income Trend',
+                        data['incomeTrendData'] as List<FlSpot>,
+                        Colors.green,
+                        theme,
+                        isDark,
                       ),
                       SizedBox(height: 20),
 
                       // Expense Trend
-                      FutureBuilder<List<FlSpot>>(
-                        future: _getExpenseTrendData(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
-                            return _buildLoadingCard(theme);
-                          }
-                          return _buildTrendChart(
-                            'Expense Trend',
-                            snapshot.data!,
-                            Colors.red,
-                            theme,
-                            isDark,
-                          );
-                        },
+                      _buildTrendChart(
+                        'Expense Trend',
+                        data['expenseTrendData'] as List<FlSpot>,
+                        Colors.red,
+                        theme,
+                        isDark,
                       ),
                       SizedBox(height: 20),
 
                       // Cash Flow Analysis
-                      FutureBuilder<Map<String, dynamic>>(
-                        future: _getCashFlowAnalysis(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
-                            return _buildLoadingCard(theme);
-                          }
-                          return _buildCashFlowAnalysis(
-                            snapshot.data!,
-                            theme,
-                          );
-                        },
+                      _buildCashFlowAnalysis(
+                        data['cashFlowAnalysis'] as Map<String, dynamic>,
+                        theme,
                       ),
                       SizedBox(height: 20),
                     ],
@@ -815,7 +922,8 @@ class _StatsScreenState extends State<StatsScreen> {
                       'Time Frame',
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       ),
                     ),
                     SizedBox(height: 2),
@@ -848,11 +956,58 @@ class _StatsScreenState extends State<StatsScreen> {
   ) {
     final incomeSpots = data['income']!;
     final expenseSpots = data['expenses']!;
-    final maxY = [
-          ...incomeSpots.map((e) => e.y),
-          ...expenseSpots.map((e) => e.y),
-        ].reduce((a, b) => a > b ? a : b) *
-        1.2;
+
+    // Handle empty data
+    if (incomeSpots.isEmpty && expenseSpots.isEmpty) {
+      return _buildChartCard(
+        theme,
+        'Income vs Expenses',
+        child: SizedBox(
+          height: 220,
+          child: Center(
+            child: Text(
+              'No data available for selected time frame',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Calculate max Y value
+    final allYValues = <double>[];
+    if (incomeSpots.isNotEmpty) {
+      allYValues.addAll(incomeSpots.map((e) => e.y));
+    }
+    if (expenseSpots.isNotEmpty) {
+      allYValues.addAll(expenseSpots.map((e) => e.y));
+    }
+
+    final maxY = allYValues.isEmpty
+        ? 1000.0
+        : (allYValues.reduce((a, b) => a > b ? a : b) * 1.2);
+
+    // Calculate min/max X values for proper scaling
+    final allXValues = <double>[];
+    if (incomeSpots.isNotEmpty) {
+      allXValues.addAll(incomeSpots.map((e) => e.x));
+    }
+    if (expenseSpots.isNotEmpty) {
+      allXValues.addAll(expenseSpots.map((e) => e.x));
+    }
+
+    final minX =
+        allXValues.isEmpty ? 0.0 : allXValues.reduce((a, b) => a < b ? a : b);
+    final maxX =
+        allXValues.isEmpty ? 1.0 : allXValues.reduce((a, b) => a > b ? a : b);
+
+    // Ensure we have a valid range
+    final xRange = (maxX - minX).abs();
+    final adjustedMinX = minX - (xRange * 0.05); // Add 5% padding
+    final adjustedMaxX = maxX + (xRange * 0.05); // Add 5% padding
 
     return _buildChartCard(
       theme,
@@ -864,6 +1019,7 @@ class _StatsScreenState extends State<StatsScreen> {
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
+              horizontalInterval: maxY > 0 ? (maxY / 5) : 200,
               getDrawingHorizontalLine: (value) {
                 return FlLine(
                   color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
@@ -886,15 +1042,17 @@ class _StatsScreenState extends State<StatsScreen> {
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 70,
-                  interval: 1,
+                  interval: maxY > 0 ? (maxY / 5) : 200,
                   getTitlesWidget: (value, meta) {
+                    if (value < 0) return SizedBox.shrink();
                     return Padding(
                       padding: EdgeInsets.only(right: 8),
                       child: Text(
                         Helpers.formatCurrency(value),
                         style: GoogleFonts.inter(
                           fontSize: 10,
-                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                          color: theme.textTheme.bodyMedium?.color
+                              ?.withOpacity(0.6),
                         ),
                         textAlign: TextAlign.right,
                       ),
@@ -903,35 +1061,49 @@ class _StatsScreenState extends State<StatsScreen> {
                 ),
               ),
             ),
-            borderData: FlBorderData(show: false),
+            borderData: FlBorderData(
+              show: false,
+            ),
             lineBarsData: [
-              LineChartBarData(
-                spots: incomeSpots,
-                isCurved: true,
-                color: Colors.green,
-                barWidth: 3,
-                isStrokeCapRound: true,
-                dotData: FlDotData(show: false),
-                belowBarData: BarAreaData(
-                  show: true,
-                  color: Colors.green.withOpacity(0.1),
+              if (incomeSpots.isNotEmpty)
+                LineChartBarData(
+                  spots: incomeSpots,
+                  isCurved: true,
+                  color: Colors.green,
+                  barWidth: 3,
+                  isStrokeCapRound: true,
+                  dotData: FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: Colors.green.withOpacity(0.1),
+                  ),
+                  preventCurveOverShooting: true,
+                  preventCurveOvershootingThreshold: 0.1,
                 ),
-              ),
-              LineChartBarData(
-                spots: expenseSpots,
-                isCurved: true,
-                color: Colors.red,
-                barWidth: 3,
-                isStrokeCapRound: true,
-                dotData: FlDotData(show: false),
-                belowBarData: BarAreaData(
-                  show: true,
-                  color: Colors.red.withOpacity(0.1),
+              if (expenseSpots.isNotEmpty)
+                LineChartBarData(
+                  spots: expenseSpots,
+                  isCurved: true,
+                  color: Colors.red,
+                  barWidth: 3,
+                  isStrokeCapRound: true,
+                  dotData: FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: Colors.red.withOpacity(0.1),
+                  ),
+                  preventCurveOverShooting: true,
+                  preventCurveOvershootingThreshold: 0.1,
                 ),
-              ),
             ],
+            minX: adjustedMinX,
+            maxX: adjustedMaxX > adjustedMinX ? adjustedMaxX : adjustedMinX + 1,
             minY: 0,
             maxY: maxY > 0 ? maxY : 1000,
+            clipData: FlClipData.all(),
+            extraLinesData: ExtraLinesData(
+              verticalLines: [],
+            ),
           ),
         ),
       ),
@@ -985,7 +1157,8 @@ class _StatsScreenState extends State<StatsScreen> {
                             'Income',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.7),
                             ),
                           ),
                           SizedBox(height: 8),
@@ -1005,7 +1178,8 @@ class _StatsScreenState extends State<StatsScreen> {
                             'Expenses',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.7),
                             ),
                           ),
                           SizedBox(height: 8),
@@ -1062,10 +1236,14 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
               SizedBox(height: 20),
               ...sortedCategories.take(5).map((entry) {
-                final percentage = categories.values.fold(0.0, (a, b) => a + b) > 0
-                    ? (entry.value / categories.values.fold(0.0, (a, b) => a + b)) * 100
-                    : 0.0;
-                final color = AppConstants.categoryColors[entry.key] ?? Colors.grey;
+                final percentage =
+                    categories.values.fold(0.0, (a, b) => a + b) > 0
+                        ? (entry.value /
+                                categories.values.fold(0.0, (a, b) => a + b)) *
+                            100
+                        : 0.0;
+                final color =
+                    AppConstants.categoryColors[entry.key] ?? Colors.grey;
 
                 return Padding(
                   padding: EdgeInsets.symmetric(vertical: 6),
@@ -1134,10 +1312,15 @@ class _StatsScreenState extends State<StatsScreen> {
       );
     }
 
-    final maxY = barGroups
-            .map((g) => g.barRods.first.toY)
-            .reduce((a, b) => a > b ? a : b) *
-        1.2;
+    // Calculate max Y value
+    final allYValues =
+        barGroups.map((g) => g.barRods.first.toY).where((y) => y > 0).toList();
+    final maxY = allYValues.isEmpty
+        ? 1000.0
+        : (allYValues.reduce((a, b) => a > b ? a : b) * 1.2);
+
+    // Calculate proper interval for Y-axis labels to prevent crowding
+    final yInterval = maxY > 0 ? (maxY / 5.0) : 200.0;
 
     return _buildChartCard(
       theme,
@@ -1151,6 +1334,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
+                  horizontalInterval: yInterval,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
                       color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
@@ -1169,20 +1353,29 @@ class _StatsScreenState extends State<StatsScreen> {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
+                      reservedSize: 50, // Reserve space for category names
                       getTitlesWidget: (value, meta) {
-                        if (value.toInt() >= categories.length) return Text('');
+                        if (value.toInt() >= categories.length ||
+                            value.toInt() < 0) {
+                          return SizedBox.shrink();
+                        }
                         final category = categories[value.toInt()];
+                        // Allow longer category names, truncate only if very long
+                        final displayText = category.length > 15
+                            ? category.substring(0, 15) + '...'
+                            : category;
                         return Padding(
                           padding: EdgeInsets.only(top: 8),
                           child: Text(
-                            category.length > 10
-                                ? category.substring(0, 10) + '...'
-                                : category,
+                            displayText,
                             style: GoogleFonts.inter(
                               fontSize: 10,
-                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.6),
                             ),
                             textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         );
                       },
@@ -1192,15 +1385,20 @@ class _StatsScreenState extends State<StatsScreen> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 70,
-                      interval: 1,
+                      interval: yInterval,
                       getTitlesWidget: (value, meta) {
+                        // Don't show negative values or values beyond max
+                        if (value < 0 || value > maxY.toDouble()) {
+                          return SizedBox.shrink();
+                        }
                         return Padding(
                           padding: EdgeInsets.only(right: 8),
                           child: Text(
                             Helpers.formatCurrency(value),
                             style: GoogleFonts.inter(
                               fontSize: 10,
-                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.6),
                             ),
                             textAlign: TextAlign.right,
                           ),
@@ -1211,7 +1409,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: barGroups,
-                maxY: maxY > 0 ? maxY : 1000,
+                maxY: maxY > 0 ? maxY.toDouble() : 1000.0,
               ),
             ),
           ),
@@ -1227,9 +1425,46 @@ class _StatsScreenState extends State<StatsScreen> {
     ThemeData theme,
     bool isDark,
   ) {
-    final maxY = spots.isEmpty || spots.every((e) => e.y == 0)
-        ? 1000
-        : (spots.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2);
+    // Handle empty data
+    if (spots.isEmpty) {
+      return _buildChartCard(
+        theme,
+        title,
+        child: SizedBox(
+          height: 200,
+          child: Center(
+            child: Text(
+              'No data available for selected time frame',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Calculate max Y value
+    final allYValues = spots.map((e) => e.y).where((y) => y > 0).toList();
+    final maxY = allYValues.isEmpty
+        ? 1000.0
+        : (allYValues.reduce((a, b) => a > b ? a : b) * 1.2);
+
+    // Calculate min/max X values for proper scaling
+    final allXValues = spots.map((e) => e.x).toList();
+    final minX =
+        allXValues.isEmpty ? 0.0 : allXValues.reduce((a, b) => a < b ? a : b);
+    final maxX =
+        allXValues.isEmpty ? 1.0 : allXValues.reduce((a, b) => a > b ? a : b);
+
+    // Ensure we have a valid range
+    final xRange = (maxX - minX).abs();
+    final adjustedMinX = minX - (xRange * 0.05); // Add 5% padding
+    final adjustedMaxX = maxX + (xRange * 0.05); // Add 5% padding
+
+    // Calculate proper interval for Y-axis labels to prevent crowding
+    final yInterval = maxY > 0 ? (maxY / 5.0) : 200.0;
 
     return _buildChartCard(
       theme,
@@ -1241,6 +1476,7 @@ class _StatsScreenState extends State<StatsScreen> {
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
+              horizontalInterval: yInterval,
               getDrawingHorizontalLine: (value) {
                 return FlLine(
                   color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
@@ -1263,15 +1499,19 @@ class _StatsScreenState extends State<StatsScreen> {
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 70,
-                  interval: 1,
+                  interval: yInterval,
                   getTitlesWidget: (value, meta) {
+                    // Don't show negative values or values beyond max
+                    if (value < 0 || value > maxY.toDouble())
+                      return SizedBox.shrink();
                     return Padding(
                       padding: EdgeInsets.only(right: 8),
                       child: Text(
                         Helpers.formatCurrency(value),
                         style: GoogleFonts.inter(
                           fontSize: 10,
-                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                          color: theme.textTheme.bodyMedium?.color
+                              ?.withOpacity(0.6),
                         ),
                         textAlign: TextAlign.right,
                       ),
@@ -1293,10 +1533,18 @@ class _StatsScreenState extends State<StatsScreen> {
                   show: true,
                   color: color.withOpacity(0.1),
                 ),
+                preventCurveOverShooting: true,
+                preventCurveOvershootingThreshold: 0.1,
               ),
             ],
+            minX: adjustedMinX,
+            maxX: adjustedMaxX > adjustedMinX ? adjustedMaxX : adjustedMinX + 1,
             minY: 0,
-            maxY: maxY.toDouble(),
+            maxY: maxY > 0 ? maxY.toDouble() : 1000.0,
+            clipData: FlClipData.all(),
+            extraLinesData: ExtraLinesData(
+              verticalLines: [],
+            ),
           ),
         ),
       ),
@@ -1329,7 +1577,8 @@ class _StatsScreenState extends State<StatsScreen> {
                       'Net Cash Flow',
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       ),
                     ),
                     SizedBox(height: 8),
@@ -1565,7 +1814,8 @@ class _StatsScreenState extends State<StatsScreen> {
 
     // Check for many small categories
     if (sorted.length > 8) {
-      final smallCategories = sorted.where((e) => (e.value / total) * 100 < 5).length;
+      final smallCategories =
+          sorted.where((e) => (e.value / total) * 100 < 5).length;
       if (smallCategories > 5 && analysis.isEmpty) {
         analysis =
             'You have ${sorted.length} different expense categories, with ${smallCategories} categories each accounting for less than 5% of spending.';

@@ -25,7 +25,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String? _selectedCategory;
   late DateTime _selectedDate;
   bool _isEditing = false;
+  bool _isLoading = false;
+  bool _isSaving = false;
   List<String> _availableCategories = [];
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -47,13 +50,36 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final categories = await AppConstants.getCategories(_selectedType);
     setState(() {
-      _availableCategories = categories;
-      if (_selectedCategory == null || !_availableCategories.contains(_selectedCategory)) {
-        _selectedCategory = _availableCategories.isNotEmpty ? _availableCategories.first : null;
-      }
+      _isLoading = true;
+      _errorMessage = null;
     });
+    
+    try {
+      final categories = await AppConstants.getCategories(_selectedType)
+          .timeout(Duration(seconds: 5), onTimeout: () {
+        throw Exception('Category loading timed out');
+      });
+      
+      if (mounted) {
+        setState(() {
+          _availableCategories = categories;
+          if (_selectedCategory == null || !_availableCategories.contains(_selectedCategory)) {
+            _selectedCategory = _availableCategories.isNotEmpty ? _availableCategories.first : null;
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading categories: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load categories. Please try again.';
+        });
+        Helpers.showErrorSnackBar(context, _errorMessage!);
+      }
+    }
   }
 
   @override
@@ -71,36 +97,72 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    // Get current user to associate transaction
-    final currentUser = await LocalStorageService.getCurrentUser();
-    if (currentUser == null) {
-      Helpers.showErrorSnackBar(
-          context, 'You must be logged in to add transactions');
-      return;
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Get current user to associate transaction
+      final currentUser = await LocalStorageService.getCurrentUser();
+      if (currentUser == null) {
+        throw Exception('You must be logged in to add transactions');
+      }
+
+      // Parse and validate amount
+      final amountText = _amountController.text.trim();
+      if (amountText.isEmpty) {
+        throw Exception('Please enter an amount');
+      }
+      
+      final amount = double.tryParse(amountText);
+      if (amount == null || amount <= 0) {
+        throw Exception('Please enter a valid amount greater than 0');
+      }
+
+      final transaction = Transaction(
+        id: _isEditing ? widget.transaction!.id : Uuid().v4(),
+        userId: _isEditing
+            ? (widget.transaction!.userId.isNotEmpty
+                ? widget.transaction!.userId
+                : currentUser.id) // Use existing userId or current user's id
+            : currentUser.id, // Associate new transaction with current user
+        amount: amount,
+        type: _selectedType,
+        category: _selectedCategory!,
+        description: _descriptionController.text.trim(),
+        date: _selectedDate,
+        isSynced: true,
+      );
+
+      if (_isEditing) {
+        await LocalStorageService.updateTransaction(transaction)
+            .timeout(Duration(seconds: 10));
+      } else {
+        await LocalStorageService.addTransaction(transaction)
+            .timeout(Duration(seconds: 10));
+      }
+
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      print('Error saving transaction: $e');
+      String errorMessage = 'Failed to save transaction';
+      if (e.toString().contains('timeout')) {
+        errorMessage = 'Request timed out. Please try again.';
+      } else if (e.toString().contains('Exception:')) {
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
+      }
+      
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _errorMessage = errorMessage;
+        });
+        Helpers.showErrorSnackBar(context, errorMessage);
+      }
     }
-
-    final transaction = Transaction(
-      id: _isEditing ? widget.transaction!.id : Uuid().v4(),
-      userId: _isEditing
-          ? (widget.transaction!.userId.isNotEmpty
-              ? widget.transaction!.userId
-              : currentUser.id) // Use existing userId or current user's id
-          : currentUser.id, // Associate new transaction with current user
-      amount: double.parse(_amountController.text),
-      type: _selectedType,
-      category: _selectedCategory!,
-      description: _descriptionController.text,
-      date: _selectedDate,
-      isSynced: true,
-    );
-
-    if (_isEditing) {
-      await LocalStorageService.updateTransaction(transaction);
-    } else {
-      await LocalStorageService.addTransaction(transaction);
-    }
-
-    Navigator.pop(context, true);
   }
 
   Future<void> _selectDate() async {
@@ -121,10 +183,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Transaction' : 'Add Transaction'),
         actions: [
-          IconButton(
-            icon: Icon(Icons.save),
-            onPressed: _saveTransaction,
-          ),
+          if (_isSaving)
+            Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          else
+            IconButton(
+              icon: Icon(Icons.save),
+              onPressed: _saveTransaction,
+            ),
         ],
       ),
       body: Padding(
@@ -292,7 +367,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               SizedBox(height: 20),
 
               // Category
-              _availableCategories.isEmpty
+              _isLoading
                   ? Container(
                       padding: EdgeInsets.all(16),
                       child: Center(
@@ -301,7 +376,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                       ),
                     )
-                  : DropdownButtonFormField<String>(
+                  : _availableCategories.isEmpty
+                      ? Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red),
+                              SizedBox(height: 8),
+                              Text(
+                                _errorMessage ?? 'No categories available',
+                                style: TextStyle(color: Colors.red),
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: 8),
+                              TextButton(
+                                onPressed: _loadCategories,
+                                child: Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : DropdownButtonFormField<String>(
                       value: _selectedCategory,
                       decoration: InputDecoration(
                         labelText: 'Category',

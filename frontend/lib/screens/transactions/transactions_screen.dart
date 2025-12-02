@@ -126,42 +126,85 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
   }
 
   Future<void> _editTransaction(Transaction transaction) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddTransactionScreen(transaction: transaction),
-      ),
-    );
-    if (result == true) {
-      setState(() {});
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddTransactionScreen(transaction: transaction),
+        ),
+      );
+      if (result == true && mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Transaction updated'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error editing transaction: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to edit transaction'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   Future<void> _deleteTransaction(Transaction transaction) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Transaction'),
-        content: Text('Are you sure you want to delete this transaction?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text('Delete'),
-          ),
-        ],
-      ),
-    );
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Delete Transaction'),
+          content: Text('Are you sure you want to delete this transaction?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: Text('Delete'),
+            ),
+          ],
+        ),
+      );
 
-    if (confirmed == true) {
-      await LocalStorageService.deleteTransaction(transaction.id);
+      if (confirmed == true) {
+        await LocalStorageService.deleteTransaction(transaction.id)
+            .timeout(Duration(seconds: 10));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Transaction deleted'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error deleting transaction: $e');
       if (mounted) {
+        String errorMessage = 'Failed to delete transaction';
+        if (e.toString().contains('timeout')) {
+          errorMessage = 'Delete operation timed out. Please try again.';
+        } else if (e.toString().contains('Exception:')) {
+          errorMessage = e.toString().replaceFirst('Exception: ', '');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transaction deleted')),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
         );
       }
     }
@@ -180,7 +223,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
               future: Future.wait([
                 _getTransactionsForMonth(),
                 _getGraphData(),
-              ]).then((results) {
+              ]).timeout(Duration(seconds: 10), onTimeout: () {
+                throw Exception('Loading transactions timed out');
+              }).then((results) {
                 final transactions = results[0] as List<Transaction>;
                 final spendings = transactions.where((t) => t.type == 'expense').toList()
                   ..sort((a, b) => b.date.compareTo(a.date));
@@ -197,8 +242,73 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                   'graphData': graphData,
                   'currentTabTotal': currentTabTotal,
                 };
+              }).catchError((e) {
+                print('Error loading transactions: $e');
+                return {
+                  'spendings': <Transaction>[],
+                  'income': <Transaction>[],
+                  'graphData': <FlSpot>[],
+                  'currentTabTotal': 0.0,
+                  'error': e.toString(),
+                };
               }),
               builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          color: Color(0xFF14B8A6),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading transactions...',
+                          style: TextStyle(
+                            color: theme.textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                
+                if (snapshot.hasError || (snapshot.hasData && snapshot.data!.containsKey('error'))) {
+                  return Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          SizedBox(height: 16),
+                          Text(
+                            'Failed to load transactions',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            snapshot.error?.toString() ?? snapshot.data?['error'] ?? 'Unknown error',
+                            style: TextStyle(
+                              color: theme.textTheme.bodyMedium?.color,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () => setState(() {}),
+                            child: Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                
                 if (!snapshot.hasData) {
                   return Center(
                     child: CircularProgressIndicator(

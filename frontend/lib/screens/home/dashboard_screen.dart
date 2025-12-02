@@ -204,14 +204,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 getMonthlyBalance(),
                 getSavings(),
                 _getGraphData(),
-              ]).then((results) => {
+              ]).timeout(Duration(seconds: 10), onTimeout: () {
+                throw Exception('Loading dashboard data timed out');
+              }).then((results) => {
                 'income': results[0] as double,
                 'expenses': results[1] as double,
                 'balance': results[2] as double,
                 'savings': results[3] as double,
                 'graphData': results[4] as List<FlSpot>,
+              }).catchError((e) {
+                print('Error loading dashboard data: $e');
+                return {
+                  'income': 0.0,
+                  'expenses': 0.0,
+                  'balance': 0.0,
+                  'savings': 0.0,
+                  'graphData': <FlSpot>[],
+                  'error': e.toString(),
+                };
               }),
               builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          color: Color(0xFF14B8A6),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading dashboard...',
+                          style: GoogleFonts.inter(
+                            color: theme.textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                
+                if (snapshot.hasError || (snapshot.hasData && snapshot.data!.containsKey('error'))) {
+                  return Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          SizedBox(height: 16),
+                          Text(
+                            'Failed to load dashboard',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            snapshot.error?.toString() ?? snapshot.data?['error'] ?? 'Unknown error',
+                            style: GoogleFonts.inter(
+                              color: theme.textTheme.bodyMedium?.color,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () => setState(() {}),
+                            child: Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                
                 if (!snapshot.hasData) {
                   return Center(
                     child: CircularProgressIndicator(

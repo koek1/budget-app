@@ -48,8 +48,20 @@ class SettingsService {
     if (!Hive.isBoxOpen(_settingsBoxName)) {
       return defaultThemeMode;
     }
-    final box = Hive.box(_settingsBoxName);
-    return box.get(_themeModeKey, defaultValue: defaultThemeMode) as String;
+    try {
+      final box = Hive.box(_settingsBoxName);
+      final themeMode = box.get(_themeModeKey, defaultValue: defaultThemeMode);
+      // Ensure we only return 'light' or 'dark'
+      if (themeMode == 'light' || themeMode == 'dark') {
+        return themeMode as String;
+      }
+      // If corrupted value, reset to default
+      box.put(_themeModeKey, defaultThemeMode);
+      return defaultThemeMode;
+    } catch (e) {
+      print('Error getting theme mode: $e');
+      return defaultThemeMode;
+    }
   }
 
   // Set theme mode

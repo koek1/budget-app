@@ -17,17 +17,31 @@ class CustomCriteriaService {
 
   // Get all custom criteria for current user
   static Future<List<CustomCriteria>> getCustomCriteria() async {
-    final box = Hive.box<CustomCriteria>(_boxName);
-    final currentUser = await LocalStorageService.getCurrentUser();
-    
-    if (currentUser == null) {
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        return [];
+      }
+      
+      final box = Hive.box<CustomCriteria>(_boxName);
+      final currentUser = await LocalStorageService.getCurrentUser();
+      
+      if (currentUser == null) {
+        return [];
+      }
+      
+      // Filter criteria by current user
+      try {
+        return box.values
+            .where((c) => c.userId == currentUser.id)
+            .toList();
+      } catch (e) {
+        print('Error filtering custom criteria: $e');
+        return [];
+      }
+    } catch (e) {
+      print('Error getting custom criteria: $e');
       return [];
     }
-    
-    // Filter criteria by current user
-    return box.values
-        .where((c) => c.userId == currentUser.id)
-        .toList();
   }
 
   // Get custom criteria by type (income or expense)
@@ -46,64 +60,34 @@ class CustomCriteriaService {
   // Add custom criteria
   static Future<void> addCustomCriteria(
       String type, String name) async {
-    final box = Hive.box<CustomCriteria>(_boxName);
-    final currentUser = await LocalStorageService.getCurrentUser();
-    
-    if (currentUser == null) {
-      throw Exception('User must be logged in to add custom criteria');
-    }
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        throw Exception('Custom criteria database is not available');
+      }
+      
+      final box = Hive.box<CustomCriteria>(_boxName);
+      final currentUser = await LocalStorageService.getCurrentUser();
+      
+      if (currentUser == null) {
+        throw Exception('User must be logged in to add custom criteria');
+      }
+      
+      if (type.isEmpty || name.trim().isEmpty) {
+        throw Exception('Type and name are required');
+      }
+      
+      if (type != 'income' && type != 'expense') {
+        throw Exception('Type must be either "income" or "expense"');
+      }
 
-    // Check for duplicates (same type and name for this user)
-    final existing = box.values.firstWhere(
-      (c) =>
-          c.userId == currentUser.id &&
-          c.type == type &&
-          c.name.toLowerCase() == name.toLowerCase(),
-      orElse: () => CustomCriteria(
-        id: '',
-        userId: '',
-        type: '',
-        name: '',
-        createdAt: DateTime.now(),
-      ),
-    );
-
-    if (existing.id.isNotEmpty) {
-      throw Exception('This category already exists');
-    }
-
-    final criteria = CustomCriteria(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      userId: currentUser.id,
-      type: type,
-      name: name.trim(),
-      createdAt: DateTime.now(),
-    );
-
-    await box.add(criteria);
-  }
-
-  // Update custom criteria
-  static Future<void> updateCustomCriteria(
-      String id, String name) async {
-    final box = Hive.box<CustomCriteria>(_boxName);
-    final currentUser = await LocalStorageService.getCurrentUser();
-    
-    if (currentUser == null) {
-      throw Exception('User must be logged in to update custom criteria');
-    }
-
-    // Find the criteria by ID and user ID
-    for (var i = 0; i < box.length; i++) {
-      final existing = box.getAt(i);
-      if (existing?.id == id && existing?.userId == currentUser.id) {
-        // Check for duplicates (excluding current item)
-        final duplicate = box.values.firstWhere(
+      // Check for duplicates (same type and name for this user) - optimized
+      try {
+        final normalizedName = name.trim().toLowerCase();
+        final existing = box.values.firstWhere(
           (c) =>
               c.userId == currentUser.id &&
-              c.type == existing!.type &&
-              c.id != id &&
-              c.name.toLowerCase() == name.trim().toLowerCase(),
+              c.type == type &&
+              c.name.toLowerCase() == normalizedName,
           orElse: () => CustomCriteria(
             id: '',
             userId: '',
@@ -113,45 +97,147 @@ class CustomCriteriaService {
           ),
         );
 
-        if (duplicate.id.isNotEmpty) {
+        if (existing.id.isNotEmpty) {
           throw Exception('This category already exists');
         }
-
-        final updated = CustomCriteria(
-          id: existing!.id,
-          userId: existing.userId,
-          type: existing.type,
-          name: name.trim(),
-          createdAt: existing.createdAt,
-        );
-
-        await box.putAt(i, updated);
-        return;
+      } catch (e) {
+        if (e.toString().contains('already exists')) {
+          rethrow;
+        }
+        // If firstWhere throws StateError (not found), that's fine - continue
+        print('Error checking duplicates: $e');
       }
-    }
 
-    throw Exception('Custom criteria not found');
+      final criteria = CustomCriteria(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        userId: currentUser.id,
+        type: type,
+        name: name.trim(),
+        createdAt: DateTime.now(),
+      );
+
+      await box.add(criteria);
+    } catch (e) {
+      print('Error adding custom criteria: $e');
+      rethrow;
+    }
+  }
+
+  // Update custom criteria
+  static Future<void> updateCustomCriteria(
+      String id, String name) async {
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        throw Exception('Custom criteria database is not available');
+      }
+      
+      final box = Hive.box<CustomCriteria>(_boxName);
+      final currentUser = await LocalStorageService.getCurrentUser();
+      
+      if (currentUser == null) {
+        throw Exception('User must be logged in to update custom criteria');
+      }
+      
+      if (id.isEmpty || name.trim().isEmpty) {
+        throw Exception('ID and name are required');
+      }
+
+      // Find the criteria by ID and user ID
+      for (var i = 0; i < box.length; i++) {
+        try {
+          final existing = box.getAt(i);
+          if (existing?.id == id && existing?.userId == currentUser.id) {
+            // Check for duplicates (excluding current item)
+            try {
+              final normalizedName = name.trim().toLowerCase();
+              final duplicate = box.values.firstWhere(
+                (c) =>
+                    c.userId == currentUser.id &&
+                    c.type == existing!.type &&
+                    c.id != id &&
+                    c.name.toLowerCase() == normalizedName,
+                orElse: () => CustomCriteria(
+                  id: '',
+                  userId: '',
+                  type: '',
+                  name: '',
+                  createdAt: DateTime.now(),
+                ),
+              );
+
+              if (duplicate.id.isNotEmpty) {
+                throw Exception('This category already exists');
+              }
+            } catch (e) {
+              if (e.toString().contains('already exists')) {
+                rethrow;
+              }
+              // If firstWhere throws StateError (not found), that's fine
+            }
+
+            final updated = CustomCriteria(
+              id: existing!.id,
+              userId: existing.userId,
+              type: existing.type,
+              name: name.trim(),
+              createdAt: existing.createdAt,
+            );
+
+            await box.putAt(i, updated);
+            return;
+          }
+        } catch (e) {
+          // Skip corrupted entries
+          print('Error reading criteria at index $i: $e');
+          continue;
+        }
+      }
+
+      throw Exception('Custom criteria not found');
+    } catch (e) {
+      print('Error updating custom criteria: $e');
+      rethrow;
+    }
   }
 
   // Delete custom criteria
   static Future<void> deleteCustomCriteria(String id) async {
-    final box = Hive.box<CustomCriteria>(_boxName);
-    final currentUser = await LocalStorageService.getCurrentUser();
-    
-    if (currentUser == null) {
-      throw Exception('User must be logged in to delete custom criteria');
-    }
-
-    // Find the criteria by ID and user ID
-    for (var i = 0; i < box.length; i++) {
-      final criteria = box.getAt(i);
-      if (criteria?.id == id && criteria?.userId == currentUser.id) {
-        await box.deleteAt(i);
-        return;
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        throw Exception('Custom criteria database is not available');
       }
-    }
+      
+      final box = Hive.box<CustomCriteria>(_boxName);
+      final currentUser = await LocalStorageService.getCurrentUser();
+      
+      if (currentUser == null) {
+        throw Exception('User must be logged in to delete custom criteria');
+      }
+      
+      if (id.isEmpty) {
+        throw Exception('Criteria ID is required');
+      }
 
-    throw Exception('Custom criteria not found');
+      // Find the criteria by ID and user ID
+      for (var i = 0; i < box.length; i++) {
+        try {
+          final criteria = box.getAt(i);
+          if (criteria?.id == id && criteria?.userId == currentUser.id) {
+            await box.deleteAt(i);
+            return;
+          }
+        } catch (e) {
+          // Skip corrupted entries
+          print('Error reading criteria at index $i: $e');
+          continue;
+        }
+      }
+
+      throw Exception('Custom criteria not found');
+    } catch (e) {
+      print('Error deleting custom criteria: $e');
+      rethrow;
+    }
   }
 
   // Get hidden default categories for current user
@@ -240,26 +326,48 @@ class CustomCriteriaService {
     String oldCategory,
     String newCategory,
   ) async {
-    final transactionsBox = Hive.box<Transaction>('transactionsBox');
-    
-    for (var i = 0; i < transactionsBox.length; i++) {
-      final transaction = transactionsBox.getAt(i);
-      if (transaction != null &&
-          transaction.userId == userId &&
-          transaction.type == type &&
-          transaction.category == oldCategory) {
-        final updated = Transaction(
-          id: transaction.id,
-          userId: transaction.userId,
-          amount: transaction.amount,
-          type: transaction.type,
-          category: newCategory,
-          description: transaction.description,
-          date: transaction.date,
-          isSynced: transaction.isSynced,
-        );
-        await transactionsBox.putAt(i, updated);
+    try {
+      if (!Hive.isBoxOpen('transactionsBox')) {
+        print('Transactions box not open, skipping category update');
+        return;
       }
+      
+      final transactionsBox = Hive.box<Transaction>('transactionsBox');
+      int updateCount = 0;
+      
+      for (var i = 0; i < transactionsBox.length; i++) {
+        try {
+          final transaction = transactionsBox.getAt(i);
+          if (transaction != null &&
+              transaction.userId == userId &&
+              transaction.type == type &&
+              transaction.category == oldCategory) {
+            final updated = Transaction(
+              id: transaction.id,
+              userId: transaction.userId,
+              amount: transaction.amount,
+              type: transaction.type,
+              category: newCategory,
+              description: transaction.description,
+              date: transaction.date,
+              isSynced: transaction.isSynced,
+            );
+            await transactionsBox.putAt(i, updated);
+            updateCount++;
+          }
+        } catch (e) {
+          // Skip corrupted entries
+          print('Error updating transaction at index $i: $e');
+          continue;
+        }
+      }
+      
+      if (updateCount > 0) {
+        print('Updated $updateCount transactions with new category');
+      }
+    } catch (e) {
+      print('Error updating transactions category: $e');
+      // Don't rethrow - this is a background operation
     }
   }
 

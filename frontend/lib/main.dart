@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'models/user.dart';
 import 'models/transaction.dart';
@@ -21,19 +22,55 @@ void main() async {
   // Check if this is a fresh install by checking for app version marker
   final isFreshInstall = await _checkIfFreshInstall();
 
-  // Open Boxes:
+  // Open Boxes (in order of dependency):
+  // 1. Settings box first (needed for defaults)
+  await Hive.openBox('settingsBox');
+
+  // 2. User boxes
   final userBox = await Hive.openBox('userBox');
   final usersBox = await Hive.openBox('usersBox'); // Store all users
 
-  // If fresh install, clear all user data and transactions
+  // If fresh install, clear ALL data including Hive boxes
   if (isFreshInstall) {
-    print('Fresh install detected - clearing all user data and transactions');
+    print('Fresh install detected - clearing ALL app data');
     try {
+      // Clear all Hive boxes
       await usersBox.clear();
       await userBox.clear();
+
+      // Clear settings box and set defaults for fresh install
+      final settingsBox = Hive.box('settingsBox');
+      await settingsBox.clear();
+      // Set default theme to light mode for fresh install
+      await settingsBox.put('themeMode', 'light');
+      await settingsBox.put('currency', 'R');
+      print('Set default theme to light mode for fresh install');
+
+      // Clear custom criteria box
+      if (Hive.isBoxOpen('customCriteriaBox')) {
+        await Hive.box<CustomCriteria>('customCriteriaBox').clear();
+      }
+
       // Transactions box will be handled below
+      print('Cleared all user data on fresh install');
     } catch (e) {
       print('Error clearing data on fresh install: $e');
+      // Try to delete boxes from disk as fallback
+      try {
+        await Hive.deleteBoxFromDisk('usersBox');
+        await Hive.deleteBoxFromDisk('userBox');
+        await Hive.deleteBoxFromDisk('customCriteriaBox');
+        print('Deleted boxes from disk as fallback');
+        // Reopen boxes after deletion
+        await Hive.openBox('usersBox');
+        await Hive.openBox('userBox');
+        // Set defaults
+        final settingsBox = Hive.box('settingsBox');
+        await settingsBox.put('themeMode', 'light');
+        await settingsBox.put('currency', 'R');
+      } catch (deleteError) {
+        print('Error deleting boxes: $deleteError');
+      }
     }
   }
 
@@ -68,22 +105,40 @@ void main() async {
     }
   }
 
-  await Hive.openBox('settingsBox'); // Settings (currency, theme)
+  // Settings box already opened above
+  // Ensure custom criteria box is open
+  if (!Hive.isBoxOpen('customCriteriaBox')) {
+    await Hive.openBox<CustomCriteria>('customCriteriaBox');
+  }
 
-  // Open custom criteria box
-  await Hive.openBox<CustomCriteria>('customCriteriaBox');
-
-  // If fresh install, clear transactions box
+  // If fresh install, clear transactions box and mark complete
   if (isFreshInstall) {
     try {
-      final transactionsBox = Hive.box<Transaction>('transactionsBox');
-      await transactionsBox.clear();
-      print('Cleared transactions on fresh install');
+      if (Hive.isBoxOpen('transactionsBox')) {
+        final transactionsBox = Hive.box<Transaction>('transactionsBox');
+        await transactionsBox.clear();
+        print('Cleared transactions on fresh install');
+      } else {
+        // If box isn't open, try to delete from disk
+        try {
+          await Hive.deleteBoxFromDisk('transactionsBox');
+          print('Deleted transactions box from disk');
+        } catch (e) {
+          print('Error deleting transactions box: $e');
+        }
+      }
     } catch (e) {
       print('Error clearing transactions on fresh install: $e');
+      // Try to delete from disk as fallback
+      try {
+        await Hive.deleteBoxFromDisk('transactionsBox');
+      } catch (deleteError) {
+        print('Error deleting transactions box: $deleteError');
+      }
     }
     // Mark that we've completed the fresh install cleanup
     await _markInstallComplete();
+    print('Fresh install cleanup completed');
   }
 
   // Clean up corrupted user data on first launch or after reinstall
@@ -101,14 +156,32 @@ void main() async {
   runApp(const MyApp());
 }
 
-// Check if this is a fresh install
+// Check if this is a fresh install using SharedPreferences (survives uninstall)
 Future<bool> _checkIfFreshInstall() async {
   try {
-    final settingsBox = await Hive.openBox('installMarker');
-    final installComplete =
-        settingsBox.get('install_complete', defaultValue: false) as bool;
-    await settingsBox.close();
-    return !installComplete;
+    final prefs = await SharedPreferences.getInstance();
+    const String appVersionKey = 'app_version';
+    const String currentVersion = '1.0.0'; // Match pubspec.yaml version
+
+    // Check if app version exists and matches
+    final storedVersion = prefs.getString(appVersionKey);
+
+    if (storedVersion == null) {
+      // First time install - mark as fresh
+      print('First time install detected');
+      return true;
+    }
+
+    if (storedVersion != currentVersion) {
+      // Version changed - treat as fresh install
+      print(
+          'Version changed from $storedVersion to $currentVersion - treating as fresh install');
+      return true;
+    }
+
+    // Version matches - not a fresh install
+    print('App version matches stored version: $storedVersion');
+    return false;
   } catch (e) {
     // If we can't check, assume it's a fresh install to be safe
     print('Error checking install status: $e');
@@ -119,9 +192,12 @@ Future<bool> _checkIfFreshInstall() async {
 // Mark that install cleanup is complete
 Future<void> _markInstallComplete() async {
   try {
-    final settingsBox = await Hive.openBox('installMarker');
-    await settingsBox.put('install_complete', true);
-    await settingsBox.close();
+    final prefs = await SharedPreferences.getInstance();
+    const String appVersionKey = 'app_version';
+    const String currentVersion = '1.0.0'; // Match pubspec.yaml version
+
+    await prefs.setString(appVersionKey, currentVersion);
+    print('Marked install complete for version: $currentVersion');
   } catch (e) {
     print('Error marking install complete: $e');
   }

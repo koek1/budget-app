@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/services/biometric_service.dart';
+import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/screens/home/home_screen.dart';
+import 'package:budget_app/screens/auth/loading_splash_screen.dart';
 import 'package:budget_app/utils/helpers.dart';
 
 // Custom page route with fade transition
@@ -145,9 +147,16 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       if (mounted) {
+        // Preload data in background while showing splash
+        final preloadTask = _preloadAppData();
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => LoadingSplashScreen(
+              loadingTask: preloadTask,
+              destination: const HomeScreen(),
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -186,9 +195,16 @@ class _LoginScreenState extends State<LoginScreen>
           _showBiometricEnableDialog();
         }
 
+        // Preload data in background while showing splash
+        final preloadTask = _preloadAppData();
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => LoadingSplashScreen(
+              loadingTask: preloadTask,
+              destination: const HomeScreen(),
+            ),
+          ),
         );
       } else if (mounted) {
         Helpers.showErrorSnackBar(
@@ -207,6 +223,22 @@ class _LoginScreenState extends State<LoginScreen>
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  // Preload app data in background for smoother experience
+  Future<void> _preloadAppData() async {
+    try {
+      // Preload transactions and user data
+      await Future.wait([
+        LocalStorageService.getTransactions(),
+        LocalStorageService.getCurrentUser(),
+      ]);
+      // Small delay to ensure smooth transition
+      await Future.delayed(Duration(milliseconds: 500));
+    } catch (e) {
+      print('Preload error: $e');
+      // Continue anyway - data will load on demand
     }
   }
 
