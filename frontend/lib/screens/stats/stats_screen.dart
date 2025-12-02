@@ -1312,10 +1312,15 @@ class _StatsScreenState extends State<StatsScreen> {
       );
     }
 
-    final maxY = barGroups
-            .map((g) => g.barRods.first.toY)
-            .reduce((a, b) => a > b ? a : b) *
-        1.2;
+    // Calculate max Y value
+    final allYValues =
+        barGroups.map((g) => g.barRods.first.toY).where((y) => y > 0).toList();
+    final maxY = allYValues.isEmpty
+        ? 1000.0
+        : (allYValues.reduce((a, b) => a > b ? a : b) * 1.2);
+
+    // Calculate proper interval for Y-axis labels to prevent crowding
+    final yInterval = maxY > 0 ? (maxY / 5.0) : 200.0;
 
     return _buildChartCard(
       theme,
@@ -1329,6 +1334,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
+                  horizontalInterval: yInterval,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
                       color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
@@ -1347,21 +1353,29 @@ class _StatsScreenState extends State<StatsScreen> {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
+                      reservedSize: 50, // Reserve space for category names
                       getTitlesWidget: (value, meta) {
-                        if (value.toInt() >= categories.length) return Text('');
+                        if (value.toInt() >= categories.length ||
+                            value.toInt() < 0) {
+                          return SizedBox.shrink();
+                        }
                         final category = categories[value.toInt()];
+                        // Allow longer category names, truncate only if very long
+                        final displayText = category.length > 15
+                            ? category.substring(0, 15) + '...'
+                            : category;
                         return Padding(
                           padding: EdgeInsets.only(top: 8),
                           child: Text(
-                            category.length > 10
-                                ? category.substring(0, 10) + '...'
-                                : category,
+                            displayText,
                             style: GoogleFonts.inter(
                               fontSize: 10,
                               color: theme.textTheme.bodyMedium?.color
                                   ?.withOpacity(0.6),
                             ),
                             textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         );
                       },
@@ -1371,8 +1385,12 @@ class _StatsScreenState extends State<StatsScreen> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 70,
-                      interval: 1,
+                      interval: yInterval,
                       getTitlesWidget: (value, meta) {
+                        // Don't show negative values or values beyond max
+                        if (value < 0 || value > maxY.toDouble()) {
+                          return SizedBox.shrink();
+                        }
                         return Padding(
                           padding: EdgeInsets.only(right: 8),
                           child: Text(
@@ -1391,7 +1409,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: barGroups,
-                maxY: maxY > 0 ? maxY : 1000,
+                maxY: maxY > 0 ? maxY.toDouble() : 1000.0,
               ),
             ),
           ),
