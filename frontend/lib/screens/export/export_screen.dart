@@ -197,9 +197,230 @@ class _ExportScreenState extends State<ExportScreen> {
             // Daily Income Preview (if income report)
             if (_selectedReportType != 'expense' && summary['dailyIncome'] != null)
               _buildDailyIncomePreview(summary['dailyIncome']),
+            
+            SizedBox(height: 16),
+            
+            // Export Insights
+            _buildExportInsights(
+              totalIncome,
+              totalExpenses,
+              netTotal,
+              totalTransactions,
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Map<String, dynamic> _getExportInsights(
+    double totalIncome,
+    double totalExpenses,
+    double netTotal,
+    int totalTransactions,
+  ) {
+    String analysis = '';
+    String recommendation = '';
+    Color insightColor = Colors.blue;
+
+    final dateRange = _endDate.difference(_startDate).inDays + 1;
+    final avgTransactionAmount = totalTransactions > 0
+        ? (totalIncome + totalExpenses) / totalTransactions
+        : 0.0;
+
+    if (totalTransactions == 0) {
+      analysis = 'No transactions found in the selected date range.';
+      recommendation =
+          'Try selecting a different date range or ensure you have transactions recorded.';
+      insightColor = Colors.grey;
+    } else {
+      // Net total analysis
+      if (netTotal > 0) {
+        final savingsRate = totalIncome > 0 ? (netTotal / totalIncome) * 100 : 0.0;
+        analysis =
+            'Over ${dateRange} days, you have a positive cash flow of ${Helpers.formatCurrency(netTotal.abs())} (${savingsRate.toStringAsFixed(1)}% savings rate).';
+        if (savingsRate >= 20) {
+          recommendation =
+              'Excellent savings rate! Consider exporting this data regularly to track your financial progress over time.';
+          insightColor = Colors.green;
+        } else {
+          recommendation =
+              'Good progress! Use this export to analyze your spending patterns and identify opportunities to increase your savings rate.';
+          insightColor = Colors.blue;
+        }
+      } else if (netTotal < 0) {
+        analysis =
+            'Over ${dateRange} days, you have a negative cash flow of ${Helpers.formatCurrency(netTotal.abs())}.';
+        recommendation =
+            'Review the exported data to identify spending patterns. Focus on reducing expenses in categories that consume the most of your budget.';
+        insightColor = Colors.red;
+      } else {
+        analysis =
+            'Your income and expenses are balanced over the selected ${dateRange} days.';
+        recommendation =
+            'Use this export to create a budget and set savings goals. Even small savings can add up over time.';
+        insightColor = Colors.blue;
+      }
+
+      // Transaction frequency insight
+      final transactionsPerDay = dateRange > 0 ? totalTransactions / dateRange : 0.0;
+      if (transactionsPerDay > 2) {
+        final frequencyInsight =
+            ' You\'re averaging ${transactionsPerDay.toStringAsFixed(1)} transactions per day.';
+        analysis += frequencyInsight;
+      }
+
+      // Average transaction size insight
+      if (avgTransactionAmount > 0) {
+        final sizeInsight =
+            ' Average transaction size: ${Helpers.formatCurrency(avgTransactionAmount)}.';
+        if (analysis.length < 150) {
+          analysis += sizeInsight;
+        }
+      }
+    }
+
+    return {
+      'analysis': analysis,
+      'recommendation': recommendation,
+      'color': insightColor,
+    };
+  }
+
+  Widget _buildExportInsights(
+    double totalIncome,
+    double totalExpenses,
+    double netTotal,
+    int totalTransactions,
+  ) {
+    final theme = Theme.of(context);
+    final insights = _getExportInsights(
+      totalIncome,
+      totalExpenses,
+      netTotal,
+      totalTransactions,
+    );
+
+    if (insights['analysis']!.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    final insightColor = insights['color'] as Color;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Divider(),
+        SizedBox(height: 16),
+        Row(
+          children: [
+            Icon(
+              Icons.insights_rounded,
+              color: insightColor,
+              size: 20,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Export Insights',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 16),
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: insightColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: insightColor.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.analytics_outlined,
+                    color: insightColor,
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Analysis',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              Text(
+                insights['analysis'] as String,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: theme.textTheme.bodyMedium?.color,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (insights['recommendation']!.isNotEmpty) ...[
+          SizedBox(height: 12),
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.orange.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline_rounded,
+                      color: Colors.orange,
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Recommendation',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  insights['recommendation'] as String,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: theme.textTheme.bodyMedium?.color,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 

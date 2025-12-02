@@ -39,11 +39,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
     super.dispose();
   }
 
-  List<Transaction> _getTransactionsForMonth() {
-    final box = Hive.box<Transaction>('transactionsBox');
-    
-    // Get all transactions and filter by month
-    final allTransactions = box.values.toList();
+  Future<List<Transaction>> _getTransactionsForMonth() async {
+    // Get user-filtered transactions
+    final allTransactions = await LocalStorageService.getTransactions();
     
     // If no transactions, return empty list
     if (allTransactions.isEmpty) {
@@ -62,8 +60,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
     return filtered;
   }
 
-  List<FlSpot> _getGraphData() {
-    final transactions = _getTransactionsForMonth();
+  Future<List<FlSpot>> _getGraphData() async {
+    final transactions = await _getTransactionsForMonth();
     final daysInMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
     
     // Filter transactions based on selected tab
@@ -178,17 +176,41 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
         child: ValueListenableBuilder<Box<Transaction>>(
           valueListenable: Hive.box<Transaction>('transactionsBox').listenable(),
           builder: (context, box, _) {
-            final transactions = _getTransactionsForMonth();
-            final spendings = transactions.where((t) => t.type == 'expense').toList()
-              ..sort((a, b) => b.date.compareTo(a.date));
-            final income = transactions.where((t) => t.type == 'income').toList()
-              ..sort((a, b) => b.date.compareTo(a.date));
-            final graphData = _getGraphData();
-            
-            // Calculate total for current tab
-            final currentTabTotal = _selectedTab == 'Income' 
-                ? income.fold(0.0, (sum, t) => sum + t.amount)
-                : spendings.fold(0.0, (sum, t) => sum + t.amount);
+            return FutureBuilder<Map<String, dynamic>>(
+              future: Future.wait([
+                _getTransactionsForMonth(),
+                _getGraphData(),
+              ]).then((results) {
+                final transactions = results[0] as List<Transaction>;
+                final spendings = transactions.where((t) => t.type == 'expense').toList()
+                  ..sort((a, b) => b.date.compareTo(a.date));
+                final income = transactions.where((t) => t.type == 'income').toList()
+                  ..sort((a, b) => b.date.compareTo(a.date));
+                final graphData = results[1] as List<FlSpot>;
+                final currentTabTotal = _selectedTab == 'Income' 
+                    ? income.fold<double>(0.0, (sum, t) => sum + t.amount)
+                    : spendings.fold<double>(0.0, (sum, t) => sum + t.amount);
+                
+                return {
+                  'spendings': spendings,
+                  'income': income,
+                  'graphData': graphData,
+                  'currentTabTotal': currentTabTotal,
+                };
+              }),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF14B8A6),
+                    ),
+                  );
+                }
+
+                final spendings = snapshot.data!['spendings'] as List<Transaction>;
+                final income = snapshot.data!['income'] as List<Transaction>;
+                final graphData = snapshot.data!['graphData'] as List<FlSpot>;
+                final currentTabTotal = snapshot.data!['currentTabTotal'] as double;
 
             return CustomScrollView(
               slivers: [
@@ -451,6 +473,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                   ),
                 ),
 
+                // Spending Pattern Insights (only for expenses)
+                if (_selectedTab == 'Spendings' && spendings.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildSpendingPatternInsights(spendings, theme),
+                    ),
+                  ),
+
                 // Transaction List
                 SliverFillRemaining(
                   hasScrollBody: true,
@@ -464,17 +495,294 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                 ),
               ],
             );
+              },
+            );
           },
         ),
       ),
     );
   }
 
+  // Calculate spending pattern insights
+  Map<String, dynamic> _getSpendingPatternInsights(List<Transaction> expenses) {
+    if (expenses.isEmpty) {
+      return {
+        'analysis': '',
+        'recommendation': '',
+        'categoryInsight': '',
+      };
+    }
+
+    // Group by category
+    Map<String, double> categoryTotals = {};
+    Map<String, int> categoryCounts = {};
+    for (var transaction in expenses) {
+      categoryTotals[transaction.category] =
+          (categoryTotals[transaction.category] ?? 0) + transaction.amount;
+      categoryCounts[transaction.category] =
+          (categoryCounts[transaction.category] ?? 0) + 1;
+    }
+
+    final totalExpenses = expenses.fold(0.0, (sum, t) => sum + t.amount);
+    final sortedCategories = categoryTotals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    String analysis = '';
+    String recommendation = '';
+    String categoryInsight = '';
+
+    // Frequency analysis
+    final avgTransactionAmount = totalExpenses / expenses.length;
+    final highValueTransactions = expenses.where((t) => t.amount > avgTransactionAmount * 2).length;
+    final highValuePercent = (highValueTransactions / expenses.length) * 100;
+
+    if (highValuePercent > 30) {
+      analysis =
+          'You have ${highValueTransactions} high-value transactions (above ${Helpers.formatCurrency(avgTransactionAmount * 2)}) this month, accounting for ${highValuePercent.toStringAsFixed(0)}% of your transactions.';
+      recommendation =
+          'Review these high-value transactions to ensure they\'re necessary. Consider breaking large purchases into smaller, more manageable payments.';
+    } else if (expenses.length > 20) {
+      analysis =
+          'You have ${expenses.length} expense transactions this month with an average of ${Helpers.formatCurrency(avgTransactionAmount)} per transaction.';
+      recommendation =
+          'You\'re making many small transactions. Consider consolidating purchases or reviewing subscription services to reduce transaction frequency.';
+    } else {
+      analysis =
+          'You have ${expenses.length} expense transactions this month totaling ${Helpers.formatCurrency(totalExpenses)}.';
+      recommendation =
+          'Your spending pattern looks manageable. Continue tracking to identify any trends or areas for improvement.';
+    }
+
+    // Category insights
+    if (sortedCategories.isNotEmpty) {
+      final topCategory = sortedCategories.first;
+      final topCategoryPercent = (topCategory.value / totalExpenses) * 100;
+      final topCategoryCount = categoryCounts[topCategory.key] ?? 0;
+
+      if (topCategoryPercent > 50) {
+        categoryInsight =
+            '${topCategory.key} dominates your spending at ${topCategoryPercent.toStringAsFixed(1)}% (${topCategoryCount} transactions). This is a significant portion - consider if this aligns with your financial goals.';
+      } else if (topCategoryPercent > 30) {
+        categoryInsight =
+            '${topCategory.key} is your largest spending category at ${topCategoryPercent.toStringAsFixed(1)}% of total expenses. Review if there are opportunities to optimize spending in this area.';
+      } else if (sortedCategories.length <= 3) {
+        categoryInsight =
+            'Your spending is concentrated in ${sortedCategories.length} main categories. This shows focused spending, which can be easier to manage and optimize.';
+      }
+    }
+
+    // Spending velocity (transactions per day)
+    if (expenses.length > 1) {
+      final firstDate = expenses.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b);
+      final lastDate = expenses.map((e) => e.date).reduce((a, b) => a.isAfter(b) ? a : b);
+      final daysDiff = lastDate.difference(firstDate).inDays + 1;
+      final transactionsPerDay = expenses.length / daysDiff;
+
+      if (transactionsPerDay > 1.5) {
+        final velocityInsight =
+            'You\'re making ${transactionsPerDay.toStringAsFixed(1)} transactions per day on average.';
+        if (analysis.isNotEmpty) {
+          analysis += ' $velocityInsight';
+        } else {
+          analysis = velocityInsight;
+        }
+      }
+    }
+
+    return {
+      'analysis': analysis,
+      'recommendation': recommendation,
+      'categoryInsight': categoryInsight,
+    };
+  }
+
+  Widget _buildSpendingPatternInsights(
+    List<Transaction> expenses,
+    ThemeData theme,
+  ) {
+    final insights = _getSpendingPatternInsights(expenses);
+
+    if (insights['analysis']!.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 20),
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.insights_rounded,
+                color: Color(0xFF14B8A6),
+                size: 24,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Spending Pattern Analysis',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.blue.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.analytics_outlined,
+                      color: Colors.blue,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Analysis',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  insights['analysis'] as String,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: theme.textTheme.bodyMedium?.color,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (insights['recommendation']!.isNotEmpty) ...[
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline_rounded,
+                        color: Colors.orange,
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Recommendation',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    insights['recommendation'] as String,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: theme.textTheme.bodyMedium?.color,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (insights['categoryInsight']!.isNotEmpty) ...[
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Color(0xFF14B8A6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Color(0xFF14B8A6).withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.category_outlined,
+                        color: Color(0xFF14B8A6),
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Category Insight',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    insights['categoryInsight'] as String,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: theme.textTheme.bodyMedium?.color,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildTransactionList(List<Transaction> transactions) {
-    // Get all transactions to check if any exist
-    final box = Hive.box<Transaction>('transactionsBox');
-    final allTransactions = box.values.toList();
-    
     if (transactions.isEmpty) {
       return Center(
         child: SingleChildScrollView(
@@ -494,24 +802,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 8),
-              if (allTransactions.isNotEmpty) ...[
-                Text(
-                  'Total transactions in database: ${allTransactions.length}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[500],
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Selected month: ${DateFormat('MMMM yyyy').format(_selectedMonth)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[400],
-                  ),
-                ),
-                SizedBox(height: 8),
-              ],
               Text(
                 'Try selecting a different month or add a transaction',
                 style: TextStyle(

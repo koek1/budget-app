@@ -39,9 +39,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  List<Transaction> _getTransactionsForMonth() {
-    // Get all transactions and filter by month
-    final allTransactions = transactionsBox.values.toList();
+  Future<List<Transaction>> _getTransactionsForMonth() async {
+    // Get user-filtered transactions
+    final allTransactions = await LocalStorageService.getTransactions();
 
     if (allTransactions.isEmpty) {
       return [];
@@ -58,42 +58,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
   }
 
-  double getMonthlyIncome() {
-    final transactions = _getTransactionsForMonth();
+  Future<double> getMonthlyIncome() async {
+    final transactions = await _getTransactionsForMonth();
     return transactions
         .where((transaction) => transaction.type == 'income')
-        .fold(0.0, (sum, transaction) => sum + transaction.amount);
+        .fold<double>(0.0, (sum, transaction) => sum + transaction.amount);
   }
 
-  double getMonthlyExpenses() {
-    final transactions = _getTransactionsForMonth();
+  Future<double> getMonthlyExpenses() async {
+    final transactions = await _getTransactionsForMonth();
     return transactions
         .where((transaction) => transaction.type == 'expense')
-        .fold(0.0, (sum, transaction) => sum + transaction.amount);
+        .fold<double>(0.0, (sum, transaction) => sum + transaction.amount);
   }
 
-  double getMonthlyBalance() {
-    return getMonthlyIncome() - getMonthlyExpenses();
+  Future<double> getMonthlyBalance() async {
+    final income = await getMonthlyIncome();
+    final expenses = await getMonthlyExpenses();
+    return income - expenses;
   }
 
-  double getSavings() {
-    // Calculate savings as total income minus expenses
-    final totalIncome = transactionsBox.values
+  Future<double> getSavings() async {
+    // Calculate savings as total income minus expenses (all time, user-filtered)
+    final allTransactions = await LocalStorageService.getTransactions();
+    final totalIncome = allTransactions
         .where((transaction) => transaction.type == 'income')
-        .fold(0.0, (sum, transaction) => sum + transaction.amount);
-    final totalExpenses = transactionsBox.values
+        .fold<double>(0.0, (sum, transaction) => sum + transaction.amount);
+    final totalExpenses = allTransactions
         .where((transaction) => transaction.type == 'expense')
-        .fold(0.0, (sum, transaction) => sum + transaction.amount);
+        .fold<double>(0.0, (sum, transaction) => sum + transaction.amount);
     return totalIncome - totalExpenses;
   }
 
-  List<FlSpot> _getGraphData() {
-    final transactions = _getTransactionsForMonth();
+  Future<List<FlSpot>> _getGraphData() async {
+    final transactions = await _getTransactionsForMonth();
     final daysInMonth =
         DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
 
-    // Get all transactions up to the selected month to calculate starting balance
-    final allTransactions = transactionsBox.values.toList()
+    // Get all user-filtered transactions up to the selected month to calculate starting balance
+    final allTransactions = await LocalStorageService.getTransactions()
       ..sort((a, b) => a.date.compareTo(b.date));
 
     // Calculate starting balance (all transactions before this month)
@@ -194,11 +197,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: ValueListenableBuilder<Box<Transaction>>(
           valueListenable: transactionsBox.listenable(),
           builder: (context, box, _) {
-            final monthlyIncome = getMonthlyIncome();
-            final monthlyExpenses = getMonthlyExpenses();
-            final monthlyBalance = getMonthlyBalance();
-            final savings = getSavings();
-            final graphData = _getGraphData();
+            return FutureBuilder<Map<String, dynamic>>(
+              future: Future.wait([
+                getMonthlyIncome(),
+                getMonthlyExpenses(),
+                getMonthlyBalance(),
+                getSavings(),
+                _getGraphData(),
+              ]).then((results) => {
+                'income': results[0] as double,
+                'expenses': results[1] as double,
+                'balance': results[2] as double,
+                'savings': results[3] as double,
+                'graphData': results[4] as List<FlSpot>,
+              }),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF14B8A6),
+                    ),
+                  );
+                }
+
+                final monthlyIncome = snapshot.data!['income'] as double;
+                final monthlyExpenses = snapshot.data!['expenses'] as double;
+                final monthlyBalance = snapshot.data!['balance'] as double;
+                final savings = snapshot.data!['savings'] as double;
+                final graphData = snapshot.data!['graphData'] as List<FlSpot>;
 
             return CustomScrollView(
               slivers: [
@@ -737,6 +763,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         SizedBox(height: 24),
 
+                        // Monthly Financial Insights
+                        _buildMonthlyFinancialInsights(
+                          monthlyIncome,
+                          monthlyExpenses,
+                          monthlyBalance,
+                          theme,
+                        ),
+                        SizedBox(height: 24),
+
                         // Monthly Transactions Section
                         Text(
                           'Recent Transactions',
@@ -749,12 +784,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         SizedBox(height: 16),
-                        _buildMonthlyTransactionsList(),
+                        FutureBuilder<List<Transaction>>(
+                          future: _getTransactionsForMonth(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  color: Color(0xFF14B8A6),
+                                ),
+                              );
+                            }
+                            return _buildMonthlyTransactionsList(snapshot.data!);
+                          },
+                        ),
                       ],
                     ),
                   ),
                 ),
               ],
+            );
+              },
             );
           },
         ),
@@ -763,9 +812,307 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMonthlyTransactionsList() {
+  // Calculate monthly financial insights
+  Future<Map<String, dynamic>> _getMonthlyInsights(
+    double income,
+    double expenses,
+    double balance,
+  ) async {
+    final expenseRatio = income > 0 ? (expenses / income) * 100 : 0.0;
+    final savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0.0;
+
+    String analysis = '';
+    String recommendation = '';
+    Color insightColor = Colors.blue;
+
+    if (income == 0 && expenses == 0) {
+      analysis = 'No financial activity recorded for this month.';
+      recommendation =
+          'Start tracking your income and expenses to gain better financial insights.';
+      insightColor = Colors.grey;
+    } else if (balance > 0) {
+      if (savingsRate >= 20) {
+        analysis =
+            'Excellent financial management! You\'re saving ${savingsRate.toStringAsFixed(1)}% of your income this month.';
+        recommendation =
+            'Consider investing your savings or building an emergency fund with 3-6 months of expenses.';
+        insightColor = Colors.green;
+      } else if (savingsRate >= 10) {
+        analysis =
+            'Good progress! You\'re saving ${savingsRate.toStringAsFixed(1)}% of your income this month.';
+        recommendation =
+            'Try to increase your savings rate to at least 20% by reducing non-essential expenses.';
+        insightColor = Colors.blue;
+      } else {
+        analysis =
+            'You have a positive balance of ${Helpers.formatCurrency(balance.abs())} this month.';
+        recommendation =
+            'While you\'re saving, aim to save at least 10-20% of your income for better financial security.';
+        insightColor = Colors.orange;
+      }
+    } else if (balance < 0) {
+      analysis =
+          'Your expenses exceed income by ${Helpers.formatCurrency(balance.abs())} this month.';
+      if (expenseRatio > 120) {
+        recommendation =
+            'Your expenses are ${expenseRatio.toStringAsFixed(0)}% of your income. Review your spending categories and cut back on non-essential expenses immediately.';
+        insightColor = Colors.red;
+      } else {
+        recommendation =
+            'Review your spending patterns and identify areas where you can reduce expenses. Consider creating a budget to stay on track.';
+        insightColor = Colors.orange;
+      }
+    } else {
+      analysis = 'Your income and expenses are balanced this month.';
+      recommendation =
+          'You\'re breaking even. Consider setting aside a portion of your income for savings or investments.';
+      insightColor = Colors.blue;
+    }
+
+    // Category insights
+    final transactions = await _getTransactionsForMonth();
+    final expenseTransactions =
+        transactions.where((t) => t.type == 'expense').toList();
+    Map<String, double> categoryTotals = {};
+    for (var transaction in expenseTransactions) {
+      categoryTotals[transaction.category] =
+          (categoryTotals[transaction.category] ?? 0) + transaction.amount;
+    }
+
+    String categoryInsight = '';
+    if (categoryTotals.isNotEmpty) {
+      final sortedCategories = categoryTotals.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final topCategory = sortedCategories.first;
+      final topCategoryPercent =
+          expenses > 0 ? (topCategory.value / expenses) * 100 : 0.0;
+
+      if (topCategoryPercent > 40) {
+        categoryInsight =
+            '${topCategory.key} accounts for ${topCategoryPercent.toStringAsFixed(1)}% of your expenses. Consider reviewing this category for potential savings.';
+      } else if (topCategoryPercent > 25) {
+        categoryInsight =
+            'Your largest expense category is ${topCategory.key} (${topCategoryPercent.toStringAsFixed(1)}% of total expenses).';
+      }
+    }
+
+    return {
+      'analysis': analysis,
+      'recommendation': recommendation,
+      'categoryInsight': categoryInsight,
+      'color': insightColor,
+      'savingsRate': savingsRate,
+      'expenseRatio': expenseRatio,
+    };
+  }
+
+  Widget _buildMonthlyFinancialInsights(
+    double income,
+    double expenses,
+    double balance,
+    ThemeData theme,
+  ) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getMonthlyInsights(income, expenses, balance),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF14B8A6),
+              ),
+            ),
+          );
+        }
+
+        final insights = snapshot.data!;
+        final analysis = insights['analysis'] as String;
+        final recommendation = insights['recommendation'] as String;
+        final categoryInsight = insights['categoryInsight'] as String;
+        final insightColor = insights['color'] as Color;
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.insights_rounded,
+                color: insightColor,
+                size: 24,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Monthly Financial Insights',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: insightColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: insightColor.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.analytics_outlined,
+                      color: insightColor,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Analysis',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  analysis,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: theme.textTheme.bodyMedium?.color,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.orange.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline_rounded,
+                      color: Colors.orange,
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Recommendation',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  recommendation,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: theme.textTheme.bodyMedium?.color,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (categoryInsight.isNotEmpty) ...[
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Color(0xFF14B8A6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Color(0xFF14B8A6).withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.category_outlined,
+                        color: Color(0xFF14B8A6),
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Category Insight',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    categoryInsight,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: theme.textTheme.bodyMedium?.color,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+      },
+    );
+  }
+
+  Widget _buildMonthlyTransactionsList(List<Transaction> transactions) {
     final theme = Theme.of(context);
-    final transactions = _getTransactionsForMonth();
 
     if (transactions.isEmpty) {
       return Container(
