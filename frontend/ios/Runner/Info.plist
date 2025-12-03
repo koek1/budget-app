@@ -47,6 +47,10 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>SpendSense needs to use Face ID or Touch ID to securely authenticate you and protect your financial data.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>SpendSense needs access to your camera to scan receipts and automatically extract transaction information.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SpendSense needs access to your photo library to select receipt images for scanning.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
