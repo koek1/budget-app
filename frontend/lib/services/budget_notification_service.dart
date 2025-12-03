@@ -4,7 +4,8 @@ import 'package:budget_app/models/budget.dart';
 import 'package:budget_app/utils/helpers.dart';
 
 class BudgetNotificationService {
-  static final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
   // Initialize notifications
@@ -13,8 +14,9 @@ class BudgetNotificationService {
 
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -31,9 +33,11 @@ class BudgetNotificationService {
     );
 
     // Request permissions for Android 13+
-    if (await _notifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission() ?? false) {
+    if (await _notifications
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission() ??
+        false) {
       _initialized = true;
     } else {
       _initialized = true; // Continue anyway
@@ -71,12 +75,15 @@ class BudgetNotificationService {
   }
 
   // Show notification when budget is exceeded
-  static Future<void> _showBudgetExceededNotification(Budget budget, double spending) async {
+  static Future<void> _showBudgetExceededNotification(
+      Budget budget, double spending) async {
     final budgetName = budget.category ?? 'Overall Budget';
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
       'budget_alerts',
       'Budget Alerts',
-      channelDescription: 'Notifications for budget warnings and exceeded budgets',
+      channelDescription:
+          'Notifications for budget warnings and exceeded budgets',
       importance: Importance.high,
       priority: Priority.high,
       showWhen: true,
@@ -110,11 +117,13 @@ class BudgetNotificationService {
   ) async {
     final budgetName = budget.category ?? 'Overall Budget';
     final remaining = budget.amount - spending;
-    
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
       'budget_alerts',
       'Budget Alerts',
-      channelDescription: 'Notifications for budget warnings and exceeded budgets',
+      channelDescription:
+          'Notifications for budget warnings and exceeded budgets',
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
       showWhen: true,
@@ -151,4 +160,3 @@ class BudgetNotificationService {
     await _notifications.cancelAll();
   }
 }
-
