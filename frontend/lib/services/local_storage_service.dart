@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/models/user.dart';
+import 'package:budget_app/services/budget_notification_service.dart';
 
 class LocalStorageService {
   // Transaction operations
@@ -66,6 +67,14 @@ class LocalStorageService {
       // Use add to ensure proper auto-incrementing and listener notifications
       // ValueListenableBuilder will automatically update when box.add() is called
       await box.add(userTransaction);
+      
+      // Check budgets and send notifications if this is an expense
+      if (userTransaction.type == 'expense') {
+        BudgetNotificationService.checkBudgetsAndNotify().catchError((e) {
+          print('Error checking budgets after transaction: $e');
+          // Don't throw - budget checking failure shouldn't prevent transaction from being saved
+        });
+      }
     } catch (e) {
       print('Error adding transaction: $e');
       rethrow;

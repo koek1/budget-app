@@ -39,6 +39,260 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  Future<void> _selectMonth() async {
+    final theme = Theme.of(context);
+    final result = await showModalBottomSheet<DateTime>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: EdgeInsets.only(top: 12, bottom: 20),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Select Month',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+            ...[
+              'This Month',
+              'Last Month',
+              '2 Months Ago',
+              '3 Months Ago',
+              '6 Months Ago',
+              '1 Year Ago',
+              'Custom'
+            ].map((option) {
+              DateTime? month;
+              final now = DateTime.now();
+              switch (option) {
+                case 'This Month':
+                  month = DateTime(now.year, now.month);
+                  break;
+                case 'Last Month':
+                  month = DateTime(now.year, now.month - 1);
+                  break;
+                case '2 Months Ago':
+                  month = DateTime(now.year, now.month - 2);
+                  break;
+                case '3 Months Ago':
+                  month = DateTime(now.year, now.month - 3);
+                  break;
+                case '6 Months Ago':
+                  month = DateTime(now.year, now.month - 6);
+                  break;
+                case '1 Year Ago':
+                  month = DateTime(now.year - 1, now.month);
+                  break;
+              }
+              final isSelected = month != null &&
+                  month.year == _selectedMonth.year &&
+                  month.month == _selectedMonth.month;
+              return ListTile(
+                title: Text(
+                  option,
+                  style: GoogleFonts.inter(
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check, color: Color(0xFF14B8A6))
+                    : null,
+                onTap: () {
+                  if (option == 'Custom') {
+                    Navigator.pop(context);
+                    _selectCustomMonth();
+                  } else if (month != null) {
+                    Navigator.pop(context, month);
+                  }
+                },
+              );
+            }),
+            SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedMonth = result;
+      });
+    }
+  }
+
+  Future<void> _selectCustomMonth() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedMonth,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDatePickerMode: DatePickerMode.year,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Color(0xFF14B8A6),
+              onPrimary: Colors.white,
+              surface: isDark ? Color(0xFF1E293B) : Colors.white,
+              onSurface: theme.textTheme.bodyLarge?.color ?? Colors.black,
+            ),
+            dialogBackgroundColor: isDark ? Color(0xFF1E293B) : Colors.white,
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedMonth = DateTime(picked.year, picked.month);
+      });
+    }
+  }
+
+  Widget _buildMonthSelector(ThemeData theme) {
+    final now = DateTime.now();
+    
+    // Compact, elegant selector for turquoise gradient background
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.25),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.calendar_month_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: InkWell(
+              onTap: _selectMonth,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  DateFormat('MMMM yyyy').format(_selectedMonth),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: 8),
+          // Compact navigation buttons
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Previous month button
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+                  });
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.chevron_left_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+              SizedBox(width: 4),
+              // Next month button (disabled if future month)
+              InkWell(
+                onTap: () {
+                  final nextMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+                  final currentMonth = DateTime(now.year, now.month);
+                  if (nextMonth.year < currentMonth.year || 
+                      (nextMonth.year == currentMonth.year && nextMonth.month <= currentMonth.month)) {
+                    setState(() {
+                      _selectedMonth = nextMonth;
+                    });
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year > now.year ||
+                            (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year == now.year &&
+                             DateTime(_selectedMonth.year, _selectedMonth.month + 1).month > now.month))
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    color: (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year > now.year ||
+                            (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year == now.year &&
+                             DateTime(_selectedMonth.year, _selectedMonth.month + 1).month > now.month))
+                        ? Colors.white.withOpacity(0.4)
+                        : Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(width: 4),
+          InkWell(
+            onTap: _selectMonth,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(
+                Icons.more_vert_rounded,
+                color: Colors.white.withOpacity(0.9),
+                size: 18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   Future<List<Transaction>> _getTransactionsForMonth() async {
     // Get user-filtered transactions
     final allTransactions = await LocalStorageService.getTransactions();
@@ -448,44 +702,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                               SizedBox(height: 16),
 
-                              // Date Selector
-                              InkWell(
-                                onTap: () async {
-                                  final DateTime? picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: _selectedMonth,
-                                    firstDate: DateTime(2020),
-                                    lastDate: DateTime.now(),
-                                    initialDatePickerMode: DatePickerMode.year,
-                                  );
-                                  if (picked != null) {
-                                    setState(() {
-                                      _selectedMonth =
-                                          DateTime(picked.year, picked.month);
-                                    });
-                                  }
-                                },
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      DateFormat('MMMM yyyy')
-                                          .format(_selectedMonth),
-                                      style: GoogleFonts.inter(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Icon(
-                                      Icons.calendar_today,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              // Month Selector
+                              _buildMonthSelector(theme),
                               SizedBox(height: 20),
 
                               // Graph

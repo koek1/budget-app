@@ -38,40 +38,68 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  bool _wasDetached = false;
+  DateTime? _lastPausedTime;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Log out user when app goes to background or becomes inactive
-    if (state == AppLifecycleState.paused ||
+    // Only lock when app is detached (closed)
+    // For paused/inactive, just track the time (user might be switching apps)
+    if (state == AppLifecycleState.detached) {
+      _wasDetached = true;
+      _logoutOnAppClose();
+    } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      _logoutOnBackground();
+      // Track when app was paused - if it was paused for a long time,
+      // it might indicate phone was locked/slept
+      _lastPausedTime = DateTime.now();
     }
 
-    // When app resumes, navigate to login screen if not logged in
+    // When app resumes, check if it was closed (detached) or if it was paused for a long time
+    // (indicating phone was locked/slept)
     if (state == AppLifecycleState.resumed) {
-      _checkAndNavigateToLogin();
+      if (_wasDetached) {
+        // App was closed - require login
+        _wasDetached = false;
+        _checkAndNavigateToLogin();
+      } else if (_lastPausedTime != null) {
+        // Check if app was paused for more than 30 seconds (likely phone was locked/slept)
+        final pauseDuration = DateTime.now().difference(_lastPausedTime!);
+        if (pauseDuration.inSeconds > 30) {
+          // App was paused for a long time - likely phone was locked/slept
+          _logoutOnAppClose();
+          _checkAndNavigateToLogin();
+        }
+        _lastPausedTime = null;
+      }
     }
   }
 
   Future<void> _checkAndNavigateToLogin() async {
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn && mounted && _navigatorKey.currentState != null) {
-      // Clear navigation stack and go to login screen
+      // Clear navigation stack and go to login screen without animation
       _navigatorKey.currentState?.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const LoginScreen(),
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+        ),
         (route) => false,
       );
     }
   }
 
-  Future<void> _logoutOnBackground() async {
+  Future<void> _logoutOnAppClose() async {
     try {
-      // Clear user session when app goes to background
+      // Clear user session when app is closed
       await AuthService.logout();
-      print('User logged out due to app going to background');
+      print('User logged out due to app being closed');
     } catch (e) {
-      print('Error logging out on background: $e');
+      print('Error logging out on app close: $e');
     }
   }
 
@@ -154,13 +182,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           theme: _buildLightTheme(),
           darkTheme: _buildDarkTheme(),
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          home: FutureBuilder(
+          home: FutureBuilder<bool>(
             future: _checkLoginStatus(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const SplashScreen();
               }
-              // Always show login screen - don't persist login across app restarts
+              // Check if user is logged in - if not, show login screen
+              // This prevents flashing the home screen
+              final isLoggedIn = snapshot.data ?? false;
+              if (isLoggedIn) {
+                // User is logged in - show home (will be handled by login screen check)
+                return const LoginScreen(); // LoginScreen will auto-redirect if logged in
+              }
               return const LoginScreen();
             },
           ),
@@ -170,9 +204,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<bool> _checkLoginStatus() async {
-    // Don't persist login - user must login every time app opens
-    // This ensures security and prevents auto-login after app close
-    return false;
+    // Check if user is logged in
+    // This prevents flashing home screen before login check
+    try {
+      return await AuthService.isLoggedIn();
+    } catch (e) {
+      print('Error checking login status: $e');
+      return false;
+    }
   }
 }
 

@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
-    _checkBiometricAvailability();
+    _initializeScreen();
 
     // Logo animation controller
     _logoController = AnimationController(
@@ -109,6 +109,38 @@ class _LoginScreenState extends State<LoginScreen>
     Future.delayed(const Duration(milliseconds: 1000), () {
       _fadeController.forward();
     });
+  }
+
+  Future<void> _initializeScreen() async {
+    // Check if user is already logged in
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (isLoggedIn && mounted) {
+      // User is already logged in - navigate to home
+      final preloadTask = _preloadAppData();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LoadingSplashScreen(
+            loadingTask: preloadTask,
+            destination: const HomeScreen(),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Check biometric availability
+    await _checkBiometricAvailability();
+
+    // Auto-prompt biometric if enabled (after UI has rendered)
+    if (_biometricAvailable && _biometricEnabled && mounted) {
+      // Wait for animations to complete, then auto-prompt
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted && _biometricAvailable && _biometricEnabled) {
+          _loginWithBiometric();
+        }
+      });
+    }
   }
 
   @override
@@ -190,11 +222,6 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       final user = await BiometricService.loginWithBiometric();
       if (user != null && mounted) {
-        // Ask user if they want to enable biometric login (if not already enabled)
-        if (_biometricAvailable && !_biometricEnabled) {
-          _showBiometricEnableDialog();
-        }
-
         // Preload data in background while showing splash
         final preloadTask = _preloadAppData();
         Navigator.pushReplacement(
@@ -207,8 +234,8 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         );
       } else if (mounted) {
-        Helpers.showErrorSnackBar(
-            context, 'Fingerprint authentication failed. Please try again.');
+        // Don't show error if user cancelled - just stop loading
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) {
@@ -217,10 +244,12 @@ class _LoginScreenState extends State<LoginScreen>
         if (errorMessage.startsWith('Exception: ')) {
           errorMessage = errorMessage.substring(11);
         }
-        Helpers.showErrorSnackBar(context, errorMessage);
-      }
-    } finally {
-      if (mounted) {
+
+        // Don't show error for user cancellation - it's expected behavior
+        if (!errorMessage.toLowerCase().contains('cancelled') &&
+            !errorMessage.toLowerCase().contains('cancel')) {
+          Helpers.showErrorSnackBar(context, errorMessage);
+        }
         setState(() => _isLoading = false);
       }
     }
