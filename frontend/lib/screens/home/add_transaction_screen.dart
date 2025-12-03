@@ -209,18 +209,46 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != _selectedDate) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        _selectedDate = picked;
+        // If recurring end date exists and is now invalid (before or equal to new transaction date),
+        // clear it so user must select a new valid end date
+        if (_isRecurring && _recurringEndDate != null && !_recurringEndDate!.isAfter(_selectedDate)) {
+          _recurringEndDate = null;
+        }
+      });
     }
   }
 
   Future<void> _selectRecurringEndDate() async {
     // Ensure the first selectable date is at least one day after the transaction date
     final minEndDate = _selectedDate.add(Duration(days: 1));
+    final maxEndDate = DateTime.now().add(Duration(days: 3650)); // 10 years from now
+    
+    // Clamp initialDate to valid range [minEndDate, maxEndDate]
+    // This prevents assertion errors when _recurringEndDate is invalid after _selectedDate changes
+    DateTime initialDate;
+    if (_recurringEndDate != null) {
+      if (_recurringEndDate!.isBefore(minEndDate)) {
+        // If existing end date is before minimum, use minimum
+        initialDate = minEndDate;
+      } else if (_recurringEndDate!.isAfter(maxEndDate)) {
+        // If existing end date is after maximum, use maximum
+        initialDate = maxEndDate;
+      } else {
+        // Existing end date is valid
+        initialDate = _recurringEndDate!;
+      }
+    } else {
+      // No existing end date, use minimum
+      initialDate = minEndDate;
+    }
+    
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _recurringEndDate ?? minEndDate,
+      initialDate: initialDate,
       firstDate: minEndDate, // Prevent selecting the same date as transaction
-      lastDate: DateTime.now().add(Duration(days: 3650)), // 10 years from now
+      lastDate: maxEndDate,
     );
     if (picked != null) {
       setState(() => _recurringEndDate = picked);
