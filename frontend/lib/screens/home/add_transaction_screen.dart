@@ -6,6 +6,8 @@ import 'package:budget_app/utils/constants.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/utils/helpers.dart';
+import 'package:budget_app/screens/receipt/receipt_scanner_screen.dart';
+import 'package:budget_app/services/receipt_scanner_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final Transaction? transaction;
@@ -220,6 +222,58 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
+  Future<void> _scanReceipt() async {
+    try {
+      final receiptData = await Navigator.push<ReceiptData>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReceiptScannerScreen(),
+        ),
+      );
+
+      if (receiptData != null && mounted) {
+        setState(() {
+          // Fill in the form with scanned data
+          if (receiptData.amount != null) {
+            _amountController.text = receiptData.amount!.toStringAsFixed(2);
+          }
+          if (receiptData.date != null) {
+            _selectedDate = receiptData.date!;
+          }
+          if (receiptData.merchantName != null && receiptData.merchantName!.isNotEmpty) {
+            _descriptionController.text = receiptData.merchantName!;
+          } else if (receiptData.description != null && receiptData.description!.isNotEmpty) {
+            _descriptionController.text = receiptData.description!;
+          }
+          if (receiptData.suggestedCategory != null) {
+            // Load categories first, then set the suggested category
+            _loadCategories().then((_) {
+              if (_availableCategories.contains(receiptData.suggestedCategory)) {
+                setState(() {
+                  _selectedCategory = receiptData.suggestedCategory;
+                });
+              }
+            });
+          }
+        });
+
+        // Show success message
+        Helpers.showSuccessSnackBar(
+          context,
+          'Receipt scanned successfully! Please review and save.',
+        );
+      }
+    } catch (e) {
+      print('Error scanning receipt: $e');
+      if (mounted) {
+        Helpers.showErrorSnackBar(
+          context,
+          'Failed to scan receipt: ${e.toString()}',
+        );
+      }
+    }
+  }
+
   Future<void> _selectRecurringEndDate() async {
     // Ensure the first selectable date is at least one day after the transaction date
     final minEndDate = _selectedDate.add(Duration(days: 1));
@@ -393,6 +447,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ],
               ),
               SizedBox(height: 20),
+
+              // Scan Receipt Button
+              if (!_isEditing)
+                Container(
+                  margin: EdgeInsets.only(bottom: 20),
+                  child: ElevatedButton.icon(
+                    onPressed: _scanReceipt,
+                    icon: Icon(Icons.camera_alt),
+                    label: Text('Scan Receipt'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF14B8A6),
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
 
               // Amount
               TextFormField(
