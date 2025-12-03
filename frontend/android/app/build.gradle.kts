@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.budget_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34  // Required for Google ML Kit (lStar attribute needs API 31+)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
