@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/services/auth_service.dart';
@@ -21,6 +22,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // Listen to settings changes - ensure box is open first
     _setupSettingsListener();
+    // Disable screenshot protection initially (will be enabled when app goes to background)
+    _disableScreenshotProtection();
   }
 
   void _setupSettingsListener() {
@@ -39,40 +42,37 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   bool _wasDetached = false;
-  DateTime? _lastPausedTime;
+  bool _wasPaused = false;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Only lock when app is detached (closed)
-    // For paused/inactive, just track the time (user might be switching apps)
+    // Lock immediately when app is minimized (paused/inactive) or closed (detached)
     if (state == AppLifecycleState.detached) {
       _wasDetached = true;
       _logoutOnAppClose();
+      _enableScreenshotProtection();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      // Track when app was paused - if it was paused for a long time,
-      // it might indicate phone was locked/slept
-      _lastPausedTime = DateTime.now();
+      // Lock immediately when app goes to background
+      _wasPaused = true;
+      _logoutOnAppClose();
+      _enableScreenshotProtection();
     }
 
-    // When app resumes, check if it was closed (detached) or if it was paused for a long time
-    // (indicating phone was locked/slept)
+    // When app resumes, always require login if it was paused or detached
     if (state == AppLifecycleState.resumed) {
-      if (_wasDetached) {
-        // App was closed - require login
+      if (_wasDetached || _wasPaused) {
+        // App was minimized or closed - require login immediately
         _wasDetached = false;
-        _checkAndNavigateToLogin();
-      } else if (_lastPausedTime != null) {
-        // Check if app was paused for more than 30 seconds (likely phone was locked/slept)
-        final pauseDuration = DateTime.now().difference(_lastPausedTime!);
-        if (pauseDuration.inSeconds > 30) {
-          // App was paused for a long time - likely phone was locked/slept
-          _logoutOnAppClose();
+        _wasPaused = false;
+        _disableScreenshotProtection();
+        // Navigate immediately to prevent any flashing
+        // Use a very short delay to ensure the frame is ready
+        Future.delayed(Duration(milliseconds: 10), () {
           _checkAndNavigateToLogin();
-        }
-        _lastPausedTime = null;
+        });
       }
     }
   }
@@ -80,13 +80,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Future<void> _checkAndNavigateToLogin() async {
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn && mounted && _navigatorKey.currentState != null) {
-      // Clear navigation stack and go to login screen without animation
+      // Clear navigation stack and go to login screen immediately without animation
+      // This prevents flashing the home screen
       _navigatorKey.currentState?.pushAndRemoveUntil(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
               const LoginScreen(),
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
+          opaque: true,
         ),
         (route) => false,
       );
@@ -95,11 +97,33 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _logoutOnAppClose() async {
     try {
-      // Clear user session when app is closed
+      // Clear user session when app is closed or minimized
       await AuthService.logout();
-      print('User logged out due to app being closed');
+      print('User logged out due to app being minimized/closed');
     } catch (e) {
       print('Error logging out on app close: $e');
+    }
+  }
+
+  // Enable screenshot protection (blur in app switcher)
+  Future<void> _enableScreenshotProtection() async {
+    try {
+      const platform = MethodChannel('com.budgetapp/security');
+      await platform.invokeMethod('enableScreenshotProtection');
+    } catch (e) {
+      print('Error enabling screenshot protection: $e');
+      // Continue even if this fails - not critical
+    }
+  }
+
+  // Disable screenshot protection when app is active
+  Future<void> _disableScreenshotProtection() async {
+    try {
+      const platform = MethodChannel('com.budgetapp/security');
+      await platform.invokeMethod('disableScreenshotProtection');
+    } catch (e) {
+      print('Error disabling screenshot protection: $e');
+      // Continue even if this fails - not critical
     }
   }
 

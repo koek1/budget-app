@@ -29,6 +29,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isSaving = false;
   List<String> _availableCategories = [];
   String? _errorMessage;
+  
+  // Recurring bill fields
+  bool _isRecurring = false;
+  DateTime? _recurringEndDate;
+  String? _recurringFrequency;
 
   @override
   void initState() {
@@ -42,9 +47,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _selectedType = transaction.type;
       _selectedCategory = transaction.category;
       _selectedDate = transaction.date;
+      _isRecurring = transaction.isRecurring;
+      _recurringEndDate = transaction.recurringEndDate;
+      _recurringFrequency = transaction.recurringFrequency ?? 'monthly';
     } else {
       _selectedType = 'expense';
       _selectedDate = DateTime.now();
+      _recurringFrequency = 'monthly';
     }
     _loadCategories();
   }
@@ -97,6 +106,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    // Validate recurring bill fields
+    if (_selectedType == 'expense' && _isRecurring) {
+      if (_recurringEndDate == null) {
+        Helpers.showErrorSnackBar(context, 'Please select an end date for the recurring bill');
+        return;
+      }
+      // Ensure end date is strictly after the transaction date (not equal or before)
+      if (!_recurringEndDate!.isAfter(_selectedDate)) {
+        Helpers.showErrorSnackBar(context, 'End date must be after the transaction date');
+        return;
+      }
+      if (_recurringFrequency == null || _recurringFrequency!.isEmpty) {
+        Helpers.showErrorSnackBar(context, 'Please select a frequency for the recurring bill');
+        return;
+      }
+    }
+
     setState(() {
       _isSaving = true;
       _errorMessage = null;
@@ -133,6 +159,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         description: _descriptionController.text.trim(),
         date: _selectedDate,
         isSynced: true,
+        isRecurring: _selectedType == 'expense' ? _isRecurring : false,
+        recurringEndDate: _selectedType == 'expense' && _isRecurring ? _recurringEndDate : null,
+        recurringFrequency: _selectedType == 'expense' && _isRecurring ? _recurringFrequency : null,
       );
 
       if (_isEditing) {
@@ -181,6 +210,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
     if (picked != null && picked != _selectedDate) {
       setState(() => _selectedDate = picked);
+    }
+  }
+
+  Future<void> _selectRecurringEndDate() async {
+    // Ensure the first selectable date is at least one day after the transaction date
+    final minEndDate = _selectedDate.add(Duration(days: 1));
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _recurringEndDate ?? minEndDate,
+      firstDate: minEndDate, // Prevent selecting the same date as transaction
+      lastDate: DateTime.now().add(Duration(days: 3650)), // 10 years from now
+    );
+    if (picked != null) {
+      setState(() => _recurringEndDate = picked);
     }
   }
 
@@ -471,6 +514,188 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 trailing: Icon(Icons.arrow_drop_down),
                 onTap: _selectDate,
               ),
+              SizedBox(height: 20),
+
+              // Recurring Bill Section (only for expenses)
+              if (_selectedType == 'expense') ...[
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Color(0xFF1E293B)
+                        : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.repeat,
+                            color: const Color(0xFF14B8A6),
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Recurring Bill',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: _isRecurring,
+                            onChanged: (value) {
+                              setState(() {
+                                _isRecurring = value;
+                                if (!value) {
+                                  _recurringEndDate = null;
+                                  _recurringFrequency = 'monthly';
+                                }
+                              });
+                            },
+                            activeColor: const Color(0xFF14B8A6),
+                          ),
+                        ],
+                      ),
+                      if (_isRecurring) ...[
+                        SizedBox(height: 20),
+                        // Frequency dropdown
+                        DropdownButtonFormField<String>(
+                          value: _recurringFrequency,
+                          decoration: InputDecoration(
+                            labelText: 'Frequency',
+                            prefixIcon: Icon(Icons.schedule),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Theme.of(context).dividerColor,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: const Color(0xFF14B8A6),
+                                width: 2,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).brightness == Brightness.dark
+                                ? Theme.of(context).scaffoldBackgroundColor
+                                : Colors.white,
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: 'weekly',
+                              child: Text('Weekly'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'biweekly',
+                              child: Text('Bi-weekly'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'monthly',
+                              child: Text('Monthly'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'yearly',
+                              child: Text('Yearly'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _recurringFrequency = value);
+                          },
+                          validator: (value) {
+                            if (_isRecurring && (value == null || value.isEmpty)) {
+                              return 'Please select a frequency';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 16),
+                        // End date picker
+                        InkWell(
+                          onTap: _selectRecurringEndDate,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Theme.of(context).dividerColor,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Theme.of(context).scaffoldBackgroundColor
+                                  : Colors.white,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  color: const Color(0xFF14B8A6),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'End Date',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          color: Theme.of(context).textTheme.bodySmall?.color,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        _recurringEndDate != null
+                                            ? '${_recurringEndDate!.day}/${_recurringEndDate!.month}/${_recurringEndDate!.year}'
+                                            : 'Select end date',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: _recurringEndDate != null
+                                              ? Theme.of(context).textTheme.bodyLarge?.color
+                                              : Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_drop_down,
+                                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (_isRecurring && _recurringEndDate == null)
+                          Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Please select an end date',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

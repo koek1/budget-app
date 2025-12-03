@@ -28,6 +28,15 @@ class Transaction {
     @HiveField(7)
     bool isSynced;
 
+    @HiveField(8)
+    bool isRecurring;
+
+    @HiveField(9)
+    DateTime? recurringEndDate;
+
+    @HiveField(10)
+    String? recurringFrequency; // 'monthly', 'weekly', 'biweekly', 'yearly'
+
     Transaction({
         required this.id,
         required this.userId,
@@ -37,6 +46,9 @@ class Transaction {
         required this.description,
         required this.date,
         this.isSynced = true,
+        this.isRecurring = false,
+        this.recurringEndDate,
+        this.recurringFrequency,
     });
 
     Map<String, dynamic> toJson() {
@@ -47,6 +59,9 @@ class Transaction {
             'category': category,
             'description': description,
             'date': date.toIso8601String(),
+            'isRecurring': isRecurring,
+            'recurringEndDate': recurringEndDate?.toIso8601String(),
+            'recurringFrequency': recurringFrequency,
         };
     }
 
@@ -60,6 +75,11 @@ class Transaction {
             description: json['description'] ?? '',
             date: DateTime.parse(json['date']),
             isSynced: json['isSynced'] ?? true,
+            isRecurring: json['isRecurring'] ?? false,
+            recurringEndDate: json['recurringEndDate'] != null 
+                ? DateTime.parse(json['recurringEndDate']) 
+                : null,
+            recurringFrequency: json['recurringFrequency'],
         );
     }
 }
