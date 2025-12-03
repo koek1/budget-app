@@ -49,7 +49,7 @@ class SettingsService {
       return defaultThemeMode;
     }
     try {
-      final box = Hive.box(_settingsBoxName);
+    final box = Hive.box(_settingsBoxName);
       final themeMode = box.get(_themeModeKey, defaultValue: defaultThemeMode);
       // Ensure we only return 'light' or 'dark'
       if (themeMode == 'light' || themeMode == 'dark') {

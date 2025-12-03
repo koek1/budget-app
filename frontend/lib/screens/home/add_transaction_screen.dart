@@ -144,6 +144,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
 
       if (mounted) {
+        // Show success message
+        Helpers.showSuccessSnackBar(
+          context,
+          _isEditing ? 'Transaction updated successfully' : 'Transaction added successfully',
+        );
+        // Small delay to show success message before navigating
+        await Future.delayed(Duration(milliseconds: 300));
         Navigator.pop(context, true);
       }
     } catch (e) {
