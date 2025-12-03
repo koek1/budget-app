@@ -680,13 +680,17 @@ class _StatsScreenState extends State<StatsScreen> {
             break;
           case 'Custom':
             _selectDateRange();
-            break;
+            return; // Don't reload if opening custom picker
         }
       });
+      _loadAllData();
     }
   }
 
   Future<void> _selectDateRange() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
@@ -695,6 +699,20 @@ class _StatsScreenState extends State<StatsScreen> {
         start: _selectedStartDate,
         end: _selectedEndDate,
       ),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Color(0xFF14B8A6),
+              onPrimary: Colors.white,
+              surface: isDark ? Color(0xFF1E293B) : Colors.white,
+              onSurface: theme.textTheme.bodyLarge?.color ?? Colors.black,
+            ),
+            dialogBackgroundColor: isDark ? Color(0xFF1E293B) : Colors.white,
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() {
@@ -702,6 +720,7 @@ class _StatsScreenState extends State<StatsScreen> {
         _selectedEndDate = picked.end;
         _selectedTimeFrame = 'Custom';
       });
+      _loadAllData();
     }
   }
 
@@ -891,62 +910,202 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _buildTimeFrameSelector(ThemeData theme) {
-    return InkWell(
-      onTap: _selectTimeFrame,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: theme.dividerColor,
-            width: 1,
-          ),
+    final isDark = theme.brightness == Brightness.dark;
+    final dateFormat = DateFormat('MMM d, yyyy');
+    
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Color(0xFF14B8A6).withOpacity(0.3),
+          width: 1.5,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 20,
-                  color: Color(0xFF14B8A6),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Color(0xFF14B8A6).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                SizedBox(width: 12),
-                Column(
+                child: Icon(
+                  Icons.date_range_rounded,
+                  color: Color(0xFF14B8A6),
+                  size: 24,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Time Frame',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color:
-                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      'Date Range',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: theme.textTheme.bodyLarge?.color,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    SizedBox(height: 4),
                     Text(
-                      _selectedTimeFrame,
+                      _selectedTimeFrame == 'Custom'
+                          ? '${dateFormat.format(_selectedStartDate)} - ${dateFormat.format(_selectedEndDate)}'
+                          : _selectedTimeFrame,
                       style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: theme.textTheme.bodyLarge?.color,
+                        fontSize: 14,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              IconButton(
+                onPressed: _selectTimeFrame,
+                icon: Icon(
+                  Icons.edit_calendar_rounded,
+                  color: Color(0xFF14B8A6),
+                ),
+                tooltip: 'Change date range',
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          // Quick action buttons
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildQuickRangeButton(theme, '7D', Duration(days: 7)),
+              _buildQuickRangeButton(theme, '30D', Duration(days: 30)),
+              _buildQuickRangeButton(theme, '3M', Duration(days: 90)),
+              _buildQuickRangeButton(theme, '6M', Duration(days: 180)),
+              _buildQuickRangeButton(theme, '1Y', Duration(days: 365)),
+              _buildCustomRangeButton(theme),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickRangeButton(ThemeData theme, String label, Duration duration) {
+    final isDark = theme.brightness == Brightness.dark;
+    final now = DateTime.now();
+    final startDate = now.subtract(duration);
+    final isSelected = _selectedStartDate.year == startDate.year &&
+        _selectedStartDate.month == startDate.month &&
+        _selectedStartDate.day == startDate.day &&
+        _selectedEndDate.year == now.year &&
+        _selectedEndDate.month == now.month &&
+        _selectedEndDate.day == now.day;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedStartDate = startDate;
+          _selectedEndDate = now;
+          _selectedTimeFrame = _getTimeFrameLabel(duration);
+        });
+        _loadAllData();
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Color(0xFF14B8A6)
+              : (isDark ? theme.scaffoldBackgroundColor : Colors.grey[50]),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? Color(0xFF14B8A6)
+                : (isDark ? Colors.grey[700]! : Colors.grey[300]!),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isSelected
+                ? Colors.white
+                : theme.textTheme.bodyLarge?.color,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomRangeButton(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final isSelected = _selectedTimeFrame == 'Custom';
+
+    return InkWell(
+      onTap: _selectDateRange,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Color(0xFF14B8A6)
+              : (isDark ? theme.scaffoldBackgroundColor : Colors.grey[50]),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? Color(0xFF14B8A6)
+                : (isDark ? Colors.grey[700]! : Colors.grey[300]!),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Icon(
-              Icons.arrow_drop_down_rounded,
-              color: theme.textTheme.bodyMedium?.color,
+              Icons.tune_rounded,
+              size: 16,
+              color: isSelected
+                  ? Colors.white
+                  : theme.textTheme.bodyLarge?.color,
+            ),
+            SizedBox(width: 6),
+            Text(
+              'Custom',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isSelected
+                    ? Colors.white
+                    : theme.textTheme.bodyLarge?.color,
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _getTimeFrameLabel(Duration duration) {
+    if (duration.inDays == 7) return 'Last 7 Days';
+    if (duration.inDays == 30) return 'Last 30 Days';
+    if (duration.inDays == 90) return 'Last 3 Months';
+    if (duration.inDays == 180) return 'Last 6 Months';
+    if (duration.inDays == 365) return 'Last Year';
+    return 'Custom';
   }
 
   Widget _buildDualLineChart(

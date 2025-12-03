@@ -5,8 +5,11 @@ import 'app.dart';
 import 'models/user.dart';
 import 'models/transaction.dart';
 import 'models/custom_criteria.dart';
+import 'models/budget.dart';
 import 'services/settings_service.dart';
 import 'services/custom_criteria_service.dart';
+import 'services/budget_service.dart';
+import 'services/budget_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +21,7 @@ void main() async {
   Hive.registerAdapter(TransactionAdapter());
   Hive.registerAdapter(UserAdapter());
   Hive.registerAdapter(CustomCriteriaAdapter());
+  Hive.registerAdapter(BudgetAdapter());
 
   // Check if this is a fresh install by checking for app version marker
   final isFreshInstall = await _checkIfFreshInstall();
@@ -152,6 +156,12 @@ void main() async {
 
   // Initialize custom criteria service
   await CustomCriteriaService.init();
+
+  // Initialize budget service
+  await BudgetService.init();
+
+  // Initialize budget notification service
+  await BudgetNotificationService.init();
 
   runApp(const MyApp());
 }

@@ -9,6 +9,7 @@ import 'package:budget_app/screens/export/export_screen.dart';
 import 'package:budget_app/screens/auth/login_screen.dart';
 import 'package:budget_app/screens/settings/settings_screen.dart';
 import 'package:budget_app/screens/stats/stats_screen.dart';
+import 'package:budget_app/screens/budget/budget_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -198,6 +199,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                 context,
                                 MaterialPageRoute(
                                     builder: (context) => const StatsScreen()),
+                              );
+                            },
+                          ),
+                          SizedBox(height: 12),
+                          _buildDrawerItem(
+                            context,
+                            icon: Icons.account_balance_wallet_rounded,
+                            title: 'Budgets',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => const BudgetScreen()),
                               );
                             },
                           ),

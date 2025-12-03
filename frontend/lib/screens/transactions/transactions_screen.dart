@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/screens/home/add_transaction_screen.dart';
@@ -157,23 +158,104 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
   }
 
   Future<void> _deleteTransaction(Transaction transaction) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     try {
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Delete Transaction'),
-          content: Text('Are you sure you want to delete this transaction?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          backgroundColor: isDark ? Color(0xFF1E293B) : Colors.white,
+          child: Container(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                        size: 24,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Delete Transaction',
+                        style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+                Text(
+                  'Are you sure you want to delete this transaction? This action cannot be undone.',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    color: theme.textTheme.bodyMedium?.color,
+                    height: 1.5,
+                  ),
+                ),
+                SizedBox(height: 24),
+                // Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Delete',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: Text('Delete'),
-            ),
-          ],
+          ),
         ),
       );
 
@@ -181,13 +263,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
         await LocalStorageService.deleteTransaction(transaction.id)
             .timeout(Duration(seconds: 10));
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Transaction deleted'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          Helpers.showSuccessSnackBar(context, 'Transaction deleted successfully');
         }
       }
     } catch (e) {
@@ -199,13 +275,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
         } else if (e.toString().contains('Exception:')) {
           errorMessage = e.toString().replaceFirst('Exception: ', '');
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        Helpers.showErrorSnackBar(context, errorMessage);
       }
     }
   }

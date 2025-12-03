@@ -67,11 +67,11 @@ class ExportService {
       // Add data rows
       for (final transaction in transactions) {
         try {
-          final dateStr = '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}';
+        final dateStr = '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}';
           final typeStr = transaction.type.isNotEmpty
               ? transaction.type[0].toUpperCase() + transaction.type.substring(1)
               : transaction.type;
-          final description = transaction.description.replaceAll(',', ';'); // Replace commas to avoid CSV issues
+        final description = transaction.description.replaceAll(',', ';'); // Replace commas to avoid CSV issues
           final category = transaction.category.replaceAll(',', ';'); // Also sanitize category
           csvBuffer.writeln('$dateStr,$typeStr,$category,$description,${transaction.amount}');
         } catch (e) {
@@ -178,8 +178,8 @@ class ExportService {
       for (final t in transactions) {
         if (t.type == 'income') {
           totalIncome += t.amount;
-          final dateStr = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}';
-          dailyIncome[dateStr] = (dailyIncome[dateStr] ?? 0) + t.amount;
+        final dateStr = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}';
+        dailyIncome[dateStr] = (dailyIncome[dateStr] ?? 0) + t.amount;
         } else if (t.type == 'expense') {
           totalExpenses += t.amount;
         }

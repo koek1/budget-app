@@ -58,13 +58,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       
       if (mounted) {
-        setState(() {
-          _biometricEnabled = enabled;
-          _biometricAvailable = available;
-          _selectedCurrency = SettingsService.getCurrency();
-          _themeMode = SettingsService.getThemeMode();
-          _isLoading = false;
-        });
+    setState(() {
+      _biometricEnabled = enabled;
+      _biometricAvailable = available;
+      _selectedCurrency = SettingsService.getCurrency();
+      _themeMode = SettingsService.getThemeMode();
+      _isLoading = false;
+    });
       }
     } catch (e) {
       print('Error loading settings: $e');
@@ -673,7 +673,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                               );
                             },
-                          ),
+                                ),
                         ),
                         
                         // About Section
