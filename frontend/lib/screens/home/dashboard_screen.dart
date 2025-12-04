@@ -143,7 +143,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _selectCustomMonth() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedMonth,
@@ -159,7 +159,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               surface: isDark ? Color(0xFF1E293B) : Colors.white,
               onSurface: theme.textTheme.bodyLarge?.color ?? Colors.black,
             ),
-            dialogBackgroundColor: isDark ? Color(0xFF1E293B) : Colors.white,
+            dialogTheme: DialogThemeData(
+                backgroundColor: isDark ? Color(0xFF1E293B) : Colors.white),
           ),
           child: child!,
         );
@@ -174,7 +175,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildMonthSelector(ThemeData theme) {
     final now = DateTime.now();
-    
+
     // Compact, elegant selector for turquoise gradient background
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -220,7 +221,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               InkWell(
                 onTap: () {
                   setState(() {
-                    _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+                    _selectedMonth =
+                        DateTime(_selectedMonth.year, _selectedMonth.month - 1);
                   });
                 },
                 borderRadius: BorderRadius.circular(8),
@@ -241,10 +243,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // Next month button (disabled if future month)
               InkWell(
                 onTap: () {
-                  final nextMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+                  final nextMonth =
+                      DateTime(_selectedMonth.year, _selectedMonth.month + 1);
                   final currentMonth = DateTime(now.year, now.month);
-                  if (nextMonth.year < currentMonth.year || 
-                      (nextMonth.year == currentMonth.year && nextMonth.month <= currentMonth.month)) {
+                  if (nextMonth.year < currentMonth.year ||
+                      (nextMonth.year == currentMonth.year &&
+                          nextMonth.month <= currentMonth.month)) {
                     setState(() {
                       _selectedMonth = nextMonth;
                     });
@@ -254,20 +258,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Container(
                   padding: EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year > now.year ||
-                            (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year == now.year &&
-                             DateTime(_selectedMonth.year, _selectedMonth.month + 1).month > now.month))
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.white.withOpacity(0.2),
+                    color:
+                        (DateTime(_selectedMonth.year, _selectedMonth.month + 1)
+                                        .year >
+                                    now.year ||
+                                (DateTime(_selectedMonth.year,
+                                                _selectedMonth.month + 1)
+                                            .year ==
+                                        now.year &&
+                                    DateTime(_selectedMonth.year,
+                                                _selectedMonth.month + 1)
+                                            .month >
+                                        now.month))
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.chevron_right_rounded,
-                    color: (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year > now.year ||
-                            (DateTime(_selectedMonth.year, _selectedMonth.month + 1).year == now.year &&
-                             DateTime(_selectedMonth.year, _selectedMonth.month + 1).month > now.month))
-                        ? Colors.white.withOpacity(0.4)
-                        : Colors.white,
+                    color:
+                        (DateTime(_selectedMonth.year, _selectedMonth.month + 1)
+                                        .year >
+                                    now.year ||
+                                (DateTime(_selectedMonth.year,
+                                                _selectedMonth.month + 1)
+                                            .year ==
+                                        now.year &&
+                                    DateTime(_selectedMonth.year,
+                                                _selectedMonth.month + 1)
+                                            .month >
+                                        now.month))
+                            ? Colors.white.withOpacity(0.4)
+                            : Colors.white,
                     size: 18,
                   ),
                 ),
@@ -292,6 +314,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // Helper to get next recurring payment date
+  DateTime? _getNextRecurringPaymentDate(Transaction transaction, DateTime fromDate) {
+    if (!transaction.isRecurring || transaction.recurringFrequency == null) {
+      return null;
+    }
+
+    DateTime? nextDate;
+
+    switch (transaction.recurringFrequency) {
+      case 'weekly':
+        nextDate = fromDate.add(Duration(days: 7));
+        break;
+      case 'biweekly':
+        nextDate = fromDate.add(Duration(days: 14));
+        break;
+      case 'monthly':
+        nextDate = DateTime(fromDate.year, fromDate.month + 1, fromDate.day);
+        break;
+      case 'yearly':
+        nextDate = DateTime(fromDate.year + 1, fromDate.month, fromDate.day);
+        break;
+    }
+
+    // Check if next date is before or equal to end date (if exists)
+    if (transaction.recurringEndDate != null && nextDate != null) {
+      if (nextDate.isAfter(transaction.recurringEndDate!)) {
+        return null; // Recurring payment has ended
+      }
+    }
+
+    return nextDate;
+  }
 
   Future<List<Transaction>> _getTransactionsForMonth() async {
     // Get user-filtered transactions
@@ -388,8 +442,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
       dailyBalances[day] = startingBalance;
     }
 
-    // Process transactions in order and update balances
+    // First, collect all recurring expense payment dates that have occurred in this month
+    Map<int, double> recurringPaymentsByDay = {};
     for (var transaction in sortedTransactions) {
+      if (transaction.isRecurring && transaction.type == 'expense') {
+        // Generate all payment dates that have occurred up to now
+        final startDate = DateTime(transaction.date.year, transaction.date.month, transaction.date.day);
+        final now = DateTime.now();
+        final nowDate = DateTime(now.year, now.month, now.day);
+        
+        DateTime? paymentDate = startDate;
+        while (paymentDate != null) {
+          // Check if this payment date is in the selected month and has occurred
+          if (paymentDate.year == _selectedMonth.year && 
+              paymentDate.month == _selectedMonth.month &&
+              (paymentDate.isBefore(nowDate) || paymentDate.isAtSameMomentAs(nowDate))) {
+            final day = paymentDate.day;
+            recurringPaymentsByDay[day] = (recurringPaymentsByDay[day] ?? 0.0) + transaction.amount;
+          }
+          
+          // Stop if we've reached future dates or past end date
+          if (paymentDate.isAfter(nowDate)) {
+            break;
+          }
+          if (transaction.recurringEndDate != null && paymentDate.isAfter(transaction.recurringEndDate!)) {
+            break;
+          }
+          
+          // Get next payment date
+          paymentDate = _getNextRecurringPaymentDate(transaction, paymentDate);
+        }
+      }
+    }
+
+    // Process non-recurring transactions in order and update balances
+    for (var transaction in sortedTransactions) {
+      // Skip recurring expenses - we'll handle them separately using their payment dates
+      if (transaction.isRecurring && transaction.type == 'expense') {
+        continue; // Skip the setup transaction, we use the payment dates instead
+      }
+      
       final day = transaction.date.day;
 
       // Update running balance
@@ -399,6 +491,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         runningBalance -= transaction.amount;
       }
 
+      // Update balance for this day and all subsequent days
+      for (int d = day; d <= daysInMonth; d++) {
+        dailyBalances[d] = runningBalance;
+      }
+    }
+    
+    // Now apply recurring payments on their actual due dates (sorted by day)
+    final recurringDays = recurringPaymentsByDay.keys.toList()..sort();
+    for (var day in recurringDays) {
+      final amount = recurringPaymentsByDay[day]!;
+      runningBalance -= amount;
       // Update balance for this day and all subsequent days
       for (int d = day; d <= daysInMonth; d++) {
         dailyBalances[d] = runningBalance;
@@ -426,7 +529,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final primaryTurquoise = const Color(0xFF14B8A6);
     final primaryBlue = const Color(0xFF0EA5E9);
     final accentBlue = const Color(0xFF3B82F6);
-    
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
@@ -448,651 +551,772 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         child: SafeArea(
-        child: ValueListenableBuilder<Box<Transaction>>(
-          valueListenable: transactionsBox.listenable(),
-          builder: (context, box, _) {
-            return FutureBuilder<Map<String, dynamic>>(
-              future: Future.wait([
-                getMonthlyIncome(),
-                getMonthlyExpenses(),
-                getMonthlyBalance(),
-                getSavings(),
-                _getGraphData(),
-              ]).timeout(Duration(seconds: 10), onTimeout: () {
-                throw Exception('Loading dashboard data timed out');
-              }).then((results) => {
-                'income': results[0] as double,
-                'expenses': results[1] as double,
-                'balance': results[2] as double,
-                'savings': results[3] as double,
-                'graphData': results[4] as List<FlSpot>,
-              }).catchError((e) {
-                print('Error loading dashboard data: $e');
-                return {
-                  'income': 0.0,
-                  'expenses': 0.0,
-                  'balance': 0.0,
-                  'savings': 0.0,
-                  'graphData': <FlSpot>[],
-                  'error': e.toString(),
-                };
-              }),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          color: Color(0xFF14B8A6),
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading dashboard...',
-                          style: GoogleFonts.inter(
-                            color: theme.textTheme.bodyMedium?.color,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                
-                if (snapshot.hasError || (snapshot.hasData && snapshot.data!.containsKey('error'))) {
-                  return Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(20),
+          child: ValueListenableBuilder<Box<Transaction>>(
+            valueListenable: transactionsBox.listenable(),
+            builder: (context, box, _) {
+              return FutureBuilder<Map<String, dynamic>>(
+                future: Future.wait([
+                  getMonthlyIncome(),
+                  getMonthlyExpenses(),
+                  getMonthlyBalance(),
+                  getSavings(),
+                  _getGraphData(),
+                  _getUpcomingRecurringDebitOrders(),
+                ])
+                    .timeout(Duration(seconds: 10), onTimeout: () {
+                      throw Exception('Loading dashboard data timed out');
+                    })
+                    .then((results) => {
+                          'income': results[0] as double,
+                          'expenses': results[1] as double,
+                          'balance': results[2] as double,
+                          'savings': results[3] as double,
+                          'graphData': results[4] as List<FlSpot>,
+                          'upcomingRecurringDebitOrders':
+                              results[5] as List<Map<String, dynamic>>,
+                        })
+                    .catchError((e) {
+                      print('Error loading dashboard data: $e');
+                      return {
+                        'income': 0.0,
+                        'expenses': 0.0,
+                        'balance': 0.0,
+                        'savings': 0.0,
+                        'graphData': <FlSpot>[],
+                        'upcomingRecurringDebitOrders':
+                            <Map<String, dynamic>>[],
+                        'error': e.toString(),
+                      };
+                    }),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          CircularProgressIndicator(
+                            color: Color(0xFF14B8A6),
+                          ),
                           SizedBox(height: 16),
                           Text(
-                            'Failed to load dashboard',
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            snapshot.error?.toString() ?? snapshot.data?['error'] ?? 'Unknown error',
+                            'Loading dashboard...',
                             style: GoogleFonts.inter(
                               color: theme.textTheme.bodyMedium?.color,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                          SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () => setState(() {}),
-                            child: Text('Retry'),
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }
-                
-                if (!snapshot.hasData) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF14B8A6),
-                    ),
-                  );
-                }
+                    );
+                  }
 
-                final monthlyIncome = snapshot.data!['income'] as double;
-                final monthlyExpenses = snapshot.data!['expenses'] as double;
-                final monthlyBalance = snapshot.data!['balance'] as double;
-                final savings = snapshot.data!['savings'] as double;
-                final graphData = snapshot.data!['graphData'] as List<FlSpot>;
-
-            return CustomScrollView(
-              slivers: [
-                // Header with time, menu, title, and profile
-                SliverAppBar(
-                  backgroundColor: theme.appBarTheme.backgroundColor ??
-                      theme.scaffoldBackgroundColor,
-                  elevation: 0,
-                  leading: Padding(
-                    padding: EdgeInsets.only(left: 16),
-                    child: IconButton(
-                      icon: Icon(Icons.menu,
-                          color: theme.iconTheme.color, size: 24),
-                      onPressed: widget.onMenuTap,
-                    ),
-                  ),
-                  centerTitle: true,
-                  title: Text(
-                    'Home',
-                    style: GoogleFonts.inter(
-                      color: theme.textTheme.bodyLarge?.color ?? Colors.black,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  actions: [
-                    Padding(
-                      padding: EdgeInsets.only(right: 16),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SettingsScreen(),
-                            ),
-                          );
-                        },
-                        child: Stack(
+                  if (snapshot.hasError ||
+                      (snapshot.hasData &&
+                          snapshot.data!.containsKey('error'))) {
+                    return Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor:
-                                  primaryTurquoise.withOpacity(0.1),
-                              child: Icon(Icons.person,
-                                  color: primaryTurquoise, size: 20),
-                            ),
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: primaryTurquoise,
-                                  shape: BoxShape.circle,
-                                  border:
-                                      Border.all(color: Colors.white, width: 2),
-                                ),
+                            Icon(Icons.error_outline,
+                                size: 64, color: Colors.red),
+                            SizedBox(height: 16),
+                            Text(
+                              'Failed to load dashboard',
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textTheme.bodyLarge?.color,
                               ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              snapshot.error?.toString() ??
+                                  snapshot.data?['error'] ??
+                                  'Unknown error',
+                              style: GoogleFonts.inter(
+                                color: theme.textTheme.bodyMedium?.color,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => setState(() {}),
+                              child: Text('Retry'),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    );
+                  }
 
-                // Content
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Greeting
-                        Text(
-                          'Hello ${currentUser?.name.split(' ').first ?? 'User'}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.5,
-                            color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
+                  if (!snapshot.hasData) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF14B8A6),
+                      ),
+                    );
+                  }
+
+                  final monthlyIncome = snapshot.data!['income'] as double;
+                  final monthlyExpenses = snapshot.data!['expenses'] as double;
+                  final monthlyBalance = snapshot.data!['balance'] as double;
+                  final savings = snapshot.data!['savings'] as double;
+                  final graphData = snapshot.data!['graphData'] as List<FlSpot>;
+                  final upcomingRecurringDebitOrders =
+                      snapshot.data!['upcomingRecurringDebitOrders']
+                          as List<Map<String, dynamic>>;
+
+                  return CustomScrollView(
+                    slivers: [
+                      // Header with time, menu, title, and profile
+                      SliverAppBar(
+                        backgroundColor: theme.appBarTheme.backgroundColor ??
+                            theme.scaffoldBackgroundColor,
+                        elevation: 0,
+                        leading: Padding(
+                          padding: EdgeInsets.only(left: 16),
+                          child: IconButton(
+                            icon: Icon(Icons.menu,
+                                color: theme.iconTheme.color, size: 24),
+                            onPressed: widget.onMenuTap,
                           ),
                         ),
-                        SizedBox(height: 24),
-
-                        // Combined Saving Card with Graph
-                        Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFF14B8A6),
-                                Color(0xFF0D9488),
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(0xFF14B8A6).withOpacity(0.25),
-                                blurRadius: 20,
-                                offset: Offset(0, 8),
-                                spreadRadius: 0,
-                              ),
-                            ],
+                        centerTitle: true,
+                        title: Text(
+                          'Home',
+                          style: GoogleFonts.inter(
+                            color: theme.textTheme.bodyLarge?.color ??
+                                Colors.black,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                              child: Container(
-                                padding: EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                              // Saving Label
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.savings,
-                                    color: Colors.white,
-                                    size: 20,
+                        ),
+                        actions: [
+                          Padding(
+                            padding: EdgeInsets.only(right: 16),
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const SettingsScreen(),
                                   ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Saving',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      color: Colors.white.withOpacity(0.9),
-                                      fontWeight: FontWeight.w500,
+                                );
+                              },
+                              child: Stack(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor:
+                                        primaryTurquoise.withOpacity(0.1),
+                                    child: Icon(Icons.person,
+                                        color: primaryTurquoise, size: 20),
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: primaryTurquoise,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            color: Colors.white, width: 2),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 12),
+                            ),
+                          ),
+                        ],
+                      ),
 
-                              // Amount Saved
+                      // Content
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Greeting
                               Text(
-                                Helpers.formatCurrency(
-                                    savings > 0 ? savings : 0),
+                                'Hello ${currentUser?.name.split(' ').first ?? 'User'}',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 36,
+                                  fontSize: 32,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -0.5,
-                                  color: Colors.white,
+                                  color: theme.textTheme.bodyLarge?.color ??
+                                      Colors.black87,
                                 ),
+                              ),
+                              SizedBox(height: 24),
+
+                              // Combined Saving Card with Graph
+                              Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF14B8A6),
+                                      Color(0xFF0D9488),
+                                    ],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          Color(0xFF14B8A6).withOpacity(0.25),
+                                      blurRadius: 20,
+                                      offset: Offset(0, 8),
+                                      spreadRadius: 0,
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: BackdropFilter(
+                                    filter:
+                                        ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                                    child: Container(
+                                      padding: EdgeInsets.all(24),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Saving Label
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.savings,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Saving',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  color: Colors.white
+                                                      .withOpacity(0.9),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: 12),
+
+                                          // Amount Saved
+                                          Text(
+                                            Helpers.formatCurrency(
+                                                savings > 0 ? savings : 0),
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 36,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.5,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          SizedBox(height: 16),
+
+                                          // Month Selector
+                                          _buildMonthSelector(theme),
+                                          SizedBox(height: 20),
+
+                                          // Graph
+                                          Container(
+                                            height: 150,
+                                            child: LineChart(
+                                              LineChartData(
+                                                gridData: FlGridData(
+                                                  show: true,
+                                                  drawVerticalLine: false,
+                                                  getDrawingHorizontalLine:
+                                                      (value) {
+                                                    return FlLine(
+                                                      color: Colors.white
+                                                          .withOpacity(0.1),
+                                                      strokeWidth: 1,
+                                                    );
+                                                  },
+                                                ),
+                                                titlesData: FlTitlesData(
+                                                  show: true,
+                                                  rightTitles: AxisTitles(
+                                                    sideTitles: SideTitles(
+                                                        showTitles: false),
+                                                  ),
+                                                  topTitles: AxisTitles(
+                                                    sideTitles: SideTitles(
+                                                        showTitles: false),
+                                                  ),
+                                                  bottomTitles: AxisTitles(
+                                                    sideTitles: SideTitles(
+                                                      showTitles: true,
+                                                      reservedSize: 30,
+                                                      interval: 5,
+                                                      getTitlesWidget:
+                                                          (value, meta) {
+                                                        final day =
+                                                            value.toInt();
+                                                        if ([
+                                                          1,
+                                                          5,
+                                                          10,
+                                                          15,
+                                                          20,
+                                                          25,
+                                                          30
+                                                        ].contains(day)) {
+                                                          return Text(
+                                                            day.toString(),
+                                                            style: TextStyle(
+                                                              color: Colors
+                                                                  .white70,
+                                                              fontSize: 10,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                          );
+                                                        }
+                                                        return SizedBox
+                                                            .shrink();
+                                                      },
+                                                    ),
+                                                  ),
+                                                  leftTitles: AxisTitles(
+                                                    sideTitles: SideTitles(
+                                                        showTitles: false),
+                                                  ),
+                                                ),
+                                                borderData:
+                                                    FlBorderData(show: false),
+                                                lineTouchData: LineTouchData(
+                                                  touchTooltipData:
+                                                      LineTouchTooltipData(
+                                                    tooltipRoundedRadius: 8,
+                                                    tooltipPadding:
+                                                        EdgeInsets.all(8),
+                                                    tooltipBgColor: Colors.white
+                                                        .withOpacity(0.9),
+                                                    getTooltipItems:
+                                                        (List<LineBarSpot>
+                                                            touchedBarSpots) {
+                                                      return touchedBarSpots
+                                                          .map((barSpot) {
+                                                        final day =
+                                                            barSpot.x.toInt();
+                                                        final monthName =
+                                                            DateFormat('MMM')
+                                                                .format(
+                                                                    _selectedMonth);
+                                                        // Use the actual graph value (barSpot.y) which is the balance at that point
+                                                        final graphValue =
+                                                            barSpot.y;
+                                                        final amountStr =
+                                                            Helpers
+                                                                .formatCurrency(
+                                                                    graphValue);
+                                                        return LineTooltipItem(
+                                                          '$amountStr\n$day $monthName',
+                                                          TextStyle(
+                                                            color: Color(
+                                                                0xFF14B8A6),
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 12,
+                                                          ),
+                                                        );
+                                                      }).toList();
+                                                    },
+                                                  ),
+                                                  handleBuiltInTouches: true,
+                                                ),
+                                                lineBarsData: [
+                                                  LineChartBarData(
+                                                    spots: graphData,
+                                                    isCurved: true,
+                                                    color: Colors.white,
+                                                    barWidth: 3,
+                                                    isStrokeCapRound: true,
+                                                    dotData: FlDotData(
+                                                      show: true,
+                                                      getDotPainter: (spot,
+                                                          percent,
+                                                          barData,
+                                                          index) {
+                                                        if (index ==
+                                                                graphData
+                                                                        .length -
+                                                                    1 ||
+                                                            [
+                                                              1,
+                                                              5,
+                                                              10,
+                                                              15,
+                                                              20,
+                                                              25,
+                                                              30
+                                                            ].contains(spot.x
+                                                                .toInt())) {
+                                                          return FlDotCirclePainter(
+                                                            radius: 4,
+                                                            color: Colors.white,
+                                                            strokeWidth: 2,
+                                                            strokeColor: Color(
+                                                                0xFF14B8A6),
+                                                          );
+                                                        }
+                                                        return FlDotCirclePainter(
+                                                            radius: 0);
+                                                      },
+                                                    ),
+                                                    belowBarData: BarAreaData(
+                                                      show: true,
+                                                      color: Colors.white
+                                                          .withOpacity(0.2),
+                                                    ),
+                                                  ),
+                                                ],
+                                                minY: graphData.isEmpty
+                                                    ? 0
+                                                    : (graphData
+                                                                .map((e) => e.y)
+                                                                .reduce((a,
+                                                                        b) =>
+                                                                    a < b
+                                                                        ? a
+                                                                        : b) *
+                                                            0.95)
+                                                        .clamp(
+                                                            0, double.infinity),
+                                                maxY: graphData.isEmpty ||
+                                                        graphData.every(
+                                                            (e) => e.y == 0)
+                                                    ? 1000
+                                                    : (graphData
+                                                                .map((e) => e.y)
+                                                                .reduce((a,
+                                                                        b) =>
+                                                                    a > b
+                                                                        ? a
+                                                                        : b) *
+                                                            1.1)
+                                                        .clamp(100,
+                                                            double.infinity),
+                                                extraLinesData: ExtraLinesData(
+                                                  verticalLines:
+                                                      _buildRecurringDebitOrderVerticalLines(
+                                                    upcomingRecurringDebitOrders,
+                                                    graphData,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 24),
+
+                              // Upcoming Recurring Debit Orders Notification
+                              _buildUpcomingRecurringDebitOrdersNotification(
+                                upcomingRecurringDebitOrders,
+                                theme,
+                              ),
+                              if (upcomingRecurringDebitOrders.isNotEmpty)
+                                SizedBox(height: 24),
+
+                              // Monthly Stats Cards
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        color:
+                                            theme.brightness == Brightness.dark
+                                                ? theme.cardColor
+                                                : Colors.white,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.06),
+                                            blurRadius: 12,
+                                            offset: Offset(0, 4),
+                                            spreadRadius: 0,
+                                          ),
+                                        ],
+                                        border: Border.all(
+                                          color: theme.dividerColor
+                                              .withOpacity(0.1),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                              sigmaX: 6, sigmaY: 6),
+                                          child: Container(
+                                            padding: EdgeInsets.all(20),
+                                            decoration: BoxDecoration(
+                                              color: theme.brightness ==
+                                                      Brightness.dark
+                                                  ? theme.cardColor
+                                                      .withOpacity(0.7)
+                                                  : Colors.white
+                                                      .withOpacity(0.7),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Total balance',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 14,
+                                                    color: theme.textTheme
+                                                            .bodyMedium?.color
+                                                            ?.withOpacity(
+                                                                0.7) ??
+                                                        Colors.grey[600],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 8),
+                                                Text(
+                                                  Helpers.formatCurrency(
+                                                      monthlyBalance),
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 26,
+                                                    fontWeight: FontWeight.w700,
+                                                    letterSpacing: -0.5,
+                                                    color: theme.textTheme
+                                                            .bodyLarge?.color ??
+                                                        Colors.black87,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               SizedBox(height: 16),
 
-                              // Month Selector
-                              _buildMonthSelector(theme),
-                              SizedBox(height: 20),
-
-                              // Graph
-                              Container(
-                                height: 150,
-                                child: LineChart(
-                                  LineChartData(
-                                    gridData: FlGridData(
-                                      show: true,
-                                      drawVerticalLine: false,
-                                      getDrawingHorizontalLine: (value) {
-                                        return FlLine(
-                                          color: Colors.white.withOpacity(0.1),
-                                          strokeWidth: 1,
-                                        );
-                                      },
-                                    ),
-                                    titlesData: FlTitlesData(
-                                      show: true,
-                                      rightTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
+                              // Income and Expenses Row
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(24),
+                                        color: Colors.green.withOpacity(0.1),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.green.withOpacity(0.15),
+                                            blurRadius: 20,
+                                            offset: Offset(0, 10),
+                                            spreadRadius: 0,
+                                          ),
+                                        ],
+                                        border: Border.all(
+                                          color: Colors.green.withOpacity(0.2),
+                                          width: 1,
+                                        ),
                                       ),
-                                      topTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
-                                      ),
-                                      bottomTitles: AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: true,
-                                          reservedSize: 30,
-                                          interval: 5,
-                                          getTitlesWidget: (value, meta) {
-                                            final day = value.toInt();
-                                            if ([1, 5, 10, 15, 20, 25, 30]
-                                                .contains(day)) {
-                                              return Text(
-                                                day.toString(),
-                                                style: TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w500,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                              sigmaX: 6, sigmaY: 6),
+                                          child: Container(
+                                            padding: EdgeInsets.all(20),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green
+                                                  .withOpacity(0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Icon(Icons.arrow_upward,
+                                                        color: Colors.green,
+                                                        size: 20),
+                                                    SizedBox(width: 8),
+                                                    Text(
+                                                      'Income',
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 14,
+                                                        color: Colors.grey[600],
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                              );
-                                            }
-                                            return SizedBox.shrink();
-                                          },
+                                                SizedBox(height: 8),
+                                                Text(
+                                                  Helpers.formatCurrency(
+                                                      monthlyIncome),
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.w700,
+                                                    letterSpacing: -0.5,
+                                                    color: Colors.green[700],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      leftTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
                                       ),
                                     ),
-                                    borderData: FlBorderData(show: false),
-                                    lineTouchData: LineTouchData(
-                                      touchTooltipData: LineTouchTooltipData(
-                                        tooltipRoundedRadius: 8,
-                                        tooltipPadding: EdgeInsets.all(8),
-                                        tooltipBgColor:
-                                            Colors.white.withOpacity(0.9),
-                                        getTooltipItems: (List<LineBarSpot>
-                                            touchedBarSpots) {
-                                          return touchedBarSpots.map((barSpot) {
-                                            final day = barSpot.x.toInt();
-                                            final monthName = DateFormat('MMM')
-                                                .format(_selectedMonth);
-                                            // Use the actual graph value (barSpot.y) which is the balance at that point
-                                            final graphValue = barSpot.y;
-                                            final amountStr =
-                                                Helpers.formatCurrency(
-                                                    graphValue);
-                                            return LineTooltipItem(
-                                              '$amountStr\n$day $monthName',
-                                              TextStyle(
-                                                color: Color(0xFF14B8A6),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                              ),
-                                            );
-                                          }).toList();
-                                        },
-                                      ),
-                                      handleBuiltInTouches: true,
-                                    ),
-                                    lineBarsData: [
-                                      LineChartBarData(
-                                        spots: graphData,
-                                        isCurved: true,
-                                        color: Colors.white,
-                                        barWidth: 3,
-                                        isStrokeCapRound: true,
-                                        dotData: FlDotData(
-                                          show: true,
-                                          getDotPainter:
-                                              (spot, percent, barData, index) {
-                                            if (index == graphData.length - 1 ||
-                                                [1, 5, 10, 15, 20, 25, 30]
-                                                    .contains(spot.x.toInt())) {
-                                              return FlDotCirclePainter(
-                                                radius: 4,
-                                                color: Colors.white,
-                                                strokeWidth: 2,
-                                                strokeColor: Color(0xFF14B8A6),
-                                              );
-                                            }
-                                            return FlDotCirclePainter(
-                                                radius: 0);
-                                          },
-                                        ),
-                                        belowBarData: BarAreaData(
-                                          show: true,
-                                          color: Colors.white.withOpacity(0.2),
-                                        ),
-                                      ),
-                                    ],
-                                    minY: graphData.isEmpty
-                                        ? 0
-                                        : (graphData.map((e) => e.y).reduce(
-                                                    (a, b) => a < b ? a : b) *
-                                                0.95)
-                                            .clamp(0, double.infinity),
-                                    maxY: graphData.isEmpty ||
-                                            graphData.every((e) => e.y == 0)
-                                        ? 1000
-                                        : (graphData.map((e) => e.y).reduce(
-                                                    (a, b) => a > b ? a : b) *
-                                                1.1)
-                                            .clamp(100, double.infinity),
                                   ),
+                                  SizedBox(width: 16),
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(24),
+                                        color: Colors.red.withOpacity(0.1),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.red.withOpacity(0.15),
+                                            blurRadius: 20,
+                                            offset: Offset(0, 10),
+                                            spreadRadius: 0,
+                                          ),
+                                        ],
+                                        border: Border.all(
+                                          color: Colors.red.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                              sigmaX: 6, sigmaY: 6),
+                                          child: Container(
+                                            padding: EdgeInsets.all(20),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  Colors.red.withOpacity(0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Icon(Icons.arrow_downward,
+                                                        color: Colors.red,
+                                                        size: 20),
+                                                    SizedBox(width: 8),
+                                                    Text(
+                                                      'Expenses',
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 14,
+                                                        color: Colors.grey[600],
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                SizedBox(height: 8),
+                                                Text(
+                                                  Helpers.formatCurrency(
+                                                      monthlyExpenses),
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.w700,
+                                                    letterSpacing: -0.5,
+                                                    color: Colors.red[700],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 24),
+
+                              // Monthly Financial Insights
+                              _buildMonthlyFinancialInsights(
+                                monthlyIncome,
+                                monthlyExpenses,
+                                monthlyBalance,
+                                theme,
+                              ),
+                              SizedBox(height: 24),
+
+                              // Monthly Transactions Section
+                              Text(
+                                'Recent Transactions',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5,
+                                  color: theme.textTheme.bodyLarge?.color ??
+                                      Colors.black87,
                                 ),
+                              ),
+                              SizedBox(height: 16),
+                              FutureBuilder<List<Transaction>>(
+                                future: _getTransactionsForMonth(),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData) {
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        color: Color(0xFF14B8A6),
+                                      ),
+                                    );
+                                  }
+                                  return _buildMonthlyTransactionsList(
+                                      snapshot.data!);
+                                },
                               ),
                             ],
-                              ),
-                            ),
                           ),
                         ),
-                        ),
-                        SizedBox(height: 24),
-
-                        // Monthly Stats Cards
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  color: theme.brightness == Brightness.dark
-                                      ? theme.cardColor
-                                      : Colors.white,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.06),
-                                      blurRadius: 12,
-                                      offset: Offset(0, 4),
-                                      spreadRadius: 0,
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: theme.dividerColor.withOpacity(0.1),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                                    child: Container(
-                                      padding: EdgeInsets.all(20),
-                                      decoration: BoxDecoration(
-                                        color: theme.brightness == Brightness.dark
-                                            ? theme.cardColor.withOpacity(0.7)
-                                            : Colors.white.withOpacity(0.7),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Total balance',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 14,
-                                              color: theme.textTheme.bodyMedium?.color
-                                                      ?.withOpacity(0.7) ??
-                                                  Colors.grey[600],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          SizedBox(height: 8),
-                                          Text(
-                                            Helpers.formatCurrency(monthlyBalance),
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 26,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: -0.5,
-                                              color:
-                                                  theme.textTheme.bodyLarge?.color ??
-                                                      Colors.black87,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 16),
-
-                        // Income and Expenses Row
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(24),
-                                  color: Colors.green.withOpacity(0.1),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.green.withOpacity(0.15),
-                                      blurRadius: 20,
-                                      offset: Offset(0, 10),
-                                      spreadRadius: 0,
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: Colors.green.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                                    child: Container(
-                                      padding: EdgeInsets.all(20),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(Icons.arrow_upward,
-                                                  color: Colors.green, size: 20),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Income',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 14,
-                                                  color: Colors.grey[600],
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: 8),
-                                          Text(
-                                            Helpers.formatCurrency(monthlyIncome),
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: -0.5,
-                                              color: Colors.green[700],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(24),
-                                  color: Colors.red.withOpacity(0.1),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withOpacity(0.15),
-                                      blurRadius: 20,
-                                      offset: Offset(0, 10),
-                                      spreadRadius: 0,
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: Colors.red.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                                    child: Container(
-                                      padding: EdgeInsets.all(20),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red.withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(Icons.arrow_downward,
-                                                  color: Colors.red, size: 20),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Expenses',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 14,
-                                                  color: Colors.grey[600],
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: 8),
-                                          Text(
-                                            Helpers.formatCurrency(monthlyExpenses),
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: -0.5,
-                                              color: Colors.red[700],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 24),
-
-                        // Monthly Financial Insights
-                        _buildMonthlyFinancialInsights(
-                          monthlyIncome,
-                          monthlyExpenses,
-                          monthlyBalance,
-                          theme,
-                        ),
-                        SizedBox(height: 24),
-
-                        // Monthly Transactions Section
-                        Text(
-                          'Recent Transactions',
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.5,
-                            color: theme.textTheme.bodyLarge?.color ??
-                                Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: 16),
-                        FutureBuilder<List<Transaction>>(
-                          future: _getTransactionsForMonth(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) {
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  color: Color(0xFF14B8A6),
-                                ),
-                              );
-                            }
-                            return _buildMonthlyTransactionsList(snapshot.data!);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-              },
-            );
-          },
-        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1222,177 +1446,177 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final categoryInsight = insights['categoryInsight'] as String;
         final insightColor = insights['color'] as Color;
 
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.insights_rounded,
-                color: insightColor,
-                size: 24,
-              ),
-              SizedBox(width: 12),
-              Text(
-                'Monthly Financial Insights',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: theme.textTheme.bodyLarge?.color,
-                ),
+        return Container(
+          padding: EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: Offset(0, 2),
               ),
             ],
           ),
-          SizedBox(height: 20),
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: insightColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: insightColor.withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.analytics_outlined,
-                      color: insightColor,
-                      size: 20,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Analysis',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: theme.textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Text(
-                  analysis,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: theme.textTheme.bodyMedium?.color,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 16),
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.orange.withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.lightbulb_outline_rounded,
-                      color: Colors.orange,
-                      size: 20,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Recommendation',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: theme.textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Text(
-                  recommendation,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: theme.textTheme.bodyMedium?.color,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (categoryInsight.isNotEmpty) ...[
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Color(0xFF14B8A6).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Color(0xFF14B8A6).withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.category_outlined,
-                        color: Color(0xFF14B8A6),
-                        size: 20,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Category Insight',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    Icons.insights_rounded,
+                    color: insightColor,
+                    size: 24,
                   ),
-                  SizedBox(height: 12),
+                  SizedBox(width: 12),
                   Text(
-                    categoryInsight,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: theme.textTheme.bodyMedium?.color,
-                      height: 1.5,
+                    'Monthly Financial Insights',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodyLarge?.color,
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ],
-      ),
-    );
+              SizedBox(height: 20),
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: insightColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: insightColor.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.analytics_outlined,
+                          color: insightColor,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Analysis',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textTheme.bodyLarge?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      analysis,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: theme.textTheme.bodyMedium?.color,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.lightbulb_outline_rounded,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Recommendation',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textTheme.bodyLarge?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      recommendation,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: theme.textTheme.bodyMedium?.color,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (categoryInsight.isNotEmpty) ...[
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF14B8A6).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Color(0xFF14B8A6).withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.category_outlined,
+                            color: Color(0xFF14B8A6),
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Category Insight',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        categoryInsight,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: theme.textTheme.bodyMedium?.color,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
       },
     );
   }
@@ -1480,6 +1704,204 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  // Get upcoming recurring debit orders
+  Future<List<Map<String, dynamic>>> _getUpcomingRecurringDebitOrders() async {
+    final allTransactions = await LocalStorageService.getTransactions();
+    final now = DateTime.now();
+    final endDate = now.add(Duration(days: 30)); // Show next 30 days
+    return Helpers.getUpcomingRecurringDebitOrders(
+      allTransactions,
+      startDate: now,
+      endDate: endDate,
+    );
+  }
+
+  // Build vertical lines for upcoming recurring debit orders on dashboard graph
+  List<VerticalLine> _buildRecurringDebitOrderVerticalLines(
+    List<Map<String, dynamic>> upcomingDebitOrders,
+    List<FlSpot> graphData,
+  ) {
+    if (upcomingDebitOrders.isEmpty || graphData.isEmpty) return [];
+
+    final daysInMonth =
+        DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+    List<VerticalLine> verticalLines = [];
+
+    for (var debitOrder in upcomingDebitOrders) {
+      final nextDate = debitOrder['nextDate'] as DateTime;
+
+      // Check if the date is in the selected month
+      if (nextDate.year != _selectedMonth.year ||
+          nextDate.month != _selectedMonth.month) {
+        continue;
+      }
+
+      final day = nextDate.day;
+      if (day >= 1 && day <= daysInMonth) {
+        verticalLines.add(
+          VerticalLine(
+            x: day.toDouble(),
+            color: Colors.orange.withOpacity(0.7),
+            strokeWidth: 2,
+            dashArray: [5, 5],
+            label: VerticalLineLabel(
+              show: true,
+              alignment: Alignment.topCenter,
+              padding: EdgeInsets.only(bottom: 4),
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return verticalLines;
+  }
+
+  // Build notification banner for upcoming recurring debit orders
+  Widget _buildUpcomingRecurringDebitOrdersNotification(
+    List<Map<String, dynamic>> upcomingDebitOrders,
+    ThemeData theme,
+  ) {
+    if (upcomingDebitOrders.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    // Filter for this month and next 7 days
+    final now = DateTime.now();
+    final nextWeek = now.add(Duration(days: 7));
+    final relevantDebitOrders = upcomingDebitOrders.where((order) {
+      final date = order['nextDate'] as DateTime;
+      return date.isAfter(now.subtract(Duration(days: 1))) &&
+          date.isBefore(nextWeek.add(Duration(days: 1)));
+    }).toList();
+
+    if (relevantDebitOrders.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    // Group by date
+    final groupedByDate = <DateTime, List<Map<String, dynamic>>>{};
+    for (var debitOrder in relevantDebitOrders) {
+      final date = debitOrder['nextDate'] as DateTime;
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      if (!groupedByDate.containsKey(dateOnly)) {
+        groupedByDate[dateOnly] = [];
+      }
+      groupedByDate[dateOnly]!.add(debitOrder);
+    }
+
+    // Sort dates
+    final sortedDates = groupedByDate.keys.toList()..sort();
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.orange.withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.account_balance_wallet,
+                color: Colors.orange,
+                size: 24,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Upcoming Recurring Debit Orders',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          ...sortedDates.take(3).map((date) {
+            final debitOrders = groupedByDate[date]!;
+            final dayAmount = debitOrders.fold<double>(
+              0.0,
+              (sum, order) => sum + (order['amount'] as double),
+            );
+            final daysUntil = date.difference(now).inDays;
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      daysUntil == 0
+                          ? 'Today'
+                          : daysUntil == 1
+                              ? 'Tomorrow'
+                              : '$daysUntil days',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      DateFormat('MMM d, yyyy').format(date),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    Helpers.formatCurrency(dayAmount),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange[700],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (sortedDates.length > 3)
+            Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'and ${sortedDates.length - 3} more in the next 7 days',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1572,60 +1994,102 @@ class _HomeTransactionCard extends StatelessWidget {
                   : Colors.white.withOpacity(0.6),
               borderRadius: BorderRadius.circular(12),
             ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: categoryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Icon(
-                categoryIcon,
-                color: categoryColor,
-                size: 24,
-              ),
-            ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  transaction.description.isNotEmpty
-                      ? transaction.description
-                      : transaction.category,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: theme.textTheme.bodyLarge?.color ?? Colors.black87,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: categoryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      categoryIcon,
+                      color: categoryColor,
+                      size: 24,
+                    ),
                   ),
                 ),
-                SizedBox(height: 4),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        transaction.description.isNotEmpty
+                            ? transaction.description
+                            : transaction.category,
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyLarge?.color ??
+                              Colors.black87,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                      Text(
+                        Helpers.formatDateRelative(transaction.date),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.7) ??
+                              Colors.grey[600],
+                        ),
+                      ),
+                          if (transaction.isRecurring || transaction.isSubscription) ...[
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: transaction.isSubscription 
+                                    ? Colors.purple.withOpacity(0.1)
+                                    : Colors.orange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    transaction.isSubscription 
+                                        ? Icons.subscriptions 
+                                        : Icons.repeat,
+                                    size: 12,
+                                    color: transaction.isSubscription 
+                                        ? Colors.purple 
+                                        : Colors.orange,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    transaction.isSubscription ? 'Subscription' : 'Recurring',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: transaction.isSubscription 
+                                          ? Colors.purple 
+                                          : Colors.orange,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 Text(
-                  DateFormat('d MMMM').format(transaction.date),
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color:
-                        theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ??
-                            Colors.grey[600],
+                  '${isIncome ? '+' : '-'}${Helpers.formatCurrency(transaction.amount)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: isIncome ? Colors.green : Colors.red,
                   ),
                 ),
               ],
-            ),
-          ),
-          Text(
-            '${isIncome ? '+' : '-'}${Helpers.formatCurrency(transaction.amount)}',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: isIncome ? Colors.green : Colors.red,
-            ),
-          ),
-        ],
             ),
           ),
         ),

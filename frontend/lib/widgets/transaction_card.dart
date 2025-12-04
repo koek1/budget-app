@@ -31,8 +31,54 @@ class TransactionCard extends StatelessWidget {
                     transaction.category,
                     style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                subtitle: Text(
-                    transaction.description.isEmpty ? 'No Description' : transaction.description,
+                subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                        Text(
+                            transaction.description.isEmpty ? 'No Description' : transaction.description,
+                        ),
+                        if (transaction.isRecurring || transaction.isSubscription) ...[
+                            SizedBox(height: 4),
+                            Row(
+                                children: [
+                                    Container(
+                                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                            color: transaction.isSubscription 
+                                                ? Colors.purple.withOpacity(0.1)
+                                                : Colors.orange.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                                Icon(
+                                                    transaction.isSubscription 
+                                                        ? Icons.subscriptions 
+                                                        : Icons.repeat,
+                                                    size: 10,
+                                                    color: transaction.isSubscription 
+                                                        ? Colors.purple 
+                                                        : Colors.orange,
+                                                ),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                    transaction.isSubscription ? 'Subscription' : 'Recurring',
+                                                    style: TextStyle(
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: transaction.isSubscription 
+                                                            ? Colors.purple 
+                                                            : Colors.orange,
+                                                    ),
+                                                ),
+                                            ],
+                                        ),
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ],
                 ),
                 trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

@@ -65,6 +65,9 @@ class _StatsScreenState extends State<StatsScreen> {
         _getExpenseTrendData(),
         _getCategoryBreakdownPieData(),
         _getCashFlowAnalysis(),
+        _getUpcomingRecurringDebitOrders(),
+        _getDebtInfo(),
+        _getPendingTransactions(),
       ]).timeout(Duration(seconds: 15), onTimeout: () {
         throw Exception('Loading statistics timed out');
       }).then((results) => {
@@ -80,6 +83,9 @@ class _StatsScreenState extends State<StatsScreen> {
             'expenseTrendData': results[9],
             'categoryPieData': results[10],
             'cashFlowAnalysis': results[11],
+            'upcomingRecurringDebitOrders': results[12],
+            'debtInfo': results[13],
+            'pendingTransactions': results[14],
           });
 
       if (mounted) {
@@ -550,6 +556,30 @@ class _StatsScreenState extends State<StatsScreen> {
     return spots;
   }
 
+  // Get upcoming recurring debit orders
+  Future<List<Map<String, dynamic>>> _getUpcomingRecurringDebitOrders() async {
+    final allTransactions = await LocalStorageService.getTransactions();
+    final endDate =
+        _selectedEndDate.add(Duration(days: 30)); // Show next 30 days
+    return Helpers.getUpcomingRecurringDebitOrders(
+      allTransactions,
+      startDate: _selectedStartDate,
+      endDate: endDate,
+    );
+  }
+
+  // Calculate debt information from recurring bills with end dates (excluding subscriptions)
+  Future<Map<String, double>> _getDebtInfo() async {
+    final allTransactions = await LocalStorageService.getTransactions();
+    return Helpers.calculateDebtInfo(allTransactions);
+  }
+
+  // Get pending recurring transactions
+  Future<List<Map<String, dynamic>>> _getPendingTransactions() async {
+    final allTransactions = await LocalStorageService.getTransactions();
+    return Helpers.getPendingRecurringTransactions(allTransactions);
+  }
+
   // Calculate cash flow analysis
   Future<Map<String, dynamic>> _getCashFlowAnalysis() async {
     final income = await _getTotalIncome();
@@ -690,7 +720,7 @@ class _StatsScreenState extends State<StatsScreen> {
   Future<void> _selectDateRange() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
@@ -708,7 +738,8 @@ class _StatsScreenState extends State<StatsScreen> {
               surface: isDark ? Color(0xFF1E293B) : Colors.white,
               onSurface: theme.textTheme.bodyLarge?.color ?? Colors.black,
             ),
-            dialogBackgroundColor: isDark ? Color(0xFF1E293B) : Colors.white,
+            dialogTheme: DialogThemeData(
+                backgroundColor: isDark ? Color(0xFF1E293B) : Colors.white),
           ),
           child: child!,
         );
@@ -830,11 +861,24 @@ class _StatsScreenState extends State<StatsScreen> {
                       _buildTimeFrameSelector(theme),
                       SizedBox(height: 20),
 
+                      // Upcoming Recurring Debit Orders Notification
+                      _buildUpcomingRecurringDebitOrdersNotification(
+                        data['upcomingRecurringDebitOrders']
+                            as List<Map<String, dynamic>>,
+                        theme,
+                      ),
+                      if ((data['upcomingRecurringDebitOrders'] as List)
+                          .isNotEmpty)
+                        SizedBox(height: 20),
+
                       // Dual Line Graph (Income + Expenses)
                       _buildDualLineChart(
                         data['dualLineData'] as Map<String, List<FlSpot>>,
                         theme,
                         isDark,
+                        upcomingRecurringDebitOrders:
+                            data['upcomingRecurringDebitOrders']
+                                as List<Map<String, dynamic>>,
                       ),
                       SizedBox(height: 20),
 
@@ -898,6 +942,14 @@ class _StatsScreenState extends State<StatsScreen> {
                         theme,
                       ),
                       SizedBox(height: 20),
+
+                      // Debt Analysis
+                      _buildDebtAnalysis(
+                        data['debtInfo'] as Map<String, double>,
+                        data['pendingTransactions'] as List<Map<String, dynamic>>,
+                        theme,
+                      ),
+                      SizedBox(height: 20),
                     ],
                   ),
                 );
@@ -912,7 +964,7 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget _buildTimeFrameSelector(ThemeData theme) {
     final isDark = theme.brightness == Brightness.dark;
     final dateFormat = DateFormat('MMM d, yyyy');
-    
+
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -967,7 +1019,8 @@ class _StatsScreenState extends State<StatsScreen> {
                           : _selectedTimeFrame,
                       style: GoogleFonts.inter(
                         fontSize: 14,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       ),
                     ),
                   ],
@@ -1002,7 +1055,8 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildQuickRangeButton(ThemeData theme, String label, Duration duration) {
+  Widget _buildQuickRangeButton(
+      ThemeData theme, String label, Duration duration) {
     final isDark = theme.brightness == Brightness.dark;
     final now = DateTime.now();
     final startDate = now.subtract(duration);
@@ -1042,9 +1096,7 @@ class _StatsScreenState extends State<StatsScreen> {
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: isSelected
-                ? Colors.white
-                : theme.textTheme.bodyLarge?.color,
+            color: isSelected ? Colors.white : theme.textTheme.bodyLarge?.color,
           ),
         ),
       ),
@@ -1078,9 +1130,8 @@ class _StatsScreenState extends State<StatsScreen> {
             Icon(
               Icons.tune_rounded,
               size: 16,
-              color: isSelected
-                  ? Colors.white
-                  : theme.textTheme.bodyLarge?.color,
+              color:
+                  isSelected ? Colors.white : theme.textTheme.bodyLarge?.color,
             ),
             SizedBox(width: 6),
             Text(
@@ -1111,8 +1162,9 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget _buildDualLineChart(
     Map<String, List<FlSpot>> data,
     ThemeData theme,
-    bool isDark,
-  ) {
+    bool isDark, {
+    List<Map<String, dynamic>>? upcomingRecurringDebitOrders,
+  }) {
     final incomeSpots = data['income']!;
     final expenseSpots = data['expenses']!;
 
@@ -1261,7 +1313,15 @@ class _StatsScreenState extends State<StatsScreen> {
             maxY: maxY > 0 ? maxY : 1000,
             clipData: FlClipData.all(),
             extraLinesData: ExtraLinesData(
-              verticalLines: [],
+              verticalLines: _buildRecurringDebitOrderVerticalLines(
+                upcomingRecurringDebitOrders ?? [],
+                incomeSpots,
+                expenseSpots,
+                minX: adjustedMinX,
+                maxX: adjustedMaxX > adjustedMinX
+                    ? adjustedMaxX
+                    : adjustedMinX + 1,
+              ),
             ),
           ),
         ),
@@ -1272,6 +1332,202 @@ class _StatsScreenState extends State<StatsScreen> {
           _buildLegendItem('Income', Colors.green, theme),
           SizedBox(width: 24),
           _buildLegendItem('Expenses', Colors.red, theme),
+          if (upcomingRecurringDebitOrders != null &&
+              upcomingRecurringDebitOrders.isNotEmpty) ...[
+            SizedBox(width: 24),
+            _buildLegendItem('Upcoming Debit', Colors.orange, theme),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Build vertical lines for upcoming recurring debit orders
+  List<VerticalLine> _buildRecurringDebitOrderVerticalLines(
+    List<Map<String, dynamic>> upcomingDebitOrders,
+    List<FlSpot> incomeSpots,
+    List<FlSpot> expenseSpots, {
+    required double minX,
+    required double maxX,
+  }) {
+    if (upcomingDebitOrders.isEmpty) return [];
+
+    // Get transactions for date range to map dates to x positions
+    final transactions = _cachedTransactions ?? [];
+    final sortedDates = <String>{};
+
+    // Get all unique dates from transactions
+    for (var transaction in transactions) {
+      sortedDates.add(DateFormat('yyyy-MM-dd').format(transaction.date));
+    }
+    final sortedDatesList = sortedDates.toList()..sort();
+
+    List<VerticalLine> verticalLines = [];
+
+    for (var debitOrder in upcomingDebitOrders) {
+      final nextDate = debitOrder['nextDate'] as DateTime;
+      final dateKey = DateFormat('yyyy-MM-dd').format(nextDate);
+
+      // Find the x position for this date
+      int? xIndex = sortedDatesList.indexOf(dateKey);
+      if (xIndex == -1) {
+        // Date not in current range, skip
+        continue;
+      }
+
+      final x = xIndex.toDouble();
+      if (x >= minX && x <= maxX) {
+        verticalLines.add(
+          VerticalLine(
+            x: x,
+            color: Colors.orange.withOpacity(0.6),
+            strokeWidth: 2,
+            dashArray: [5, 5],
+            label: VerticalLineLabel(
+              show: true,
+              alignment: Alignment.topCenter,
+              padding: EdgeInsets.only(bottom: 4),
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return verticalLines;
+  }
+
+  // Build notification banner for upcoming recurring debit orders
+  Widget _buildUpcomingRecurringDebitOrdersNotification(
+    List<Map<String, dynamic>> upcomingDebitOrders,
+    ThemeData theme,
+  ) {
+    if (upcomingDebitOrders.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    // Group by date
+    final groupedByDate = <DateTime, List<Map<String, dynamic>>>{};
+    for (var debitOrder in upcomingDebitOrders) {
+      final date = debitOrder['nextDate'] as DateTime;
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      if (!groupedByDate.containsKey(dateOnly)) {
+        groupedByDate[dateOnly] = [];
+      }
+      groupedByDate[dateOnly]!.add(debitOrder);
+    }
+
+    // Sort dates
+    final sortedDates = groupedByDate.keys.toList()..sort();
+    final next5Dates = sortedDates.take(5).toList();
+
+    if (next5Dates.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.orange.withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.account_balance_wallet,
+                color: Colors.orange,
+                size: 24,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Upcoming Recurring Debit Orders',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          ...next5Dates.map((date) {
+            final debitOrders = groupedByDate[date]!;
+            final totalAmount = debitOrders.fold<double>(
+              0.0,
+              (sum, order) => sum + (order['amount'] as double),
+            );
+            final daysUntil = date.difference(DateTime.now()).inDays;
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      daysUntil == 0
+                          ? 'Today'
+                          : daysUntil == 1
+                              ? 'Tomorrow'
+                              : '$daysUntil days',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      DateFormat('MMM d, yyyy').format(date),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    Helpers.formatCurrency(totalAmount),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange[700],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (sortedDates.length > 5)
+            Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'and ${sortedDates.length - 5} more...',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -2139,6 +2395,171 @@ class _StatsScreenState extends State<StatsScreen> {
         child: CircularProgressIndicator(
           color: Color(0xFF14B8A6),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDebtAnalysis(
+    Map<String, double> debtInfo,
+    List<Map<String, dynamic>> pendingTransactions,
+    ThemeData theme,
+  ) {
+    final totalDebtDue = debtInfo['totalDebtDue'] ?? 0.0;
+    final debtPaidOff = debtInfo['debtPaidOff'] ?? 0.0;
+    final totalDebt = totalDebtDue + debtPaidOff;
+    final suggestions = Helpers.getDebtManagementSuggestions(totalDebtDue);
+    final pendingCount = pendingTransactions.length;
+
+    return _buildChartCard(
+      theme,
+      'Debt Analysis',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Total Debt Due
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total Debt Due',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      Helpers.formatCurrency(totalDebtDue),
+                      style: GoogleFonts.inter(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: totalDebtDue > 0 ? Colors.orange : Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: 12),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: totalDebtDue > 0
+                      ? Colors.orange.withOpacity(0.1)
+                      : Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Pending',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '$pendingCount',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: totalDebtDue > 0 ? Colors.orange : Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          // Debt Paid Off
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Debt Paid Off',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      Helpers.formatCurrency(debtPaidOff),
+                      style: GoogleFonts.inter(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+                if (totalDebt > 0)
+                  Text(
+                    '${((debtPaidOff / totalDebt) * 100).toStringAsFixed(1)}%',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20),
+          Divider(),
+          SizedBox(height: 12),
+          Text(
+            'Debt Management Suggestions',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
+          SizedBox(height: 12),
+          ...suggestions.map((suggestion) => Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: EdgeInsets.only(top: 4, right: 12),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: Color(0xFF14B8A6),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        suggestion,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: theme.textTheme.bodyMedium?.color,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
       ),
     );
   }

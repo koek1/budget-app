@@ -10,6 +10,7 @@ import 'services/settings_service.dart';
 import 'services/custom_criteria_service.dart';
 import 'services/budget_service.dart';
 import 'services/budget_notification_service.dart';
+import 'services/recurring_debit_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -162,6 +163,11 @@ void main() async {
 
   // Initialize budget notification service
   await BudgetNotificationService.init();
+
+  // Initialize recurring debit notification service
+  await RecurringDebitNotificationService.init();
+  // Schedule notifications for recurring debits
+  RecurringDebitNotificationService.scheduleRecurringDebitNotifications();
 
   runApp(const MyApp());
 }

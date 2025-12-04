@@ -37,6 +37,9 @@ class Transaction {
     @HiveField(10)
     String? recurringFrequency; // 'monthly', 'weekly', 'biweekly', 'yearly'
 
+    @HiveField(11)
+    bool isSubscription; // For subscriptions like Gym, Spotify, Netflix, etc.
+
     Transaction({
         required this.id,
         required this.userId,
@@ -49,6 +52,7 @@ class Transaction {
         this.isRecurring = false,
         this.recurringEndDate,
         this.recurringFrequency,
+        this.isSubscription = false,
     });
 
     Map<String, dynamic> toJson() {
@@ -62,6 +66,7 @@ class Transaction {
             'isRecurring': isRecurring,
             'recurringEndDate': recurringEndDate?.toIso8601String(),
             'recurringFrequency': recurringFrequency,
+            'isSubscription': isSubscription,
         };
     }
 
@@ -80,6 +85,7 @@ class Transaction {
                 ? DateTime.parse(json['recurringEndDate']) 
                 : null,
             recurringFrequency: json['recurringFrequency'],
+            isSubscription: json['isSubscription'] ?? false,
         );
     }
 }

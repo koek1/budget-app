@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import 'package:budget_app/models/transaction.dart';
@@ -31,11 +32,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isSaving = false;
   List<String> _availableCategories = [];
   String? _errorMessage;
-  
+
   // Recurring bill fields
   bool _isRecurring = false;
   DateTime? _recurringEndDate;
   String? _recurringFrequency;
+  bool _isSubscription = false; // For subscriptions like Gym, Spotify, Netflix
 
   @override
   void initState() {
@@ -52,6 +54,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _isRecurring = transaction.isRecurring;
       _recurringEndDate = transaction.recurringEndDate;
       _recurringFrequency = transaction.recurringFrequency ?? 'monthly';
+      _isSubscription = transaction.isSubscription;
     } else {
       _selectedType = 'expense';
       _selectedDate = DateTime.now();
@@ -65,18 +68,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-    
+
     try {
       final categories = await AppConstants.getCategories(_selectedType)
           .timeout(Duration(seconds: 5), onTimeout: () {
         throw Exception('Category loading timed out');
       });
-      
+
       if (mounted) {
         setState(() {
           _availableCategories = categories;
-          if (_selectedCategory == null || !_availableCategories.contains(_selectedCategory)) {
-            _selectedCategory = _availableCategories.isNotEmpty ? _availableCategories.first : null;
+          if (_selectedCategory == null ||
+              !_availableCategories.contains(_selectedCategory)) {
+            _selectedCategory = _availableCategories.isNotEmpty
+                ? _availableCategories.first
+                : null;
           }
           _isLoading = false;
         });
@@ -110,17 +116,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     // Validate recurring bill fields
     if (_selectedType == 'expense' && _isRecurring) {
-      if (_recurringEndDate == null) {
-        Helpers.showErrorSnackBar(context, 'Please select an end date for the recurring bill');
+      // End date is only required for non-subscription recurring bills
+      if (!_isSubscription && _recurringEndDate == null) {
+        Helpers.showErrorSnackBar(
+            context, 'Please select an end date for the recurring bill');
         return;
       }
-      // Ensure end date is strictly after the transaction date (not equal or before)
-      if (!_recurringEndDate!.isAfter(_selectedDate)) {
-        Helpers.showErrorSnackBar(context, 'End date must be after the transaction date');
+      // If end date is provided, ensure it's strictly after the transaction date
+      if (_recurringEndDate != null && !_recurringEndDate!.isAfter(_selectedDate)) {
+        Helpers.showErrorSnackBar(
+            context, 'End date must be after the transaction date');
         return;
       }
       if (_recurringFrequency == null || _recurringFrequency!.isEmpty) {
-        Helpers.showErrorSnackBar(context, 'Please select a frequency for the recurring bill');
+        Helpers.showErrorSnackBar(
+            context, 'Please select a frequency for the recurring bill');
         return;
       }
     }
@@ -142,7 +152,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (amountText.isEmpty) {
         throw Exception('Please enter an amount');
       }
-      
+
       final amount = double.tryParse(amountText);
       if (amount == null || amount <= 0) {
         throw Exception('Please enter a valid amount greater than 0');
@@ -162,8 +172,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         date: _selectedDate,
         isSynced: true,
         isRecurring: _selectedType == 'expense' ? _isRecurring : false,
-        recurringEndDate: _selectedType == 'expense' && _isRecurring ? _recurringEndDate : null,
-        recurringFrequency: _selectedType == 'expense' && _isRecurring ? _recurringFrequency : null,
+        recurringEndDate: _selectedType == 'expense' && _isRecurring
+            ? _recurringEndDate
+            : null,
+        recurringFrequency: _selectedType == 'expense' && _isRecurring
+            ? _recurringFrequency
+            : null,
+        isSubscription: _selectedType == 'expense' ? _isSubscription : false,
       );
 
       if (_isEditing) {
@@ -178,7 +193,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         // Show success message
         Helpers.showSuccessSnackBar(
           context,
-          _isEditing ? 'Transaction updated successfully' : 'Transaction added successfully',
+          _isEditing
+              ? 'Transaction updated successfully'
+              : 'Transaction added successfully',
         );
         // Small delay to show success message before navigating
         await Future.delayed(Duration(milliseconds: 300));
@@ -192,30 +209,41 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       } else if (e.toString().contains('Exception:')) {
         errorMessage = e.toString().replaceFirst('Exception: ', '');
       }
-      
+
       if (mounted) {
         setState(() {
           _isSaving = false;
           _errorMessage = errorMessage;
         });
-        Helpers.showErrorSnackBar(context, errorMessage);
+        // Don't show error if user cancelled or if it's a validation error (already shown)
+        if (!errorMessage.toLowerCase().contains('cancelled') &&
+            !errorMessage.toLowerCase().contains('validation')) {
+          Helpers.showErrorSnackBar(context, errorMessage);
+        }
       }
     }
   }
 
   Future<void> _selectDate() async {
+    // Allow future dates for income (e.g., expected salary), but limit expenses to past/present
+    final maxDate = _selectedType == 'income' 
+        ? DateTime.now().add(Duration(days: 365)) // Allow up to 1 year in future for income
+        : DateTime.now(); // Expenses can only be in the past or today
+    
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      lastDate: maxDate,
     );
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
         // If recurring end date exists and is now invalid (before or equal to new transaction date),
         // clear it so user must select a new valid end date
-        if (_isRecurring && _recurringEndDate != null && !_recurringEndDate!.isAfter(_selectedDate)) {
+        if (_isRecurring &&
+            _recurringEndDate != null &&
+            !_recurringEndDate!.isAfter(_selectedDate)) {
           _recurringEndDate = null;
         }
       });
@@ -240,15 +268,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (receiptData.date != null) {
             _selectedDate = receiptData.date!;
           }
-          if (receiptData.merchantName != null && receiptData.merchantName!.isNotEmpty) {
+          if (receiptData.merchantName != null &&
+              receiptData.merchantName!.isNotEmpty) {
             _descriptionController.text = receiptData.merchantName!;
-          } else if (receiptData.description != null && receiptData.description!.isNotEmpty) {
+          } else if (receiptData.description != null &&
+              receiptData.description!.isNotEmpty) {
             _descriptionController.text = receiptData.description!;
           }
           if (receiptData.suggestedCategory != null) {
             // Load categories first, then set the suggested category
             _loadCategories().then((_) {
-              if (_availableCategories.contains(receiptData.suggestedCategory)) {
+              if (_availableCategories
+                  .contains(receiptData.suggestedCategory)) {
                 setState(() {
                   _selectedCategory = receiptData.suggestedCategory;
                 });
@@ -277,8 +308,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _selectRecurringEndDate() async {
     // Ensure the first selectable date is at least one day after the transaction date
     final minEndDate = _selectedDate.add(Duration(days: 1));
-    final maxEndDate = DateTime.now().add(Duration(days: 3650)); // 10 years from now
-    
+    final maxEndDate =
+        DateTime.now().add(Duration(days: 3650)); // 10 years from now
+
     // Clamp initialDate to valid range [minEndDate, maxEndDate]
     // This prevents assertion errors when _recurringEndDate is invalid after _selectedDate changes
     DateTime initialDate;
@@ -297,7 +329,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       // No existing end date, use minimum
       initialDate = minEndDate;
     }
-    
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
@@ -330,7 +362,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           else
             IconButton(
               icon: Icon(Icons.save),
-              onPressed: _saveTransaction,
+              onPressed: _isSaving ? null : _saveTransaction,
+              tooltip: _isEditing ? 'Update Transaction' : 'Save Transaction',
             ),
         ],
       ),
@@ -505,12 +538,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       : Colors.grey[50],
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  // Allow only numbers and one decimal point
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                ],
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter an amount';
                   }
-                  if (double.tryParse(value) == null) {
+                  final amount = double.tryParse(value);
+                  if (amount == null) {
                     return 'Please enter a valid number';
+                  }
+                  if (amount <= 0) {
+                    return 'Amount must be greater than 0';
+                  }
+                  if (amount > 999999999) {
+                    return 'Amount is too large';
                   }
                   return null;
                 },
@@ -533,7 +577,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            border:
+                                Border.all(color: Colors.red.withOpacity(0.3)),
                           ),
                           child: Column(
                             children: [
@@ -553,46 +598,47 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           ),
                         )
                       : DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      decoration: InputDecoration(
-                        labelText: 'Category',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).dividerColor,
+                          initialValue: _selectedCategory,
+                          decoration: InputDecoration(
+                            labelText: 'Category',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Theme.of(context).dividerColor,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Theme.of(context).primaryColor,
+                                width: 2,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Theme.of(context).scaffoldBackgroundColor
+                                    : Colors.grey[50],
                           ),
+                          items: _availableCategories.map((category) {
+                            return DropdownMenuItem(
+                              value: category,
+                              child: Text(category),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() => _selectedCategory = value);
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please select a category';
+                            }
+                            return null;
+                          },
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).primaryColor,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Theme.of(context).brightness == Brightness.dark
-                            ? Theme.of(context).scaffoldBackgroundColor
-                            : Colors.grey[50],
-                      ),
-                      items: _availableCategories.map((category) {
-                        return DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() => _selectedCategory = value);
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select a category';
-                        }
-                        return null;
-                      },
-                    ),
               SizedBox(height: 20),
 
               // Description
@@ -600,20 +646,91 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 controller: _descriptionController,
                 decoration: InputDecoration(
                   labelText: 'Description (optional)',
-                  border: OutlineInputBorder(),
+                  hintText: 'Add a note about this transaction',
+                  prefixIcon: Icon(Icons.note_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).primaryColor,
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).scaffoldBackgroundColor
+                      : Colors.grey[50],
                 ),
                 maxLines: 2,
               ),
               SizedBox(height: 20),
 
               // Date
-              ListTile(
-                leading: Icon(Icons.calendar_today),
-                title: Text('Date'),
-                subtitle: Text(
-                    '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
-                trailing: Icon(Icons.arrow_drop_down),
+              InkWell(
                 onTap: _selectDate,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(context).scaffoldBackgroundColor
+                        : Colors.grey[50],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        color: const Color(0xFF14B8A6),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Date',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.color,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              Helpers.formatDateRelative(_selectedDate),
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               SizedBox(height: 20),
 
@@ -647,7 +764,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
-                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.color,
                               ),
                             ),
                           ),
@@ -659,10 +779,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 if (!value) {
                                   _recurringEndDate = null;
                                   _recurringFrequency = 'monthly';
+                                  _isSubscription = false; // Reset subscription when recurring is disabled
                                 }
                               });
                             },
-                            activeColor: const Color(0xFF14B8A6),
+                            activeThumbColor: const Color(0xFF14B8A6),
                           ),
                         ],
                       ),
@@ -670,7 +791,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         SizedBox(height: 20),
                         // Frequency dropdown
                         DropdownButtonFormField<String>(
-                          value: _recurringFrequency,
+                          initialValue: _recurringFrequency,
                           decoration: InputDecoration(
                             labelText: 'Frequency',
                             prefixIcon: Icon(Icons.schedule),
@@ -691,9 +812,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               ),
                             ),
                             filled: true,
-                            fillColor: Theme.of(context).brightness == Brightness.dark
-                                ? Theme.of(context).scaffoldBackgroundColor
-                                : Colors.white,
+                            fillColor:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Theme.of(context).scaffoldBackgroundColor
+                                    : Colors.white,
                           ),
                           items: [
                             DropdownMenuItem(
@@ -717,7 +839,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             setState(() => _recurringFrequency = value);
                           },
                           validator: (value) {
-                            if (_isRecurring && (value == null || value.isEmpty)) {
+                            if (_isRecurring &&
+                                (value == null || value.isEmpty)) {
                               return 'Please select a frequency';
                             }
                             return null;
@@ -735,7 +858,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 color: Theme.of(context).dividerColor,
                               ),
                               borderRadius: BorderRadius.circular(12),
-                              color: Theme.of(context).brightness == Brightness.dark
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
                                   ? Theme.of(context).scaffoldBackgroundColor
                                   : Colors.white,
                             ),
@@ -748,25 +872,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'End Date',
                                         style: GoogleFonts.inter(
                                           fontSize: 12,
-                                          color: Theme.of(context).textTheme.bodySmall?.color,
+                                          color: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.color,
                                         ),
                                       ),
                                       SizedBox(height: 4),
                                       Text(
                                         _recurringEndDate != null
-                                            ? '${_recurringEndDate!.day}/${_recurringEndDate!.month}/${_recurringEndDate!.year}'
+                                            ? Helpers.formatDateRelative(_recurringEndDate!)
                                             : 'Select end date',
                                         style: GoogleFonts.inter(
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
                                           color: _recurringEndDate != null
-                                              ? Theme.of(context).textTheme.bodyLarge?.color
+                                              ? Theme.of(context)
+                                                  .textTheme
+                                                  .bodyLarge
+                                                  ?.color
                                               : Colors.grey,
                                         ),
                                       ),
@@ -775,7 +906,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 ),
                                 Icon(
                                   Icons.arrow_drop_down,
-                                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge
+                                      ?.color,
                                 ),
                               ],
                             ),
@@ -784,14 +918,85 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         if (_isRecurring && _recurringEndDate == null)
                           Padding(
                             padding: EdgeInsets.only(top: 8),
-                            child: Text(
-                              'Please select an end date',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: Colors.red,
-                              ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, size: 14, color: Colors.orange),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Please select an end date for this recurring payment',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.orange[700],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                      ],
+                      // Subscription option (only for recurring expenses)
+                      if (_isRecurring && _selectedType == 'expense') ...[
+                        SizedBox(height: 20),
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            color: Theme.of(context).brightness ==
+                                    Brightness.dark
+                                ? Theme.of(context).scaffoldBackgroundColor
+                                : Colors.white,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.subscriptions,
+                                color: const Color(0xFF14B8A6),
+                                size: 24,
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Subscription',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.color,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Mark as subscription (Gym, Spotify, Netflix, etc.)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.color,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: _isSubscription,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isSubscription = value;
+                                  });
+                                },
+                                activeThumbColor: const Color(0xFF14B8A6),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ],
                   ),

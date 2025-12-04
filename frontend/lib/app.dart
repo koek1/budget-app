@@ -43,27 +43,38 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   bool _wasDetached = false;
   bool _wasPaused = false;
+  bool _wasInactive = false; // Track inactive state separately
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Lock immediately when app is minimized (paused/inactive) or closed (detached)
+    // Handle different app lifecycle states
     if (state == AppLifecycleState.detached) {
+      // App is being closed/terminated
       _wasDetached = true;
       _logoutOnAppClose();
       _enableScreenshotProtection();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      // Lock immediately when app goes to background
-      _wasPaused = true;
-      _logoutOnAppClose();
-      _enableScreenshotProtection();
-    }
-
-    // When app resumes, always require login if it was paused or detached
-    if (state == AppLifecycleState.resumed) {
-      if (_wasDetached || _wasPaused) {
+    } else if (state == AppLifecycleState.paused) {
+      // App is minimized (goes to background) - only set flag if NOT coming from inactive
+      // This prevents notification bar pull-down from triggering logout
+      if (!_wasInactive) {
+        _wasPaused = true;
+        _logoutOnAppClose();
+        _enableScreenshotProtection();
+      }
+      _wasInactive = false; // Reset inactive flag
+    } else if (state == AppLifecycleState.inactive) {
+      // App is temporarily inactive (notification bar, incoming call, etc.)
+      // Do NOT logout or set paused flag - this is temporary
+      _wasInactive = true;
+    } else if (state == AppLifecycleState.resumed) {
+      // App is active again
+      if (_wasInactive) {
+        // Coming from inactive (notification bar) - don't require login
+        _wasInactive = false;
+        _disableScreenshotProtection();
+      } else if (_wasDetached || _wasPaused) {
         // App was minimized or closed - require login immediately
         _wasDetached = false;
         _wasPaused = false;
@@ -73,6 +84,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         Future.delayed(Duration(milliseconds: 10), () {
           _checkAndNavigateToLogin();
         });
+      } else {
+        // App resumed normally (not from inactive, paused, or detached)
+        _disableScreenshotProtection();
       }
     }
   }

@@ -53,7 +53,7 @@ class _ExportScreenState extends State<ExportScreen> {
 
   Future<void> _exportToExcel() async {
     setState(() => _isGenerating = true);
-    
+
     await ExportService.exportToExcel(
       startDate: _startDate,
       endDate: _endDate,
@@ -69,7 +69,7 @@ class _ExportScreenState extends State<ExportScreen> {
         );
       },
     );
-    
+
     setState(() => _isGenerating = false);
   }
 
@@ -99,7 +99,7 @@ class _ExportScreenState extends State<ExportScreen> {
               onEndDateChanged: (date) => _onDateRangeChanged(_startDate, date),
             ),
             SizedBox(height: 24),
-            
+
             // Report Type Selection
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,12 +107,12 @@ class _ExportScreenState extends State<ExportScreen> {
                 Text(
                   'Report Type',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _selectedReportType,
+                  initialValue: _selectedReportType,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12),
@@ -131,14 +131,14 @@ class _ExportScreenState extends State<ExportScreen> {
               ],
             ),
             SizedBox(height: 24),
-            
+
             // Summary Preview
             if (_isLoading)
               Center(child: CircularProgressIndicator())
             else if (_summary != null)
               _buildSummaryCard(),
             SizedBox(height: 24),
-            
+
             // Export Button
             _isGenerating
                 ? Center(child: CircularProgressIndicator())
@@ -178,28 +178,32 @@ class _ExportScreenState extends State<ExportScreen> {
             Text(
               'Report Summary',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             SizedBox(height: 16),
-            _buildSummaryRow('Total Transactions', totalTransactions.toString()),
-            _buildSummaryRow('Total Income', Helpers.formatCurrency(totalIncome)),
-            _buildSummaryRow('Total Expenses', Helpers.formatCurrency(totalExpenses)),
+            _buildSummaryRow(
+                'Total Transactions', totalTransactions.toString()),
+            _buildSummaryRow(
+                'Total Income', Helpers.formatCurrency(totalIncome)),
+            _buildSummaryRow(
+                'Total Expenses', Helpers.formatCurrency(totalExpenses)),
             Divider(),
             _buildSummaryRow(
-              'Net Total', 
+              'Net Total',
               Helpers.formatCurrency(netTotal),
               isBold: true,
               color: netTotal >= 0 ? Colors.green : Colors.red,
             ),
             SizedBox(height: 16),
-            
+
             // Daily Income Preview (if income report)
-            if (_selectedReportType != 'expense' && summary['dailyIncome'] != null)
+            if (_selectedReportType != 'expense' &&
+                summary['dailyIncome'] != null)
               _buildDailyIncomePreview(summary['dailyIncome']),
-            
+
             SizedBox(height: 16),
-            
+
             // Export Insights
             _buildExportInsights(
               totalIncome,
@@ -236,7 +240,8 @@ class _ExportScreenState extends State<ExportScreen> {
     } else {
       // Net total analysis
       if (netTotal > 0) {
-        final savingsRate = totalIncome > 0 ? (netTotal / totalIncome) * 100 : 0.0;
+        final savingsRate =
+            totalIncome > 0 ? (netTotal / totalIncome) * 100 : 0.0;
         analysis =
             'Over ${dateRange} days, you have a positive cash flow of ${Helpers.formatCurrency(netTotal.abs())} (${savingsRate.toStringAsFixed(1)}% savings rate).';
         if (savingsRate >= 20) {
@@ -263,7 +268,8 @@ class _ExportScreenState extends State<ExportScreen> {
       }
 
       // Transaction frequency insight
-      final transactionsPerDay = dateRange > 0 ? totalTransactions / dateRange : 0.0;
+      final transactionsPerDay =
+          dateRange > 0 ? totalTransactions / dateRange : 0.0;
       if (transactionsPerDay > 2) {
         final frequencyInsight =
             ' You\'re averaging ${transactionsPerDay.toStringAsFixed(1)} transactions per day.';
@@ -424,7 +430,8 @@ class _ExportScreenState extends State<ExportScreen> {
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, {bool isBold = false, Color? color}) {
+  Widget _buildSummaryRow(String label, String value,
+      {bool isBold = false, Color? color}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(

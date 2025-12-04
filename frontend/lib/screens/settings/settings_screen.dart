@@ -34,7 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Load settings - don't timeout biometric check as it may need more time
       final enabled = await BiometricService.isBiometricEnabled()
           .timeout(Duration(seconds: 5), onTimeout: () => false);
-      
+
       // Check availability with longer timeout and retry
       bool available = false;
       try {
@@ -44,7 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           print('Biometric check timed out, retrying...');
           return false;
         });
-        
+
         // If first check failed, try once more
         if (!available) {
           print('First biometric check failed, retrying...');
@@ -56,15 +56,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         print('Error checking biometric availability: $e');
         available = false;
       }
-      
+
       if (mounted) {
-    setState(() {
-      _biometricEnabled = enabled;
-      _biometricAvailable = available;
-      _selectedCurrency = SettingsService.getCurrency();
-      _themeMode = SettingsService.getThemeMode();
-      _isLoading = false;
-    });
+        setState(() {
+          _biometricEnabled = enabled;
+          _biometricAvailable = available;
+          _selectedCurrency = SettingsService.getCurrency();
+          _themeMode = SettingsService.getThemeMode();
+          _isLoading = false;
+        });
       }
     } catch (e) {
       print('Error loading settings: $e');
@@ -78,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         } catch (e2) {
           print('Final biometric check failed: $e2');
         }
-        
+
         setState(() {
           _biometricEnabled = false;
           _biometricAvailable = available;
@@ -123,9 +123,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected
-                          ? Color(0xFF14B8A6)
-                          : Colors.transparent,
+                      color:
+                          isSelected ? Color(0xFF14B8A6) : Colors.transparent,
                       width: 2,
                     ),
                   ),
@@ -161,9 +160,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           currency['name']!,
                           style: GoogleFonts.inter(
                             fontSize: 16,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w400,
                             color: isSelected
                                 ? Color(0xFF14B8A6)
                                 : theme.textTheme.bodyLarge?.color,
@@ -203,9 +201,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _themeMode = newMode;
     });
-      if (mounted) {
-        Helpers.showSuccessSnackBar(context, 'Theme changed to ${newMode} mode');
-      }
+    if (mounted) {
+      Helpers.showSuccessSnackBar(context, 'Theme changed to ${newMode} mode');
+    }
   }
 
   Future<void> _toggleBiometric(bool value) async {
@@ -213,7 +211,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Enable biometric - just save credentials, don't authenticate yet
       // Authentication will happen when user actually tries to login with biometric
       final currentUser = await AuthService.getCurrentUser();
-      
+
       if (currentUser != null) {
         // Get the user's password from the usersBox
         final usersBox = Hive.box('usersBox');
@@ -221,15 +219,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final userData = users.firstWhere(
           (u) {
             final userMap = u as Map;
-            return userMap['name']?.toString().toLowerCase() == currentUser.name.toLowerCase();
+            return userMap['name']?.toString().toLowerCase() ==
+                currentUser.name.toLowerCase();
           },
           orElse: () => null,
         );
-        
+
         if (userData != null) {
           final userMap = Map<String, dynamic>.from(userData as Map);
           final password = userMap['password']?.toString();
-          
+
           if (password != null) {
             // Save credentials for biometric login
             await BiometricService.saveCredentialsForBiometric(
@@ -333,16 +332,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         // Logout first
         await AuthService.logout();
-        
+
         // Clear all data
         await LocalStorageService.clearAllData();
-        
+
         // Disable biometric
         await BiometricService.disableBiometric();
-        
+
         if (mounted) {
           Helpers.showSuccessSnackBar(context, 'App data reset successfully');
-          
+
           // Navigate to login screen
           Navigator.pushAndRemoveUntil(
             context,
@@ -356,12 +355,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (errorMessage.startsWith('Exception: ')) {
             errorMessage = errorMessage.substring(11);
           }
-          Helpers.showErrorSnackBar(context, 'Error resetting data: $errorMessage');
+          Helpers.showErrorSnackBar(
+              context, 'Error resetting data: $errorMessage');
         }
       }
     }
   }
-
 
   Widget _buildSettingsCard({
     required Widget child,
@@ -400,7 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     final theme = Theme.of(context);
     final itemColor = iconColor ?? Color(0xFF14B8A6);
-    
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -487,20 +486,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   );
                 }
-                
+
                 return ValueListenableBuilder(
                   valueListenable: Hive.box('settingsBox').listenable(),
                   builder: (context, box, _) {
                     // Refresh settings when box changes
                     _selectedCurrency = SettingsService.getCurrency();
                     _themeMode = SettingsService.getThemeMode();
-                    
+
                     return ListView(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       children: [
                         // Appearance Section
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           child: Text(
                             'Appearance',
                             style: GoogleFonts.poppins(
@@ -517,7 +517,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 icon: Icons.currency_exchange_rounded,
                                 title: 'Currency',
                                 subtitle: SettingsService.availableCurrencies
-                                    .firstWhere((c) => c['code'] == _selectedCurrency)['name']!,
+                                    .firstWhere((c) =>
+                                        c['code'] ==
+                                        _selectedCurrency)['name']!,
                                 onTap: _selectCurrency,
                               ),
                               Divider(height: 32),
@@ -527,7 +529,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     width: 48,
                                     height: 48,
                                     decoration: BoxDecoration(
-                                      color: Color(0xFF14B8A6).withOpacity(0.15),
+                                      color:
+                                          Color(0xFF14B8A6).withOpacity(0.15),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Icon(
@@ -541,14 +544,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'Dark Mode',
                                           style: GoogleFonts.inter(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w600,
-                                            color: theme.textTheme.bodyLarge?.color,
+                                            color: theme
+                                                .textTheme.bodyLarge?.color,
                                           ),
                                         ),
                                         SizedBox(height: 4),
@@ -558,7 +563,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               : 'Light theme enabled',
                                           style: GoogleFonts.inter(
                                             fontSize: 14,
-                                            color: theme.textTheme.bodyMedium?.color,
+                                            color: theme
+                                                .textTheme.bodyMedium?.color,
                                           ),
                                         ),
                                       ],
@@ -567,17 +573,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   Switch(
                                     value: _themeMode == 'dark',
                                     onChanged: (value) => _toggleThemeMode(),
-                                    activeColor: Color(0xFF14B8A6),
+                                    activeThumbColor: Color(0xFF14B8A6),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        
+
                         // Security Section
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           child: Text(
                             'Security',
                             style: GoogleFonts.poppins(
@@ -592,7 +599,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ? _buildSettingsItem(
                                   icon: Icons.info_outline_rounded,
                                   title: 'Fingerprint Authentication',
-                                  subtitle: 'Fingerprint not available on this device',
+                                  subtitle:
+                                      'Fingerprint not available on this device',
                                   iconColor: Colors.grey,
                                 )
                               : Column(
@@ -603,8 +611,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           width: 48,
                                           height: 48,
                                           decoration: BoxDecoration(
-                                            color: Color(0xFF14B8A6).withOpacity(0.15),
-                                            borderRadius: BorderRadius.circular(12),
+                                            color: Color(0xFF14B8A6)
+                                                .withOpacity(0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
                                           child: Icon(
                                             Icons.fingerprint_rounded,
@@ -615,14 +625,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         SizedBox(width: 16),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'Fingerprint Login',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w600,
-                                                  color: theme.textTheme.bodyLarge?.color,
+                                                  color: theme.textTheme
+                                                      .bodyLarge?.color,
                                                 ),
                                               ),
                                               SizedBox(height: 4),
@@ -630,7 +642,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                                 'Use fingerprint to login',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 14,
-                                                  color: theme.textTheme.bodyMedium?.color,
+                                                  color: theme.textTheme
+                                                      .bodyMedium?.color,
                                                 ),
                                               ),
                                             ],
@@ -639,17 +652,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         Switch(
                                           value: _biometricEnabled,
                                           onChanged: _toggleBiometric,
-                                          activeColor: Color(0xFF14B8A6),
+                                          activeThumbColor: Color(0xFF14B8A6),
                                         ),
                                       ],
                                     ),
                                   ],
                                 ),
                         ),
-                        
+
                         // Categories Section
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           child: Text(
                             'Categories',
                             style: GoogleFonts.poppins(
@@ -663,22 +677,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: _buildSettingsItem(
                             icon: Icons.category_rounded,
                             title: 'Manage Categories',
-                            subtitle: 'Add, edit, or delete custom income and expense categories',
+                            subtitle:
+                                'Add, edit, or delete custom income and expense categories',
                             iconColor: Color(0xFF14B8A6),
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const ManageCriteriaScreen(),
+                                  builder: (context) =>
+                                      const ManageCriteriaScreen(),
                                 ),
                               );
                             },
-                                ),
+                          ),
                         ),
-                        
+
                         // About Section
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           child: Text(
                             'About',
                             style: GoogleFonts.poppins(
@@ -701,7 +718,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _buildSettingsItem(
                                 icon: Icons.refresh_rounded,
                                 title: 'Reset App Data',
-                                subtitle: 'Clear all users, transactions, and sessions',
+                                subtitle:
+                                    'Clear all users, transactions, and sessions',
                                 iconColor: Colors.orange,
                                 onTap: _showResetDataDialog,
                               ),
@@ -717,4 +735,3 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
-

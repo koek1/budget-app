@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.budget_app"
-    compileSdk = 34  // Required for Google ML Kit (lStar attribute needs API 31+)
+    compileSdk = 36  // Required for camera, image_picker, and other plugins
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
