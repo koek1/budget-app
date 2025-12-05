@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ (API 31+) splash screen configuration -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowIsFloating">false</item>
+        <!-- Android 12+ SplashScreen API - plain white background -->
+        <!-- Note: Android 12+ may still show app icon, but we minimize it -->
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/white</item>
+        <!-- Set icon size to minimum to make it less visible -->
+        <item name="android:windowSplashScreenBrandingImage">@null</item>
+    </style>
+</resources>
+

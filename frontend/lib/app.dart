@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:lottie/lottie.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/initial_splash_screen.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -16,16 +18,35 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _isAppInBackground = false;
+  bool _settingsBoxReady = false;
 
   @override
   void initState() {
     super.initState();
     // Listen to app lifecycle changes
     WidgetsBinding.instance.addObserver(this);
-    // Listen to settings changes - ensure box is open first
-    _setupSettingsListener();
+    // Check if settings box is ready and listen for it to become available
+    _checkSettingsBox();
     // Disable screenshot protection initially (will be enabled when app goes to background)
     _disableScreenshotProtection();
+  }
+
+  void _checkSettingsBox() {
+    if (Hive.isBoxOpen('settingsBox')) {
+      if (!_settingsBoxReady) {
+        setState(() {
+          _settingsBoxReady = true;
+        });
+      }
+      _setupSettingsListener();
+    } else {
+      // Check again after a short delay
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) {
+          _checkSettingsBox();
+        }
+      });
+    }
   }
 
   void _setupSettingsListener() {
@@ -215,6 +236,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Check if settings box is open before trying to access it
+    if (!_settingsBoxReady || !Hive.isBoxOpen('settingsBox')) {
+      // Box not open yet - use default light theme
+      return MaterialApp(
+        title: 'SpendSense',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: _navigatorKey,
+        theme: _buildLightTheme(),
+        darkTheme: _buildDarkTheme(),
+        themeMode: ThemeMode.light,
+        builder: (context, child) {
+          // Wrap the app with protection overlay
+          return AppProtectionOverlay(
+            isInBackground: _isAppInBackground,
+            child: child!,
+          );
+        },
+        home: const InitialSplashScreen(),
+      );
+    }
+
     // Use ValueListenableBuilder to reactively update theme when settings change
     return ValueListenableBuilder<Box>(
       valueListenable: Hive.box('settingsBox').listenable(),
@@ -237,36 +279,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               child: child!,
             );
           },
-          home: FutureBuilder<bool>(
-            future: _checkLoginStatus(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SplashScreen();
-              }
-              // Check if user is logged in - if not, show login screen
-              // This prevents flashing the home screen
-              final isLoggedIn = snapshot.data ?? false;
-              if (isLoggedIn) {
-                // User is logged in - show home (will be handled by login screen check)
-                return const LoginScreen(); // LoginScreen will auto-redirect if logged in
-              }
-              return const LoginScreen();
-            },
-          ),
+          home: const InitialSplashScreen(),
         );
       },
     );
-  }
-
-  Future<bool> _checkLoginStatus() async {
-    // Check if user is logged in
-    // This prevents flashing home screen before login check
-    try {
-      return await AuthService.isLoggedIn();
-    } catch (e) {
-      print('Error checking login status: $e');
-      return false;
-    }
   }
 }
 
@@ -335,179 +351,23 @@ class AppProtectionOverlay extends StatelessWidget {
   }
 }
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _logoController;
-  late AnimationController _textController;
-  late Animation<double> _logoScale;
-  late Animation<double> _logoRotation;
-  late Animation<double> _textSlide;
-  late Animation<double> _textFade;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Logo animation controller
-    _logoController = AnimationController(
-      duration: const Duration(milliseconds: 2500),
-      vsync: this,
-    );
-
-    // Text animation controller
-    _textController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-
-    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _logoController,
-        curve: Curves.elasticOut,
-      ),
-    );
-
-    _logoRotation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _logoController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    _textSlide = Tween<double>(begin: 50.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _textController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _textController,
-        curve: Curves.easeIn,
-      ),
-    );
-
-    // Start animations
-    _logoController.forward();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      _textController.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _logoController.dispose();
-    _textController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final primaryTurquoise = const Color(0xFF14B8A6);
-    final primaryBlue = const Color(0xFF0EA5E9);
-    final accentBlue = const Color(0xFF3B82F6);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              primaryTurquoise.withOpacity(0.15),
-              primaryBlue.withOpacity(0.1),
-              accentBlue.withOpacity(0.08),
-            ],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Animated Logo
-              AnimatedBuilder(
-                animation: _logoController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _logoScale.value,
-                    child: Transform.rotate(
-                      angle: (_logoRotation.value - 1.0) * 0.1,
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              primaryTurquoise.withOpacity(0.2),
-                              primaryBlue.withOpacity(0.15),
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryTurquoise.withOpacity(0.3),
-                              blurRadius: 30,
-                              spreadRadius: 3,
-                            ),
-                          ],
-                        ),
-                        child: Image.asset(
-                          'images/logo.png',
-                          width: 120,
-                          height: 120,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 40),
-              // Animated SpendSense Text
-              AnimatedBuilder(
-                animation: _textController,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(0, _textSlide.value),
-                    child: Opacity(
-                      opacity: _textFade.value,
-                      child: Text(
-                        'SpendSense',
-                        style: GoogleFonts.poppins(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                          color: primaryTurquoise,
-                          shadows: [
-                            Shadow(
-                              color: primaryTurquoise.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 50),
-              // Loading indicator
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(primaryTurquoise),
-                strokeWidth: 3,
-              ),
-            ],
-          ),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      body: Center(
+        child: Lottie.asset(
+          'splash_screen_animation/splash_screen_animation.json',
+          width: 300,
+          height: 300,
+          fit: BoxFit.contain,
+          repeat: true,
         ),
       ),
     );

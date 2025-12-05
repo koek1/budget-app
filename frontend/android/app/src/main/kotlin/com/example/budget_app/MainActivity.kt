@@ -2,6 +2,7 @@ package com.example.budget_app
 
 import android.os.Build
 import android.view.WindowManager
+import androidx.core.view.WindowCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -27,6 +28,14 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        // Ensure window is configured for blank splash screen
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+        }
+        super.onCreate(savedInstanceState)
     }
 
     private fun enableScreenshotProtection() {
