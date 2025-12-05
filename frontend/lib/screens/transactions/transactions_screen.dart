@@ -11,14 +11,15 @@ import 'package:intl/intl.dart';
 
 class TransactionsScreen extends StatefulWidget {
   final VoidCallback? onMenuTap;
-  
+
   const TransactionsScreen({super.key, this.onMenuTap});
 
   @override
   _TransactionsScreenState createState() => _TransactionsScreenState();
 }
 
-class _TransactionsScreenState extends State<TransactionsScreen> with SingleTickerProviderStateMixin {
+class _TransactionsScreenState extends State<TransactionsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   DateTime _selectedMonth = DateTime.now();
   String _selectedTab = 'Spendings';
@@ -43,28 +44,43 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
   Future<List<Transaction>> _getTransactionsForMonth() async {
     // Get user-filtered transactions
     final allTransactions = await LocalStorageService.getTransactions();
-    
+
     // If no transactions, return empty list
     if (allTransactions.isEmpty) {
       return [];
     }
-    
+
     // Filter transactions by selected month
     final filtered = allTransactions.where((transaction) {
       final transactionDate = transaction.date;
       // Normalize dates to compare only year and month (ignore time)
-      final transactionYearMonth = DateTime(transactionDate.year, transactionDate.month);
-      final selectedYearMonth = DateTime(_selectedMonth.year, _selectedMonth.month);
+      final transactionYearMonth = DateTime(
+        transactionDate.year,
+        transactionDate.month,
+      );
+      final selectedYearMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month,
+      );
       return transactionYearMonth == selectedYearMonth;
     }).toList();
-    
+
     return filtered;
+  }
+
+  Future<List<Map<String, dynamic>>> _getPendingTransactions() async {
+    final allTransactions = await LocalStorageService.getTransactions();
+    return Helpers.getPendingRecurringTransactions(allTransactions);
   }
 
   Future<List<FlSpot>> _getGraphData() async {
     final transactions = await _getTransactionsForMonth();
-    final daysInMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
-    
+    final daysInMonth = DateTime(
+      _selectedMonth.year,
+      _selectedMonth.month + 1,
+      0,
+    ).day;
+
     // Filter transactions based on selected tab
     final filteredTransactions = transactions.where((t) {
       if (_selectedTab == 'Income') {
@@ -73,19 +89,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
         return t.type == 'expense';
       }
     }).toList();
-    
+
     Map<int, double> dailyTotals = {};
     double runningTotal = 0;
-    
+
     // Initialize all days with 0
     for (int day = 1; day <= daysInMonth; day++) {
       dailyTotals[day] = 0;
     }
-    
+
     // Sort transactions by date
     final sortedTransactions = List<Transaction>.from(filteredTransactions)
       ..sort((a, b) => a.date.compareTo(b.date));
-    
+
     // Calculate running total for each day
     for (var transaction in sortedTransactions) {
       final day = transaction.date.day;
@@ -95,19 +111,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
         dailyTotals[d] = runningTotal;
       }
     }
-    
+
     // Create spots for the graph - ensure we have data points for all days
     List<FlSpot> spots = [];
     for (int day = 1; day <= daysInMonth; day++) {
       double total = dailyTotals[day] ?? 0;
       spots.add(FlSpot(day.toDouble(), total));
     }
-    
+
     // Always return at least one spot to ensure graph renders
     if (spots.isEmpty) {
       spots.add(FlSpot(1.0, 0.0));
     }
-    
+
     return spots;
   }
 
@@ -145,13 +161,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
         );
       }
     } catch (e) {
-      print('Error editing transaction: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to edit transaction'),
-            backgroundColor: Colors.red,
-          ),
+        Helpers.showErrorSnackBar(
+          context,
+          Helpers.getUserFriendlyErrorMessage(e.toString()),
         );
       }
     }
@@ -160,7 +173,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
   Future<void> _deleteTransaction(Transaction transaction) async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     try {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -220,7 +233,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
                       style: TextButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                       ),
                       child: Text(
                         'Cancel',
@@ -237,7 +253,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -260,22 +279,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
       );
 
       if (confirmed == true) {
-        await LocalStorageService.deleteTransaction(transaction.id)
-            .timeout(Duration(seconds: 10));
+        await LocalStorageService.deleteTransaction(
+          transaction.id,
+        ).timeout(Duration(seconds: 10));
         if (mounted) {
-          Helpers.showSuccessSnackBar(context, 'Transaction deleted successfully');
+          Helpers.showSuccessSnackBar(
+            context,
+            'Transaction deleted successfully',
+          );
         }
       }
     } catch (e) {
-      print('Error deleting transaction: $e');
       if (mounted) {
-        String errorMessage = 'Failed to delete transaction';
-        if (e.toString().contains('timeout')) {
-          errorMessage = 'Delete operation timed out. Please try again.';
-        } else if (e.toString().contains('Exception:')) {
-          errorMessage = e.toString().replaceFirst('Exception: ', '');
-        }
-        Helpers.showErrorSnackBar(context, errorMessage);
+        Helpers.showErrorSnackBar(
+          context,
+          Helpers.getUserFriendlyErrorMessage(e.toString()),
+        );
       }
     }
   }
@@ -287,38 +306,81 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: ValueListenableBuilder<Box<Transaction>>(
-          valueListenable: Hive.box<Transaction>('transactionsBox').listenable(),
+          valueListenable: Hive.box<Transaction>(
+            'transactionsBox',
+          ).listenable(),
           builder: (context, box, _) {
             return FutureBuilder<Map<String, dynamic>>(
               future: Future.wait([
                 _getTransactionsForMonth(),
                 _getGraphData(),
-              ]).timeout(Duration(seconds: 10), onTimeout: () {
-                throw Exception('Loading transactions timed out');
-              }).then((results) {
+                _getPendingTransactions(),
+              ]).timeout(
+                Duration(seconds: 10),
+                onTimeout: () {
+                  throw Exception('Loading transactions timed out');
+                },
+              ).then((results) {
                 final transactions = results[0] as List<Transaction>;
-                final spendings = transactions.where((t) => t.type == 'expense').toList()
+                final pendingTransactions =
+                    results[2] as List<Map<String, dynamic>>;
+
+                // Filter pending transactions for the selected month
+                final monthStart = DateTime(
+                  _selectedMonth.year,
+                  _selectedMonth.month,
+                  1,
+                );
+                final monthEnd = DateTime(
+                  _selectedMonth.year,
+                  _selectedMonth.month + 1,
+                  0,
+                );
+
+                final pendingForMonth = pendingTransactions.where((p) {
+                  final dueDate = p['dueDate'] as DateTime;
+                  return dueDate.isAfter(
+                        monthStart.subtract(Duration(days: 1)),
+                      ) &&
+                      dueDate.isBefore(monthEnd.add(Duration(days: 1)));
+                }).toList();
+
+                final spendings = transactions
+                    .where((t) => t.type == 'expense')
+                    .toList()
                   ..sort((a, b) => b.date.compareTo(a.date));
-                final income = transactions.where((t) => t.type == 'income').toList()
+                final income = transactions
+                    .where((t) => t.type == 'income')
+                    .toList()
                   ..sort((a, b) => b.date.compareTo(a.date));
                 final graphData = results[1] as List<FlSpot>;
-                final currentTabTotal = _selectedTab == 'Income' 
-                    ? income.fold<double>(0.0, (sum, t) => sum + t.amount)
-                    : spendings.fold<double>(0.0, (sum, t) => sum + t.amount);
-                
+
+                // Calculate totals - only include actual transactions (not pending)
+                final currentTabTotal = _selectedTab == 'Income'
+                    ? income.fold<double>(
+                        0.0,
+                        (sum, t) => sum + t.amount,
+                      )
+                    : spendings.fold<double>(
+                        0.0,
+                        (sum, t) => sum + t.amount,
+                      );
+
                 return {
                   'spendings': spendings,
                   'income': income,
                   'graphData': graphData,
                   'currentTabTotal': currentTabTotal,
+                  'pendingTransactions': pendingForMonth,
                 };
               }).catchError((e) {
-                print('Error loading transactions: $e');
+                // Return empty data on error - user will see error state
                 return {
                   'spendings': <Transaction>[],
                   'income': <Transaction>[],
                   'graphData': <FlSpot>[],
                   'currentTabTotal': 0.0,
+                  'pendingTransactions': <Map<String, dynamic>>[],
                   'error': e.toString(),
                 };
               }),
@@ -328,9 +390,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                          color: Color(0xFF14B8A6),
-                        ),
+                        CircularProgressIndicator(color: Color(0xFF14B8A6)),
                         SizedBox(height: 16),
                         Text(
                           'Loading transactions...',
@@ -342,15 +402,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                     ),
                   );
                 }
-                
-                if (snapshot.hasError || (snapshot.hasData && snapshot.data!.containsKey('error'))) {
+
+                if (snapshot.hasError ||
+                    (snapshot.hasData && snapshot.data!.containsKey('error'))) {
                   return Center(
                     child: Padding(
                       padding: EdgeInsets.all(20),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red,
+                          ),
                           SizedBox(height: 16),
                           Text(
                             'Failed to load transactions',
@@ -362,319 +427,411 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
                           ),
                           SizedBox(height: 8),
                           Text(
-                            snapshot.error?.toString() ?? snapshot.data?['error'] ?? 'Unknown error',
+                            Helpers.getUserFriendlyErrorMessage(
+                              snapshot.error?.toString() ??
+                                  snapshot.data?['error'] ??
+                                  'Unknown error',
+                            ),
                             style: TextStyle(
                               color: theme.textTheme.bodyMedium?.color,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () => setState(() {}),
-                            child: Text('Retry'),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              if (mounted) {
+                                setState(() {});
+                              }
+                            },
+                            icon: Icon(Icons.refresh),
+                            label: Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFF14B8A6),
+                              foregroundColor: Colors.white,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   );
                 }
-                
+
                 if (!snapshot.hasData) {
                   return Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF14B8A6),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFF14B8A6)),
                   );
                 }
 
-                final spendings = snapshot.data!['spendings'] as List<Transaction>;
+                final spendings =
+                    snapshot.data!['spendings'] as List<Transaction>;
                 final income = snapshot.data!['income'] as List<Transaction>;
                 final graphData = snapshot.data!['graphData'] as List<FlSpot>;
-                final currentTabTotal = snapshot.data!['currentTabTotal'] as double;
+                final currentTabTotal =
+                    snapshot.data!['currentTabTotal'] as double;
+                final allPendingTransactions = snapshot
+                    .data!['pendingTransactions'] as List<Map<String, dynamic>>;
 
-            return CustomScrollView(
-              slivers: [
-                // Header
-                SliverAppBar(
-                  backgroundColor: theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
-                  elevation: 0,
-                  leading: Padding(
-                    padding: EdgeInsets.only(left: 16),
-                    child: IconButton(
-                      icon: Icon(Icons.menu, color: theme.iconTheme.color, size: 24),
-                      onPressed: widget.onMenuTap,
-                    ),
-                  ),
-                  centerTitle: true,
-                  title: Text(
-                    'Transactions',
-                    style: TextStyle(
-                      color: theme.textTheme.titleLarge?.color ?? Colors.black,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  actions: [
-                    Padding(
-                      padding: EdgeInsets.only(right: 16),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SettingsScreen(),
+                // Filter pending transactions for expenses only
+                final pendingExpenses = allPendingTransactions
+                    .where(
+                      (p) =>
+                          (p['transaction'] as Transaction).type == 'expense',
+                    )
+                    .toList();
+
+                return CustomScrollView(
+                  slivers: [
+                    // Header
+                    SliverAppBar(
+                      backgroundColor: theme.appBarTheme.backgroundColor ??
+                          theme.scaffoldBackgroundColor,
+                      elevation: 0,
+                      leading: Padding(
+                        padding: EdgeInsets.only(left: 16),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.menu,
+                            color: theme.iconTheme.color,
+                            size: 24,
+                          ),
+                          onPressed: widget.onMenuTap,
+                        ),
+                      ),
+                      centerTitle: true,
+                      title: Text(
+                        'Transactions',
+                        style: TextStyle(
+                          color:
+                              theme.textTheme.titleLarge?.color ?? Colors.black,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      actions: [
+                        Padding(
+                          padding: EdgeInsets.only(right: 16),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SettingsScreen(),
+                                ),
+                              );
+                            },
+                            child: Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: Color(
+                                    0xFF2563EB,
+                                  ).withOpacity(0.1),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Color(0xFF2563EB),
+                                    size: 20,
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: Color(0xFF2563EB),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                        child: Stack(
-                          children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: Color(0xFF2563EB).withOpacity(0.1),
-                              child: Icon(Icons.person, color: Color(0xFF2563EB), size: 20),
-                            ),
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFF2563EB),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Balance Card with Graph
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF2563EB), // Blue color
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0xFF2563EB).withOpacity(0.3),
+                                blurRadius: 15,
+                                offset: Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Month Selector
+                              InkWell(
+                                onTap: _selectMonth,
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      DateFormat('MMMM').format(_selectedMonth),
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Icon(
+                                      Icons.arrow_drop_down,
+                                      color: Colors.white,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
+                              SizedBox(height: 16),
+
+                              // Balance
+                              Text(
+                                Helpers.formatCurrency(currentTabTotal),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Total ${_selectedTab.toLowerCase()}',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 24),
+
+                              // Graph
+                              Container(
+                                height: 150,
+                                child: LineChart(
+                                  LineChartData(
+                                    gridData: FlGridData(
+                                      show: true,
+                                      drawVerticalLine: false,
+                                      getDrawingHorizontalLine: (value) {
+                                        return FlLine(
+                                          color: Colors.white.withOpacity(0.1),
+                                          strokeWidth: 1,
+                                        );
+                                      },
+                                    ),
+                                    titlesData: FlTitlesData(
+                                      show: true,
+                                      rightTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                      topTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                      bottomTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: true,
+                                          reservedSize: 30,
+                                          interval: 5,
+                                          getTitlesWidget: (value, meta) {
+                                            final day = value.toInt();
+                                            // Show key days: 1, 5, 10, 15, 20, 25, 30
+                                            if ([
+                                              1,
+                                              5,
+                                              10,
+                                              15,
+                                              20,
+                                              25,
+                                              30,
+                                            ].contains(day)) {
+                                              return Text(
+                                                day.toString(),
+                                                style: TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              );
+                                            }
+                                            return SizedBox.shrink();
+                                          },
+                                        ),
+                                      ),
+                                      leftTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                    ),
+                                    borderData: FlBorderData(show: false),
+                                    lineTouchData: LineTouchData(
+                                      touchTooltipData: LineTouchTooltipData(
+                                        tooltipRoundedRadius: 8,
+                                        tooltipPadding: EdgeInsets.all(8),
+                                        tooltipBgColor:
+                                            Colors.white.withOpacity(0.9),
+                                        getTooltipItems: (
+                                          List<LineBarSpot> touchedBarSpots,
+                                        ) {
+                                          return touchedBarSpots.map((
+                                            barSpot,
+                                          ) {
+                                            final day = barSpot.x.toInt();
+                                            final monthName = DateFormat(
+                                              'MMM',
+                                            ).format(_selectedMonth);
+                                            // Use the actual graph value (barSpot.y) which is the balance at that point on the graph
+                                            final graphValue = barSpot.y;
+                                            final amountStr =
+                                                Helpers.formatCurrency(
+                                              graphValue,
+                                            );
+                                            return LineTooltipItem(
+                                              '$amountStr\n$day $monthName',
+                                              TextStyle(
+                                                color: Color(0xFF2563EB),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                            );
+                                          }).toList();
+                                        },
+                                      ),
+                                      handleBuiltInTouches: true,
+                                    ),
+                                    lineBarsData: [
+                                      LineChartBarData(
+                                        spots: graphData,
+                                        isCurved: true,
+                                        color: Colors.white,
+                                        barWidth: 3,
+                                        isStrokeCapRound: true,
+                                        dotData: FlDotData(
+                                          show: true,
+                                          getDotPainter:
+                                              (spot, percent, barData, index) {
+                                            // Show dot on the last point or on specific days
+                                            if (index == graphData.length - 1 ||
+                                                [
+                                                  1,
+                                                  5,
+                                                  10,
+                                                  15,
+                                                  20,
+                                                  25,
+                                                  30,
+                                                ].contains(
+                                                  spot.x.toInt(),
+                                                )) {
+                                              return FlDotCirclePainter(
+                                                radius: 4,
+                                                color: Colors.white,
+                                                strokeWidth: 2,
+                                                strokeColor: Color(
+                                                  0xFF2563EB,
+                                                ),
+                                              );
+                                            }
+                                            return FlDotCirclePainter(
+                                              radius: 0,
+                                            );
+                                          },
+                                        ),
+                                        belowBarData: BarAreaData(
+                                          show: true,
+                                          color: Colors.white.withOpacity(0.2),
+                                        ),
+                                      ),
+                                    ],
+                                    minY: graphData.isEmpty
+                                        ? 0
+                                        : (graphData.map((e) => e.y).reduce(
+                                                      (a, b) => a < b ? a : b,
+                                                    ) *
+                                                0.9)
+                                            .clamp(0, double.infinity),
+                                    maxY: graphData.isEmpty ||
+                                            graphData.every((e) => e.y == 0)
+                                        ? 1000
+                                        : (graphData.map((e) => e.y).reduce(
+                                                      (a, b) => a > b ? a : b,
+                                                    ) *
+                                                1.2)
+                                            .clamp(100, double.infinity),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Tabs
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: TabBar(
+                          controller: _tabController,
+                          indicatorColor: Color(0xFF2563EB),
+                          labelColor: Color(0xFF2563EB),
+                          unselectedLabelColor: Colors.grey,
+                          labelStyle: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                          tabs: [
+                            Tab(text: 'Spendings'),
+                            Tab(text: 'Income'),
                           ],
                         ),
                       ),
                     ),
-                  ],
-                ),
 
-                // Balance Card with Graph
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Container(
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF2563EB), // Blue color
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0xFF2563EB).withOpacity(0.3),
-                            blurRadius: 15,
-                            offset: Offset(0, 5),
+                    // Spending Pattern Insights (only for expenses)
+                    if (_selectedTab == 'Spendings' && spendings.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 20),
+                          child: _buildSpendingPatternInsights(
+                            spendings,
+                            theme,
                           ),
-                        ],
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+
+                    // Transaction List
+                    SliverFillRemaining(
+                      hasScrollBody: true,
+                      child: TabBarView(
+                        controller: _tabController,
                         children: [
-                          // Month Selector
-                          InkWell(
-                            onTap: _selectMonth,
-                            child: Row(
-                              children: [
-                                Text(
-                                  DateFormat('MMMM').format(_selectedMonth),
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Icon(Icons.arrow_drop_down, color: Colors.white),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          
-                          // Balance
-                          Text(
-                            Helpers.formatCurrency(currentTabTotal),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Total ${_selectedTab.toLowerCase()}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 24),
-
-                          // Graph
-                          Container(
-                            height: 150,
-                            child: LineChart(
-                                    LineChartData(
-                                      gridData: FlGridData(
-                                        show: true,
-                                        drawVerticalLine: false,
-                                        getDrawingHorizontalLine: (value) {
-                                          return FlLine(
-                                            color: Colors.white.withOpacity(0.1),
-                                            strokeWidth: 1,
-                                          );
-                                        },
-                                      ),
-                                      titlesData: FlTitlesData(
-                                        show: true,
-                                        rightTitles: AxisTitles(
-                                          sideTitles: SideTitles(showTitles: false),
-                                        ),
-                                        topTitles: AxisTitles(
-                                          sideTitles: SideTitles(showTitles: false),
-                                        ),
-                                        bottomTitles: AxisTitles(
-                                          sideTitles: SideTitles(
-                                            showTitles: true,
-                                            reservedSize: 30,
-                                            interval: 5,
-                                            getTitlesWidget: (value, meta) {
-                                              final day = value.toInt();
-                                              // Show key days: 1, 5, 10, 15, 20, 25, 30
-                                              if ([1, 5, 10, 15, 20, 25, 30].contains(day)) {
-                                                return Text(
-                                                  day.toString(),
-                                                  style: TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                );
-                                              }
-                                              return SizedBox.shrink();
-                                            },
-                                          ),
-                                        ),
-                                        leftTitles: AxisTitles(
-                                          sideTitles: SideTitles(showTitles: false),
-                                        ),
-                                      ),
-                                      borderData: FlBorderData(show: false),
-                                      lineTouchData: LineTouchData(
-                                        touchTooltipData: LineTouchTooltipData(
-                                          tooltipRoundedRadius: 8,
-                                          tooltipPadding: EdgeInsets.all(8),
-                                          tooltipBgColor: Colors.white.withOpacity(0.9),
-                                          getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
-                                            return touchedBarSpots.map((barSpot) {
-                                              final day = barSpot.x.toInt();
-                                              final monthName = DateFormat('MMM').format(_selectedMonth);
-                                              // Use the actual graph value (barSpot.y) which is the balance at that point on the graph
-                                              final graphValue = barSpot.y;
-                                              final amountStr = Helpers.formatCurrency(graphValue);
-                                              return LineTooltipItem(
-                                                '$amountStr\n$day $monthName',
-                                                TextStyle(
-                                                  color: Color(0xFF2563EB),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 12,
-                                                ),
-                                              );
-                                            }).toList();
-                                          },
-                                        ),
-                                        handleBuiltInTouches: true,
-                                      ),
-                                      lineBarsData: [
-                                        LineChartBarData(
-                                          spots: graphData,
-                                          isCurved: true,
-                                          color: Colors.white,
-                                          barWidth: 3,
-                                          isStrokeCapRound: true,
-                                          dotData: FlDotData(
-                                            show: true,
-                                            getDotPainter: (spot, percent, barData, index) {
-                                              // Show dot on the last point or on specific days
-                                              if (index == graphData.length - 1 || 
-                                                  [1, 5, 10, 15, 20, 25, 30].contains(spot.x.toInt())) {
-                                                return FlDotCirclePainter(
-                                                  radius: 4,
-                                                  color: Colors.white,
-                                                  strokeWidth: 2,
-                                                  strokeColor: Color(0xFF2563EB),
-                                                );
-                                              }
-                                              return FlDotCirclePainter(radius: 0);
-                                            },
-                                          ),
-                                          belowBarData: BarAreaData(
-                                            show: true,
-                                            color: Colors.white.withOpacity(0.2),
-                                          ),
-                                        ),
-                                      ],
-                                      minY: graphData.isEmpty 
-                                          ? 0 
-                                          : (graphData.map((e) => e.y).reduce((a, b) => a < b ? a : b) * 0.9).clamp(0, double.infinity),
-                                      maxY: graphData.isEmpty || graphData.every((e) => e.y == 0)
-                                          ? 1000
-                                          : (graphData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2).clamp(100, double.infinity),
-                                    ),
-                                  ),
-                          ),
+                          _buildTransactionList(spendings, pendingExpenses),
+                          _buildTransactionList(income, []),
                         ],
                       ),
                     ),
-                  ),
-                ),
-
-                // Tabs
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicatorColor: Color(0xFF2563EB),
-                      labelColor: Color(0xFF2563EB),
-                      unselectedLabelColor: Colors.grey,
-                      labelStyle: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                      tabs: [
-                        Tab(text: 'Spendings'),
-                        Tab(text: 'Income'),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Spending Pattern Insights (only for expenses)
-                if (_selectedTab == 'Spendings' && spendings.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: _buildSpendingPatternInsights(spendings, theme),
-                    ),
-                  ),
-
-                // Transaction List
-                SliverFillRemaining(
-                  hasScrollBody: true,
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildTransactionList(spendings),
-                      _buildTransactionList(income),
-                    ],
-                  ),
-                ),
-              ],
-            );
+                  ],
+                );
               },
             );
           },
@@ -686,11 +843,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
   // Calculate spending pattern insights
   Map<String, dynamic> _getSpendingPatternInsights(List<Transaction> expenses) {
     if (expenses.isEmpty) {
-      return {
-        'analysis': '',
-        'recommendation': '',
-        'categoryInsight': '',
-      };
+      return {'analysis': '', 'recommendation': '', 'categoryInsight': ''};
     }
 
     // Group by category
@@ -713,7 +866,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
 
     // Frequency analysis
     final avgTransactionAmount = totalExpenses / expenses.length;
-    final highValueTransactions = expenses.where((t) => t.amount > avgTransactionAmount * 2).length;
+    final highValueTransactions =
+        expenses.where((t) => t.amount > avgTransactionAmount * 2).length;
     final highValuePercent = (highValueTransactions / expenses.length) * 100;
 
     if (highValuePercent > 30) {
@@ -753,8 +907,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
 
     // Spending velocity (transactions per day)
     if (expenses.length > 1) {
-      final firstDate = expenses.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b);
-      final lastDate = expenses.map((e) => e.date).reduce((a, b) => a.isAfter(b) ? a : b);
+      final firstDate =
+          expenses.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b);
+      final lastDate =
+          expenses.map((e) => e.date).reduce((a, b) => a.isAfter(b) ? a : b);
       final daysDiff = lastDate.difference(firstDate).inDays + 1;
       final transactionsPerDay = expenses.length / daysDiff;
 
@@ -805,11 +961,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
         children: [
           Row(
             children: [
-              Icon(
-                Icons.insights_rounded,
-                color: Color(0xFF14B8A6),
-                size: 24,
-              ),
+              Icon(Icons.insights_rounded, color: Color(0xFF14B8A6), size: 24),
               SizedBox(width: 12),
               Text(
                 'Spending Pattern Analysis',
@@ -827,10 +979,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
             decoration: BoxDecoration(
               color: Colors.blue.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.blue.withOpacity(0.3),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -962,8 +1111,39 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
     );
   }
 
-  Widget _buildTransactionList(List<Transaction> transactions) {
-    if (transactions.isEmpty) {
+  Widget _buildTransactionList(
+    List<Transaction> transactions,
+    List<Map<String, dynamic>> pendingTransactions,
+  ) {
+    // Combine actual transactions with pending ones
+    final allItems = <Map<String, dynamic>>[];
+
+    // Add actual transactions
+    for (var transaction in transactions) {
+      allItems.add({
+        'transaction': transaction,
+        'isPending': false,
+        'dueDate': transaction.date,
+      });
+    }
+
+    // Add pending transactions
+    for (var pending in pendingTransactions) {
+      allItems.add({
+        'transaction': pending['transaction'] as Transaction,
+        'isPending': true,
+        'dueDate': pending['dueDate'] as DateTime,
+      });
+    }
+
+    // Sort by date (most recent first, but pending ones by due date)
+    allItems.sort((a, b) {
+      final dateA = a['dueDate'] as DateTime;
+      final dateB = b['dueDate'] as DateTime;
+      return dateB.compareTo(dateA);
+    });
+
+    if (allItems.isEmpty) {
       return Center(
         child: SingleChildScrollView(
           child: Column(
@@ -984,11 +1164,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
               SizedBox(height: 8),
               Text(
                 'Try selecting a different month or add a transaction',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                 textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddTransactionScreen(),
+                    ),
+                  );
+                },
+                icon: Icon(Icons.add),
+                label: Text('Add Transaction'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF14B8A6),
+                  foregroundColor: Colors.white,
+                ),
               ),
             ],
           ),
@@ -998,15 +1192,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
 
     return ListView.builder(
       padding: EdgeInsets.all(20),
-      itemCount: transactions.length,
+      itemCount: allItems.length,
       physics: AlwaysScrollableScrollPhysics(),
       shrinkWrap: false,
       itemBuilder: (context, index) {
-        final transaction = transactions[index];
+        final item = allItems[index];
+        final transaction = item['transaction'] as Transaction;
+        final isPending = item['isPending'] as bool;
+        final dueDate = item['dueDate'] as DateTime;
+
         return _ModernTransactionCard(
           transaction: transaction,
-          onEdit: () => _editTransaction(transaction),
-          onDelete: () => _deleteTransaction(transaction),
+          isPending: isPending,
+          dueDate: isPending ? dueDate : null,
+          onEdit: isPending ? null : () => _editTransaction(transaction),
+          onDelete: isPending ? null : () => _deleteTransaction(transaction),
         );
       },
     );
@@ -1015,13 +1215,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> with SingleTick
 
 class _ModernTransactionCard extends StatelessWidget {
   final Transaction transaction;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final bool isPending;
+  final DateTime? dueDate;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const _ModernTransactionCard({
     required this.transaction,
-    required this.onEdit,
-    required this.onDelete,
+    this.isPending = false,
+    this.dueDate,
+    this.onEdit,
+    this.onDelete,
   });
 
   IconData _getCategoryIcon(String category) {
@@ -1046,7 +1250,7 @@ class _ModernTransactionCard extends StatelessWidget {
     };
     return iconMap[category] ?? Icons.category;
   }
-  
+
   Color _getCategoryColor(String category) {
     final colorMap = {
       'Coffee': Colors.brown,
@@ -1101,23 +1305,19 @@ class _ModernTransactionCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Icon(
-                categoryIcon,
-                color: categoryColor,
-                size: 24,
-              ),
+              child: Icon(categoryIcon, color: categoryColor, size: 24),
             ),
           ),
           SizedBox(width: 16),
-          
+
           // Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  transaction.description.isNotEmpty 
-                      ? transaction.description 
+                  transaction.description.isNotEmpty
+                      ? transaction.description
                       : transaction.category,
                   style: TextStyle(
                     fontSize: 16,
@@ -1126,17 +1326,100 @@ class _ModernTransactionCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 4),
-                Text(
-                  DateFormat('d MMMM').format(transaction.date),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey[600],
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      isPending && dueDate != null
+                          ? 'Due ${Helpers.formatDateRelative(dueDate!)}'
+                          : Helpers.formatDateRelative(transaction.date),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                              0.7,
+                            ) ??
+                            Colors.grey[600],
+                      ),
+                    ),
+                    if (isPending) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.schedule,
+                              size: 12,
+                              color: Colors.orange,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Pending',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (transaction.isRecurring ||
+                        transaction.isSubscription) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: transaction.isSubscription
+                              ? Colors.purple.withOpacity(0.1)
+                              : Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              transaction.isSubscription
+                                  ? Icons.subscriptions
+                                  : Icons.repeat,
+                              size: 12,
+                              color: transaction.isSubscription
+                                  ? Colors.purple
+                                  : Colors.orange,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              transaction.isSubscription
+                                  ? 'Subscription'
+                                  : 'Recurring',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: transaction.isSubscription
+                                    ? Colors.purple
+                                    : Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
-          
+
           // Amount and Actions
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -1146,7 +1429,11 @@ class _ModernTransactionCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isIncome ? Colors.green : Colors.red,
+                  color: isPending
+                      ? Colors.orange
+                      : (isIncome ? Colors.green : Colors.red),
+                  decoration: isPending ? TextDecoration.none : null,
+                  decorationStyle: isPending ? null : null,
                 ),
               ),
               SizedBox(height: 8),

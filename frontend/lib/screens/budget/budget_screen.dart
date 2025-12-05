@@ -14,7 +14,8 @@ class BudgetScreen extends StatefulWidget {
   _BudgetScreenState createState() => _BudgetScreenState();
 }
 
-class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderStateMixin {
+class _BudgetScreenState extends State<BudgetScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _selectedPeriod = 'monthly';
   bool _isLoading = true;
@@ -41,18 +42,25 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
     setState(() => _isLoading = true);
     try {
       // Load overall budget
-      final overallBudget = await BudgetService.getOverallBudget(period: _selectedPeriod);
+      final overallBudget =
+          await BudgetService.getOverallBudget(period: _selectedPeriod);
       if (overallBudget != null && overallBudget.amount > 0) {
-        _overallBudgetStatus = await BudgetService.getBudgetStatus(overallBudget);
+        _overallBudgetStatus =
+            await BudgetService.getBudgetStatus(overallBudget);
       }
 
       // Load category budgets
-      _categoryBudgetStatuses = await BudgetService.getAllBudgetStatuses(period: _selectedPeriod);
-      _categoryBudgetStatuses = _categoryBudgetStatuses.where((s) => s['budget'].category != null).toList();
+      _categoryBudgetStatuses =
+          await BudgetService.getAllBudgetStatuses(period: _selectedPeriod);
+      _categoryBudgetStatuses = _categoryBudgetStatuses
+          .where((s) => s['budget'].category != null)
+          .toList();
 
       // Load suggestions
-      _overallSuggestion = await BudgetAnalysisService.getSuggestedOverallBudget();
-      _categorySuggestions = await BudgetAnalysisService.getSuggestedCategoryBudgets();
+      _overallSuggestion =
+          await BudgetAnalysisService.getSuggestedOverallBudget();
+      _categorySuggestions =
+          await BudgetAnalysisService.getSuggestedCategoryBudgets();
       _insights = await BudgetAnalysisService.getSpendingInsights();
 
       // Check budgets and notify
@@ -109,7 +117,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
         bottom: TabBar(
           controller: _tabController,
           labelColor: Color(0xFF14B8A6),
-          unselectedLabelColor: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+          unselectedLabelColor:
+              theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
           indicatorColor: Color(0xFF14B8A6),
           tabs: [
             Tab(text: 'Overall', icon: Icon(Icons.account_balance_wallet)),
@@ -192,7 +201,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
 
           // Overall budget card
           _overallBudgetStatus != null
-              ? _buildBudgetStatusCard(_overallBudgetStatus!, theme, isDark, isOverall: true)
+              ? _buildBudgetStatusCard(_overallBudgetStatus!, theme, isDark,
+                  isOverall: true)
               : _buildEmptyBudgetCard(
                   'Overall Budget',
                   'Set a monthly budget to track your total spending',
@@ -224,7 +234,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
           else
             ..._categoryBudgetStatuses.map((status) => Padding(
                   padding: EdgeInsets.only(bottom: 16),
-                  child: _buildBudgetStatusCard(status, theme, isDark, isOverall: false),
+                  child: _buildBudgetStatusCard(status, theme, isDark,
+                      isOverall: false),
                 )),
         ],
       ),
@@ -265,7 +276,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
             SizedBox(height: 12),
             ..._categorySuggestions.entries.map((entry) => Padding(
                   padding: EdgeInsets.only(bottom: 12),
-                  child: _buildSuggestionCard(entry.value, entry.key, theme, isDark),
+                  child: _buildSuggestionCard(
+                      entry.value, entry.key, theme, isDark),
                 )),
           ],
 
@@ -275,13 +287,15 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                 padding: EdgeInsets.all(40),
                 child: Column(
                   children: [
-                    Icon(Icons.analytics_outlined, size: 64, color: Colors.grey),
+                    Icon(Icons.analytics_outlined,
+                        size: 64, color: Colors.grey),
                     SizedBox(height: 16),
                     Text(
                       'No suggestions available',
                       style: GoogleFonts.inter(
                         fontSize: 16,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       ),
                     ),
                     SizedBox(height: 8),
@@ -289,7 +303,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                       'Add some transactions to get personalized budget suggestions',
                       style: GoogleFonts.inter(
                         fontSize: 14,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -348,7 +363,9 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isOverall ? 'Overall Budget' : budget.category ?? 'Category',
+                      isOverall
+                          ? 'Overall Budget'
+                          : budget.category ?? 'Category',
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -360,7 +377,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                       'Budget: ${Helpers.formatCurrency(budget.amount)}',
                       style: GoogleFonts.inter(
                         fontSize: 14,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       ),
                     ),
                   ],
@@ -404,7 +422,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     'Spent',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                      color:
+                          theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                     ),
                   ),
                   SizedBox(height: 4),
@@ -425,7 +444,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     'Remaining',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                      color:
+                          theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                     ),
                   ),
                   SizedBox(height: 4),
@@ -524,7 +544,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     'Suggested Budget',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                      color:
+                          theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                     ),
                   ),
                   SizedBox(height: 4),
@@ -546,7 +567,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                       'Potential Savings',
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                        color:
+                            theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                       ),
                     ),
                     SizedBox(height: 4),
@@ -672,11 +694,13 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
     );
   }
 
-  Future<void> _showAddBudgetDialog(BuildContext context, {bool isOverall = false}) async {
+  Future<void> _showAddBudgetDialog(BuildContext context,
+      {bool isOverall = false}) async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final TextEditingController amountController = TextEditingController();
-    final TextEditingController thresholdController = TextEditingController(text: '80');
+    final TextEditingController thresholdController =
+        TextEditingController(text: '80');
     String? selectedCategory;
     final categories = await AppConstants.getCategories('expense');
 
@@ -704,7 +728,9 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
-                        isOverall ? Icons.account_balance_wallet : Icons.category,
+                        isOverall
+                            ? Icons.account_balance_wallet
+                            : Icons.category,
                         color: Color(0xFF14B8A6),
                         size: 24,
                       ),
@@ -712,7 +738,9 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        isOverall ? 'Create Overall Budget' : 'Create Category Budget',
+                        isOverall
+                            ? 'Create Overall Budget'
+                            : 'Create Category Budget',
                         style: GoogleFonts.poppins(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
@@ -736,7 +764,9 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                   SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(
-                      color: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
+                      color: isDark
+                          ? theme.scaffoldBackgroundColor
+                          : Colors.grey[50],
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: selectedCategory != null
@@ -746,10 +776,11 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                       ),
                     ),
                     child: DropdownButtonFormField<String>(
-                      value: selectedCategory,
+                      initialValue: selectedCategory,
                       decoration: InputDecoration(
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
                       dropdownColor: isDark ? Color(0xFF1E293B) : Colors.white,
                       style: GoogleFonts.inter(
@@ -761,7 +792,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                           child: Text(cat),
                         );
                       }).toList(),
-                      onChanged: (value) => setDialogState(() => selectedCategory = value),
+                      onChanged: (value) =>
+                          setDialogState(() => selectedCategory = value),
                     ),
                   ),
                   SizedBox(height: 20),
@@ -792,7 +824,9 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                       fontSize: 16,
                     ),
                     filled: true,
-                    fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
+                    fillColor: isDark
+                        ? theme.scaffoldBackgroundColor
+                        : Colors.grey[50],
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -811,7 +845,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                         width: 2,
                       ),
                     ),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   ),
                 ),
                 SizedBox(height: 20),
@@ -842,10 +877,13 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     helperText: 'Get notified when you reach this percentage',
                     helperStyle: GoogleFonts.inter(
                       fontSize: 12,
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                      color:
+                          theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                     ),
                     filled: true,
-                    fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
+                    fillColor: isDark
+                        ? theme.scaffoldBackgroundColor
+                        : Colors.grey[50],
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -864,7 +902,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                         width: 2,
                       ),
                     ),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   ),
                 ),
                 SizedBox(height: 24),
@@ -875,7 +914,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       style: TextButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       ),
                       child: Text(
                         'Cancel',
@@ -889,18 +929,22 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     SizedBox(width: 12),
                     ElevatedButton(
                       onPressed: () {
-                        if (amountController.text.isNotEmpty && (isOverall || selectedCategory != null)) {
+                        if (amountController.text.isNotEmpty &&
+                            (isOverall || selectedCategory != null)) {
                           Navigator.pop(context, {
-                            'amount': double.tryParse(amountController.text) ?? 0.0,
+                            'amount':
+                                double.tryParse(amountController.text) ?? 0.0,
                             'category': selectedCategory,
-                            'threshold': double.tryParse(thresholdController.text),
+                            'threshold':
+                                double.tryParse(thresholdController.text),
                           });
                         }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF14B8A6),
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -943,10 +987,12 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
     }
   }
 
-  Future<void> _showEditBudgetDialog(BuildContext context, Budget budget) async {
+  Future<void> _showEditBudgetDialog(
+      BuildContext context, Budget budget) async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final TextEditingController amountController = TextEditingController(text: budget.amount.toString());
+    final TextEditingController amountController =
+        TextEditingController(text: budget.amount.toString());
     final TextEditingController thresholdController = TextEditingController(
       text: (budget.warningThreshold ?? 80.0).toString(),
     );
@@ -1019,7 +1065,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     fontSize: 16,
                   ),
                   filled: true,
-                  fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
+                  fillColor:
+                      isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -1038,7 +1085,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                       width: 2,
                     ),
                   ),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
               ),
               SizedBox(height: 20),
@@ -1072,7 +1120,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                   ),
                   filled: true,
-                  fillColor: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
+                  fillColor:
+                      isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -1091,7 +1140,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                       width: 2,
                     ),
                   ),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
               ),
               SizedBox(height: 24),
@@ -1102,7 +1152,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
                     child: Text(
                       'Cancel',
@@ -1118,15 +1169,18 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     onPressed: () {
                       if (amountController.text.isNotEmpty) {
                         Navigator.pop(context, {
-                          'amount': double.tryParse(amountController.text) ?? budget.amount,
-                          'threshold': double.tryParse(thresholdController.text),
+                          'amount': double.tryParse(amountController.text) ??
+                              budget.amount,
+                          'threshold':
+                              double.tryParse(thresholdController.text),
                         });
                       }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFF14B8A6),
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1167,7 +1221,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
     }
   }
 
-  Future<void> _showDeleteBudgetDialog(BuildContext context, Budget budget) async {
+  Future<void> _showDeleteBudgetDialog(
+      BuildContext context, Budget budget) async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final confirmed = await showDialog<bool>(
@@ -1228,7 +1283,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
                     style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
                     child: Text(
                       'Cancel',
@@ -1245,7 +1301,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1283,7 +1340,8 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
     }
   }
 
-  Future<void> _applySuggestion(BudgetSuggestion suggestion, String? category) async {
+  Future<void> _applySuggestion(
+      BudgetSuggestion suggestion, String? category) async {
     try {
       await BudgetService.createBudget(
         category: category,
@@ -1302,4 +1360,3 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
     }
   }
 }
-

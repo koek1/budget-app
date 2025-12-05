@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
@@ -10,6 +11,7 @@ import 'services/settings_service.dart';
 import 'services/custom_criteria_service.dart';
 import 'services/budget_service.dart';
 import 'services/budget_notification_service.dart';
+import 'services/recurring_debit_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -163,6 +165,11 @@ void main() async {
   // Initialize budget notification service
   await BudgetNotificationService.init();
 
+  // Initialize recurring debit notification service
+  await RecurringDebitNotificationService.init();
+  // Schedule notifications for recurring debits
+  RecurringDebitNotificationService.scheduleRecurringDebitNotifications();
+
   runApp(const MyApp());
 }
 
@@ -185,7 +192,8 @@ Future<bool> _checkIfFreshInstall() async {
     if (storedVersion != currentVersion) {
       // Version changed - treat as fresh install
       print(
-          'Version changed from $storedVersion to $currentVersion - treating as fresh install');
+        'Version changed from $storedVersion to $currentVersion - treating as fresh install',
+      );
       return true;
     }
 
@@ -247,7 +255,8 @@ Future<void> _cleanupCorruptedUserData(Box usersBox) async {
     }
 
     print(
-        'Found ${validUsers.length} valid users out of ${users.length} total');
+      'Found ${validUsers.length} valid users out of ${users.length} total',
+    );
 
     // Clean up orphaned transactions (transactions without valid users)
     try {
@@ -299,7 +308,8 @@ Future<void> _cleanupCorruptedUserData(Box usersBox) async {
           } catch (e) {
             // Old transaction format without userId - mark for deletion
             print(
-                'Transaction at index $i has old format (no userId), marking for deletion');
+              'Transaction at index $i has old format (no userId), marking for deletion',
+            );
             transactionsToDelete.add(i);
             continue;
           }
@@ -313,7 +323,8 @@ Future<void> _cleanupCorruptedUserData(Box usersBox) async {
         } catch (e) {
           // If we can't read the transaction (deserialization error), mark it for deletion
           print(
-              'Error reading transaction at index $i (likely old format): $e');
+            'Error reading transaction at index $i (likely old format): $e',
+          );
           transactionsToDelete.add(i);
         }
       }
@@ -321,17 +332,20 @@ Future<void> _cleanupCorruptedUserData(Box usersBox) async {
       // Delete orphaned transactions in reverse order
       if (transactionsToDelete.isNotEmpty) {
         print(
-            'Deleting ${transactionsToDelete.length} orphaned transactions...');
+          'Deleting ${transactionsToDelete.length} orphaned transactions...',
+        );
         for (var i = transactionsToDelete.length - 1; i >= 0; i--) {
           try {
             await transactionsBox.deleteAt(transactionsToDelete[i]);
           } catch (e) {
             print(
-                'Error deleting transaction at index ${transactionsToDelete[i]}: $e');
+              'Error deleting transaction at index ${transactionsToDelete[i]}: $e',
+            );
           }
         }
         print(
-            'Cleaned up ${transactionsToDelete.length} orphaned transactions');
+          'Cleaned up ${transactionsToDelete.length} orphaned transactions',
+        );
       }
     } catch (e, stackTrace) {
       print('Error cleaning up transactions: $e');
