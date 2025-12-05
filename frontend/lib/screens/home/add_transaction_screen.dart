@@ -46,7 +46,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (_isEditing && widget.transaction != null) {
       final transaction = widget.transaction!;
-      _amountController.text = transaction.amount.toString();
+      // Format amount nicely for editing (remove unnecessary decimals)
+      final amountStr = transaction.amount % 1 == 0
+          ? transaction.amount.toInt().toString()
+          : transaction.amount.toStringAsFixed(2);
+      _amountController.text = amountStr;
       _descriptionController.text = transaction.description;
       _selectedType = transaction.type;
       _selectedCategory = transaction.category;
@@ -88,11 +92,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         });
       }
     } catch (e) {
-      print('Error loading categories: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to load categories. Please try again.';
+          _errorMessage = Helpers.getUserFriendlyErrorMessage(e.toString());
         });
         Helpers.showErrorSnackBar(context, _errorMessage!);
       }
@@ -116,10 +119,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     // Validate recurring bill fields
     if (_selectedType == 'expense' && _isRecurring) {
-      // End date is only required for non-subscription recurring bills
+      // Subscriptions don't require end dates (they're ongoing)
+      // Regular recurring bills need an end date
       if (!_isSubscription && _recurringEndDate == null) {
         Helpers.showErrorSnackBar(
-            context, 'Please select an end date for the recurring bill');
+            context, 'Please select an end date for this recurring bill. Subscriptions don\'t require end dates.');
         return;
       }
       // If end date is provided, ensure it's strictly after the transaction date
@@ -147,15 +151,28 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         throw Exception('You must be logged in to add transactions');
       }
 
-      // Parse and validate amount
-      final amountText = _amountController.text.trim();
+      // Parse and validate amount - handle formatted numbers
+      final amountText = _amountController.text.trim()
+          .replaceAll(' ', '')
+          .replaceAll(',', '')
+          .replaceAll('_', '');
       if (amountText.isEmpty) {
         throw Exception('Please enter an amount');
       }
 
       final amount = double.tryParse(amountText);
-      if (amount == null || amount <= 0) {
-        throw Exception('Please enter a valid amount greater than 0');
+      if (amount == null) {
+        throw Exception('Please enter a valid number');
+      }
+      if (amount <= 0) {
+        throw Exception('Amount must be greater than 0');
+      }
+      if (amount < 0.01) {
+        throw Exception('Amount is too small. Minimum is 0.01');
+      }
+      // Additional validation for reasonable amounts
+      if (amount > 999999999) {
+        throw Exception('Amount is too large. Maximum allowed is 999,999,999');
       }
 
       final transaction = Transaction(
@@ -197,20 +214,46 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ? 'Transaction updated successfully'
               : 'Transaction added successfully',
         );
+        
+        // Show reminder for recurring bills about next due date
+        if (transaction.isRecurring && transaction.type == 'expense' && transaction.recurringFrequency != null) {
+          final nextDate = Helpers.getNextRecurringDate(transaction);
+          if (nextDate != null) {
+            // Small delay to show success message first
+            await Future.delayed(Duration(milliseconds: 1500));
+            
+            if (mounted) {
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final nextDateOnly = DateTime(nextDate.year, nextDate.month, nextDate.day);
+              final daysUntil = nextDateOnly.difference(today).inDays;
+              
+              String reminderText;
+              if (daysUntil == 0) {
+                reminderText = 'Next payment is due today (${Helpers.formatDateRelative(nextDate)})';
+              } else if (daysUntil == 1) {
+                reminderText = 'Next payment is due tomorrow (${Helpers.formatDateRelative(nextDate)})';
+              } else {
+                reminderText = 'Next payment due in $daysUntil days (${Helpers.formatDateRelative(nextDate)})';
+              }
+              
+              Helpers.showInfoSnackBar(
+                context,
+                'Reminder: $reminderText. Balance will deduct on the due date.',
+              );
+            }
+          }
+        }
+        
         // Small delay to show success message before navigating
         await Future.delayed(Duration(milliseconds: 300));
-        Navigator.pop(context, true);
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
-      print('Error saving transaction: $e');
-      String errorMessage = 'Failed to save transaction';
-      if (e.toString().contains('timeout')) {
-        errorMessage = 'Request timed out. Please try again.';
-      } else if (e.toString().contains('Exception:')) {
-        errorMessage = e.toString().replaceFirst('Exception: ', '');
-      }
-
       if (mounted) {
+        final errorMessage = Helpers.getUserFriendlyErrorMessage(e.toString());
         setState(() {
           _isSaving = false;
           _errorMessage = errorMessage;
@@ -539,22 +582,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
-                  // Allow only numbers and one decimal point
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  // Allow only numbers and one decimal point, max 2 decimal places
+                  // More permissive to allow user-friendly input
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
                 ],
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  if (value == null || value.isEmpty || value.trim().isEmpty) {
                     return 'Please enter an amount';
                   }
-                  final amount = double.tryParse(value);
+                  // Remove any spaces, commas, or other formatting
+                  final cleanedValue = value.trim()
+                      .replaceAll(' ', '')
+                      .replaceAll(',', '')
+                      .replaceAll('_', '');
+                  if (cleanedValue.isEmpty) {
+                    return 'Please enter an amount';
+                  }
+                  final amount = double.tryParse(cleanedValue);
                   if (amount == null) {
                     return 'Please enter a valid number';
                   }
                   if (amount <= 0) {
                     return 'Amount must be greater than 0';
                   }
+                  if (amount < 0.01) {
+                    return 'Amount is too small (min: 0.01)';
+                  }
                   if (amount > 999999999) {
-                    return 'Amount is too large';
+                    return 'Amount is too large (max: 999,999,999)';
                   }
                   return null;
                 },
@@ -847,91 +902,122 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           },
                         ),
                         SizedBox(height: 16),
-                        // End date picker
-                        InkWell(
-                          onTap: _selectRecurringEndDate,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(context).dividerColor,
+                        // End date picker (only shown for non-subscriptions)
+                        if (!_isSubscription) ...[
+                          InkWell(
+                            onTap: _selectRecurringEndDate,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Theme.of(context).dividerColor,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Theme.of(context).scaffoldBackgroundColor
+                                    : Colors.white,
                               ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_today,
+                                    color: const Color(0xFF14B8A6),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'End Date',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            color: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.color,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          _recurringEndDate != null
+                                              ? Helpers.formatDateRelative(_recurringEndDate!)
+                                              : 'Select end date',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            color: _recurringEndDate != null
+                                                ? Theme.of(context)
+                                                    .textTheme
+                                                    .bodyLarge
+                                                    ?.color
+                                                : Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.arrow_drop_down,
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.color,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (_recurringEndDate == null)
+                            Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline, size: 14, color: Colors.orange),
+                                  SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Required: Select when this recurring bill will end',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: Colors.orange[700],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ] else ...[
+                          // Show info for subscriptions (no end date needed)
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? Theme.of(context).scaffoldBackgroundColor
-                                  : Colors.white,
+                              border: Border.all(
+                                color: Colors.blue.withOpacity(0.3),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  color: const Color(0xFF14B8A6),
-                                ),
-                                SizedBox(width: 12),
+                                Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                                SizedBox(width: 8),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'End Date',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          color: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.color,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        _recurringEndDate != null
-                                            ? Helpers.formatDateRelative(_recurringEndDate!)
-                                            : 'Select end date',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          color: _recurringEndDate != null
-                                              ? Theme.of(context)
-                                                  .textTheme
-                                                  .bodyLarge
-                                                  ?.color
-                                              : Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.arrow_drop_down,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodyLarge
-                                      ?.color,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (_isRecurring && _recurringEndDate == null)
-                          Padding(
-                            padding: EdgeInsets.only(top: 8),
-                            child: Row(
-                              children: [
-                                Icon(Icons.info_outline, size: 14, color: Colors.orange),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Please select an end date for this recurring payment',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: Colors.orange[700],
+                                  child: Text(
+                                    'Subscriptions continue indefinitely until you cancel them. No end date required.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: Colors.blue[700],
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
+                        ],
                       ],
                       // Subscription option (only for recurring expenses)
                       if (_isRecurring && _selectedType == 'expense') ...[
@@ -973,7 +1059,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     ),
                                     SizedBox(height: 4),
                                     Text(
-                                      'Mark as subscription (Gym, Spotify, Netflix, etc.)',
+                                      'Ongoing service (Gym, Spotify, Netflix, etc.) - No end date needed',
                                       style: GoogleFonts.inter(
                                         fontSize: 12,
                                         color: Theme.of(context)
@@ -990,6 +1076,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 onChanged: (value) {
                                   setState(() {
                                     _isSubscription = value;
+                                    // Clear end date when switching to subscription
+                                    if (value) {
+                                      _recurringEndDate = null;
+                                    }
                                   });
                                 },
                                 activeThumbColor: const Color(0xFF14B8A6),

@@ -43,34 +43,54 @@ class _ExportScreenState extends State<ExportScreen> {
       );
       setState(() => _summary = summary);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load summary: $e')),
-      );
+      if (mounted) {
+        String errorMessage = 'Failed to load summary';
+        if (e.toString().contains('Exception: ')) {
+          errorMessage = e.toString().replaceFirst('Exception: ', '');
+        }
+        Helpers.showErrorSnackBar(context, errorMessage);
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _exportToExcel() async {
+    if (!mounted) return;
+    
     setState(() => _isGenerating = true);
 
-    await ExportService.exportToExcel(
+    try {
+      await ExportService.exportToExcel(
       startDate: _startDate,
       endDate: _endDate,
       reportType: _selectedReportType,
       onSuccess: (message) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        if (mounted) {
+          Helpers.showSuccessSnackBar(context, message);
+        }
       },
       onError: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
+        if (mounted) {
+          Helpers.showErrorSnackBar(context, error);
+        }
       },
-    );
-
-    setState(() => _isGenerating = false);
+      );
+    } catch (e) {
+      if (mounted) {
+        String errorMessage = 'Failed to export report';
+        if (e.toString().contains('Exception: ')) {
+          errorMessage = e.toString().replaceFirst('Exception: ', '');
+        }
+        Helpers.showErrorSnackBar(context, errorMessage);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGenerating = false);
+      }
+    }
   }
 
   void _onDateRangeChanged(DateTime start, DateTime end) {

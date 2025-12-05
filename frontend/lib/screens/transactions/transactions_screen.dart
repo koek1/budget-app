@@ -54,10 +54,14 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     final filtered = allTransactions.where((transaction) {
       final transactionDate = transaction.date;
       // Normalize dates to compare only year and month (ignore time)
-      final transactionYearMonth =
-          DateTime(transactionDate.year, transactionDate.month);
-      final selectedYearMonth =
-          DateTime(_selectedMonth.year, _selectedMonth.month);
+      final transactionYearMonth = DateTime(
+        transactionDate.year,
+        transactionDate.month,
+      );
+      final selectedYearMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month,
+      );
       return transactionYearMonth == selectedYearMonth;
     }).toList();
 
@@ -71,8 +75,11 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
   Future<List<FlSpot>> _getGraphData() async {
     final transactions = await _getTransactionsForMonth();
-    final daysInMonth =
-        DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+    final daysInMonth = DateTime(
+      _selectedMonth.year,
+      _selectedMonth.month + 1,
+      0,
+    ).day;
 
     // Filter transactions based on selected tab
     final filteredTransactions = transactions.where((t) {
@@ -154,13 +161,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         );
       }
     } catch (e) {
-      print('Error editing transaction: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to edit transaction'),
-            backgroundColor: Colors.red,
-          ),
+        Helpers.showErrorSnackBar(
+          context,
+          Helpers.getUserFriendlyErrorMessage(e.toString()),
         );
       }
     }
@@ -229,8 +233,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
                       style: TextButton.styleFrom(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                       ),
                       child: Text(
                         'Cancel',
@@ -247,8 +253,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -271,23 +279,22 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       );
 
       if (confirmed == true) {
-        await LocalStorageService.deleteTransaction(transaction.id)
-            .timeout(Duration(seconds: 10));
+        await LocalStorageService.deleteTransaction(
+          transaction.id,
+        ).timeout(Duration(seconds: 10));
         if (mounted) {
           Helpers.showSuccessSnackBar(
-              context, 'Transaction deleted successfully');
+            context,
+            'Transaction deleted successfully',
+          );
         }
       }
     } catch (e) {
-      print('Error deleting transaction: $e');
       if (mounted) {
-        String errorMessage = 'Failed to delete transaction';
-        if (e.toString().contains('timeout')) {
-          errorMessage = 'Delete operation timed out. Please try again.';
-        } else if (e.toString().contains('Exception:')) {
-          errorMessage = e.toString().replaceFirst('Exception: ', '');
-        }
-        Helpers.showErrorSnackBar(context, errorMessage);
+        Helpers.showErrorSnackBar(
+          context,
+          Helpers.getUserFriendlyErrorMessage(e.toString()),
+        );
       }
     }
   }
@@ -299,31 +306,42 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: ValueListenableBuilder<Box<Transaction>>(
-          valueListenable:
-              Hive.box<Transaction>('transactionsBox').listenable(),
+          valueListenable: Hive.box<Transaction>(
+            'transactionsBox',
+          ).listenable(),
           builder: (context, box, _) {
             return FutureBuilder<Map<String, dynamic>>(
               future: Future.wait([
                 _getTransactionsForMonth(),
                 _getGraphData(),
                 _getPendingTransactions(),
-              ]).timeout(Duration(seconds: 10), onTimeout: () {
-                throw Exception('Loading transactions timed out');
-              }).then((results) {
+              ]).timeout(
+                Duration(seconds: 10),
+                onTimeout: () {
+                  throw Exception('Loading transactions timed out');
+                },
+              ).then((results) {
                 final transactions = results[0] as List<Transaction>;
                 final pendingTransactions =
                     results[2] as List<Map<String, dynamic>>;
 
                 // Filter pending transactions for the selected month
-                final monthStart =
-                    DateTime(_selectedMonth.year, _selectedMonth.month, 1);
-                final monthEnd =
-                    DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
+                final monthStart = DateTime(
+                  _selectedMonth.year,
+                  _selectedMonth.month,
+                  1,
+                );
+                final monthEnd = DateTime(
+                  _selectedMonth.year,
+                  _selectedMonth.month + 1,
+                  0,
+                );
 
                 final pendingForMonth = pendingTransactions.where((p) {
                   final dueDate = p['dueDate'] as DateTime;
-                  return dueDate
-                          .isAfter(monthStart.subtract(Duration(days: 1))) &&
+                  return dueDate.isAfter(
+                        monthStart.subtract(Duration(days: 1)),
+                      ) &&
                       dueDate.isBefore(monthEnd.add(Duration(days: 1)));
                 }).toList();
 
@@ -339,8 +357,14 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
                 // Calculate totals - only include actual transactions (not pending)
                 final currentTabTotal = _selectedTab == 'Income'
-                    ? income.fold<double>(0.0, (sum, t) => sum + t.amount)
-                    : spendings.fold<double>(0.0, (sum, t) => sum + t.amount);
+                    ? income.fold<double>(
+                        0.0,
+                        (sum, t) => sum + t.amount,
+                      )
+                    : spendings.fold<double>(
+                        0.0,
+                        (sum, t) => sum + t.amount,
+                      );
 
                 return {
                   'spendings': spendings,
@@ -350,7 +374,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                   'pendingTransactions': pendingForMonth,
                 };
               }).catchError((e) {
-                print('Error loading transactions: $e');
+                // Return empty data on error - user will see error state
                 return {
                   'spendings': <Transaction>[],
                   'income': <Transaction>[],
@@ -366,9 +390,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                          color: Color(0xFF14B8A6),
-                        ),
+                        CircularProgressIndicator(color: Color(0xFF14B8A6)),
                         SizedBox(height: 16),
                         Text(
                           'Loading transactions...',
@@ -389,8 +411,11 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline,
-                              size: 64, color: Colors.red),
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red,
+                          ),
                           SizedBox(height: 16),
                           Text(
                             'Failed to load transactions',
@@ -402,18 +427,29 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                           ),
                           SizedBox(height: 8),
                           Text(
-                            snapshot.error?.toString() ??
-                                snapshot.data?['error'] ??
-                                'Unknown error',
+                            Helpers.getUserFriendlyErrorMessage(
+                              snapshot.error?.toString() ??
+                                  snapshot.data?['error'] ??
+                                  'Unknown error',
+                            ),
                             style: TextStyle(
                               color: theme.textTheme.bodyMedium?.color,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () => setState(() {}),
-                            child: Text('Retry'),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              if (mounted) {
+                                setState(() {});
+                              }
+                            },
+                            icon: Icon(Icons.refresh),
+                            label: Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFF14B8A6),
+                              foregroundColor: Colors.white,
+                            ),
                           ),
                         ],
                       ),
@@ -423,9 +459,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
                 if (!snapshot.hasData) {
                   return Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF14B8A6),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFF14B8A6)),
                   );
                 }
 
@@ -440,8 +474,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
                 // Filter pending transactions for expenses only
                 final pendingExpenses = allPendingTransactions
-                    .where((p) =>
-                        (p['transaction'] as Transaction).type == 'expense')
+                    .where(
+                      (p) =>
+                          (p['transaction'] as Transaction).type == 'expense',
+                    )
                     .toList();
 
                 return CustomScrollView(
@@ -454,8 +490,11 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                       leading: Padding(
                         padding: EdgeInsets.only(left: 16),
                         child: IconButton(
-                          icon: Icon(Icons.menu,
-                              color: theme.iconTheme.color, size: 24),
+                          icon: Icon(
+                            Icons.menu,
+                            color: theme.iconTheme.color,
+                            size: 24,
+                          ),
                           onPressed: widget.onMenuTap,
                         ),
                       ),
@@ -485,10 +524,14 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                               children: [
                                 CircleAvatar(
                                   radius: 18,
-                                  backgroundColor:
-                                      Color(0xFF2563EB).withOpacity(0.1),
-                                  child: Icon(Icons.person,
-                                      color: Color(0xFF2563EB), size: 20),
+                                  backgroundColor: Color(
+                                    0xFF2563EB,
+                                  ).withOpacity(0.1),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Color(0xFF2563EB),
+                                    size: 20,
+                                  ),
                                 ),
                                 Positioned(
                                   right: 0,
@@ -500,7 +543,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                       color: Color(0xFF2563EB),
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: Colors.white, width: 2),
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -545,8 +590,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                       ),
                                     ),
                                     SizedBox(width: 8),
-                                    Icon(Icons.arrow_drop_down,
-                                        color: Colors.white),
+                                    Icon(
+                                      Icons.arrow_drop_down,
+                                      color: Colors.white,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -590,12 +637,14 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                     titlesData: FlTitlesData(
                                       show: true,
                                       rightTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
                                       ),
                                       topTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
                                       ),
                                       bottomTitles: AxisTitles(
                                         sideTitles: SideTitles(
@@ -605,8 +654,15 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                           getTitlesWidget: (value, meta) {
                                             final day = value.toInt();
                                             // Show key days: 1, 5, 10, 15, 20, 25, 30
-                                            if ([1, 5, 10, 15, 20, 25, 30]
-                                                .contains(day)) {
+                                            if ([
+                                              1,
+                                              5,
+                                              10,
+                                              15,
+                                              20,
+                                              25,
+                                              30,
+                                            ].contains(day)) {
                                               return Text(
                                                 day.toString(),
                                                 style: TextStyle(
@@ -621,8 +677,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                         ),
                                       ),
                                       leftTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
                                       ),
                                     ),
                                     borderData: FlBorderData(show: false),
@@ -632,17 +689,22 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                         tooltipPadding: EdgeInsets.all(8),
                                         tooltipBgColor:
                                             Colors.white.withOpacity(0.9),
-                                        getTooltipItems: (List<LineBarSpot>
-                                            touchedBarSpots) {
-                                          return touchedBarSpots.map((barSpot) {
+                                        getTooltipItems: (
+                                          List<LineBarSpot> touchedBarSpots,
+                                        ) {
+                                          return touchedBarSpots.map((
+                                            barSpot,
+                                          ) {
                                             final day = barSpot.x.toInt();
-                                            final monthName = DateFormat('MMM')
-                                                .format(_selectedMonth);
+                                            final monthName = DateFormat(
+                                              'MMM',
+                                            ).format(_selectedMonth);
                                             // Use the actual graph value (barSpot.y) which is the balance at that point on the graph
                                             final graphValue = barSpot.y;
                                             final amountStr =
                                                 Helpers.formatCurrency(
-                                                    graphValue);
+                                              graphValue,
+                                            );
                                             return LineTooltipItem(
                                               '$amountStr\n$day $monthName',
                                               TextStyle(
@@ -669,17 +731,29 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                               (spot, percent, barData, index) {
                                             // Show dot on the last point or on specific days
                                             if (index == graphData.length - 1 ||
-                                                [1, 5, 10, 15, 20, 25, 30]
-                                                    .contains(spot.x.toInt())) {
+                                                [
+                                                  1,
+                                                  5,
+                                                  10,
+                                                  15,
+                                                  20,
+                                                  25,
+                                                  30,
+                                                ].contains(
+                                                  spot.x.toInt(),
+                                                )) {
                                               return FlDotCirclePainter(
                                                 radius: 4,
                                                 color: Colors.white,
                                                 strokeWidth: 2,
-                                                strokeColor: Color(0xFF2563EB),
+                                                strokeColor: Color(
+                                                  0xFF2563EB,
+                                                ),
                                               );
                                             }
                                             return FlDotCirclePainter(
-                                                radius: 0);
+                                              radius: 0,
+                                            );
                                           },
                                         ),
                                         belowBarData: BarAreaData(
@@ -691,14 +765,16 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                     minY: graphData.isEmpty
                                         ? 0
                                         : (graphData.map((e) => e.y).reduce(
-                                                    (a, b) => a < b ? a : b) *
+                                                      (a, b) => a < b ? a : b,
+                                                    ) *
                                                 0.9)
                                             .clamp(0, double.infinity),
                                     maxY: graphData.isEmpty ||
                                             graphData.every((e) => e.y == 0)
                                         ? 1000
                                         : (graphData.map((e) => e.y).reduce(
-                                                    (a, b) => a > b ? a : b) *
+                                                      (a, b) => a > b ? a : b,
+                                                    ) *
                                                 1.2)
                                             .clamp(100, double.infinity),
                                   ),
@@ -736,8 +812,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: 20),
-                          child:
-                              _buildSpendingPatternInsights(spendings, theme),
+                          child: _buildSpendingPatternInsights(
+                            spendings,
+                            theme,
+                          ),
                         ),
                       ),
 
@@ -765,11 +843,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   // Calculate spending pattern insights
   Map<String, dynamic> _getSpendingPatternInsights(List<Transaction> expenses) {
     if (expenses.isEmpty) {
-      return {
-        'analysis': '',
-        'recommendation': '',
-        'categoryInsight': '',
-      };
+      return {'analysis': '', 'recommendation': '', 'categoryInsight': ''};
     }
 
     // Group by category
@@ -887,11 +961,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         children: [
           Row(
             children: [
-              Icon(
-                Icons.insights_rounded,
-                color: Color(0xFF14B8A6),
-                size: 24,
-              ),
+              Icon(Icons.insights_rounded, color: Color(0xFF14B8A6), size: 24),
               SizedBox(width: 12),
               Text(
                 'Spending Pattern Analysis',
@@ -909,10 +979,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
             decoration: BoxDecoration(
               color: Colors.blue.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.blue.withOpacity(0.3),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1044,8 +1111,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     );
   }
 
-  Widget _buildTransactionList(List<Transaction> transactions,
-      List<Map<String, dynamic>> pendingTransactions) {
+  Widget _buildTransactionList(
+    List<Transaction> transactions,
+    List<Map<String, dynamic>> pendingTransactions,
+  ) {
     // Combine actual transactions with pending ones
     final allItems = <Map<String, dynamic>>[];
 
@@ -1095,10 +1164,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               SizedBox(height: 8),
               Text(
                 'Try selecting a different month or add a transaction',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
@@ -1239,11 +1305,7 @@ class _ModernTransactionCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Icon(
-                categoryIcon,
-                color: categoryColor,
-                size: 24,
-              ),
+              child: Icon(categoryIcon, color: categoryColor, size: 24),
             ),
           ),
           SizedBox(width: 16),
@@ -1272,16 +1334,19 @@ class _ModernTransactionCard extends StatelessWidget {
                           : Helpers.formatDateRelative(transaction.date),
                       style: TextStyle(
                         fontSize: 12,
-                        color: theme.textTheme.bodyMedium?.color
-                                ?.withOpacity(0.7) ??
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                              0.7,
+                            ) ??
                             Colors.grey[600],
                       ),
                     ),
                     if (isPending) ...[
                       SizedBox(width: 8),
                       Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.orange.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(4),
@@ -1310,8 +1375,10 @@ class _ModernTransactionCard extends StatelessWidget {
                         transaction.isSubscription) ...[
                       SizedBox(width: 8),
                       Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: transaction.isSubscription
                               ? Colors.purple.withOpacity(0.1)

@@ -209,46 +209,28 @@ class Helpers {
     }
 
     // Calculate next occurrence date for a recurring transaction
+    // This finds the next future payment date from the transaction's start date
     static DateTime? getNextRecurringDate(Transaction transaction) {
         if (!transaction.isRecurring || transaction.recurringFrequency == null) {
             return null;
         }
 
         final now = DateTime.now();
-        final lastDate = transaction.date;
-        DateTime? nextDate;
-
-        switch (transaction.recurringFrequency) {
-            case 'weekly':
-                nextDate = lastDate.add(Duration(days: 7));
-                while (nextDate != null && (nextDate.isBefore(now) || nextDate.isAtSameMomentAs(now))) {
-                    nextDate = nextDate.add(Duration(days: 7));
-                }
-                break;
-            case 'biweekly':
-                nextDate = lastDate.add(Duration(days: 14));
-                while (nextDate != null && (nextDate.isBefore(now) || nextDate.isAtSameMomentAs(now))) {
-                    nextDate = nextDate.add(Duration(days: 14));
-                }
-                break;
-            case 'monthly':
-                nextDate = DateTime(lastDate.year, lastDate.month + 1, lastDate.day);
-                while (nextDate != null && (nextDate.isBefore(now) || nextDate.isAtSameMomentAs(now))) {
-                    nextDate = DateTime(nextDate.year, nextDate.month + 1, nextDate.day);
-                }
-                break;
-            case 'yearly':
-                nextDate = DateTime(lastDate.year + 1, lastDate.month, lastDate.day);
-                while (nextDate != null && (nextDate.isBefore(now) || nextDate.isAtSameMomentAs(now))) {
-                    nextDate = DateTime(nextDate.year, nextDate.month, nextDate.day);
-                }
-                break;
-        }
-
-        // Check if next date is before or equal to end date
-        if (transaction.recurringEndDate != null && nextDate != null) {
-            if (nextDate.isAfter(transaction.recurringEndDate!)) {
-                return null; // Recurring payment has ended
+        final nowDate = DateTime(now.year, now.month, now.day);
+        final startDate = DateTime(transaction.date.year, transaction.date.month, transaction.date.day);
+        
+        // Start from the transaction date and find the next occurrence
+        DateTime? nextDate = startDate;
+        
+        // Keep advancing until we find a future date
+        while (nextDate != null && 
+               (nextDate.isBefore(nowDate) || nextDate.isAtSameMomentAs(nowDate))) {
+            nextDate = getNextOccurrenceFromDate(transaction, nextDate);
+            
+            // Safety check to prevent infinite loops
+            // If we've gone too far in the future (more than 10 years), something is wrong
+            if (nextDate != null && nextDate.isAfter(nowDate.add(Duration(days: 3650)))) {
+                return null;
             }
         }
 
@@ -321,7 +303,7 @@ class Helpers {
                 }
 
                 // Calculate next occurrence
-                nextDate = _getNextOccurrenceFromDate(transaction, nextDate);
+                nextDate = getNextOccurrenceFromDate(transaction, nextDate);
                 count++;
             }
         }
@@ -334,7 +316,8 @@ class Helpers {
     }
 
     // Helper to get next occurrence from a given date
-    static DateTime? _getNextOccurrenceFromDate(
+    // Made public so it can be used by dashboard and other screens
+    static DateTime? getNextOccurrenceFromDate(
         Transaction transaction, DateTime fromDate) {
         if (!transaction.isRecurring || transaction.recurringFrequency == null) {
             return null;
@@ -350,15 +333,34 @@ class Helpers {
                 nextDate = fromDate.add(Duration(days: 14));
                 break;
             case 'monthly':
-                nextDate = DateTime(fromDate.year, fromDate.month + 1, fromDate.day);
+                // Handle month edge cases (e.g., Jan 31 -> Feb should use Feb 28/29)
+                try {
+                    nextDate = DateTime(fromDate.year, fromDate.month + 1, fromDate.day);
+                } catch (e) {
+                    // If day doesn't exist in next month (e.g., Jan 31 -> Feb 31),
+                    // use the last day of the target month
+                    final nextMonth = DateTime(fromDate.year, fromDate.month + 2, 0);
+                    nextDate = DateTime(fromDate.year, fromDate.month + 1, nextMonth.day);
+                }
                 break;
             case 'yearly':
-                nextDate = DateTime(fromDate.year + 1, fromDate.month, fromDate.day);
+                // Handle leap year edge cases (e.g., Feb 29 -> next year)
+                try {
+                    nextDate = DateTime(fromDate.year + 1, fromDate.month, fromDate.day);
+                } catch (e) {
+                    // If day doesn't exist in next year (e.g., Feb 29 in non-leap year),
+                    // use the last day of the target month
+                    final nextYearMonth = DateTime(fromDate.year + 1, fromDate.month + 1, 0);
+                    nextDate = DateTime(fromDate.year + 1, fromDate.month, nextYearMonth.day);
+                }
                 break;
         }
 
         // Check if next date is before or equal to end date (if exists)
-        if (transaction.recurringEndDate != null && nextDate != null) {
+        // Subscriptions don't have end dates, so skip this check for them
+        if (!transaction.isSubscription && 
+            transaction.recurringEndDate != null && 
+            nextDate != null) {
             if (nextDate.isAfter(transaction.recurringEndDate!)) {
                 return null; // Recurring payment has ended
             }
@@ -366,6 +368,7 @@ class Helpers {
 
         return nextDate;
     }
+
 
     // Calculate debt information for recurring bills with end dates (excluding subscriptions)
     static Map<String, double> calculateDebtInfo(List<Transaction> transactions) {
@@ -389,10 +392,15 @@ class Helpers {
             // Calculate all payment dates from start to end
             List<DateTime> allPaymentDates = [];
             DateTime? currentDate = startDate;
+            int maxIterations = 1000; // Safety limit to prevent infinite loops
+            int iterations = 0;
             
-            while (currentDate != null && !currentDate.isAfter(endDate)) {
+            while (currentDate != null && 
+                   !currentDate.isAfter(endDate) && 
+                   iterations < maxIterations) {
                 allPaymentDates.add(currentDate);
-                currentDate = _getNextOccurrenceFromDate(transaction, currentDate);
+                currentDate = getNextOccurrenceFromDate(transaction, currentDate);
+                iterations++;
             }
 
             // Separate into paid (past/current) and due (future)
@@ -421,6 +429,41 @@ class Helpers {
     static double calculateDebt(List<Transaction> transactions) {
         final debtInfo = calculateDebtInfo(transactions);
         return debtInfo['totalDebtDue'] ?? 0.0;
+    }
+
+    // Convert technical errors to user-friendly messages
+    static String getUserFriendlyErrorMessage(String error) {
+        // Remove common prefixes
+        String message = error;
+        if (message.startsWith('Exception: ')) {
+            message = message.substring(11);
+        }
+        
+        // Map technical errors to user-friendly messages
+        if (message.contains('timeout') || message.contains('timed out')) {
+            return 'Request timed out. Please check your connection and try again.';
+        }
+        if (message.contains('database') || message.contains('not available')) {
+            return 'Data storage is not available. Please restart the app.';
+        }
+        if (message.contains('not found')) {
+            return 'Item not found. It may have been deleted.';
+        }
+        if (message.contains('must be logged in') || message.contains('logged in')) {
+            return 'Please log in to continue.';
+        }
+        if (message.contains('validation') || message.contains('invalid')) {
+            return 'Please check your input and try again.';
+        }
+        if (message.contains('network') || message.contains('connection')) {
+            return 'Network error. Please check your internet connection.';
+        }
+        if (message == 'Unknown error' || message.isEmpty) {
+            return 'Something went wrong. Please try again.';
+        }
+        
+        // Return the message as-is if it's already user-friendly
+        return message;
     }
 
     // Get debt management suggestions

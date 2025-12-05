@@ -22,11 +22,11 @@ class LocalStorageService {
       try {
         return box.values.where((t) => t.userId == currentUser.id).toList();
       } catch (e) {
-        print('Error filtering transactions: $e');
+        // Silently return empty list on error - user will see empty state
         return [];
       }
     } catch (e) {
-      print('Error getting transactions: $e');
+      // Silently return empty list on error - user will see empty state
       return [];
     }
   }
@@ -53,6 +53,7 @@ class LocalStorageService {
       }
       
       // Ensure transaction is associated with current user
+      // Preserve all transaction properties including recurring fields
       final userTransaction = Transaction(
         id: transaction.id,
         userId: currentUser.id,
@@ -62,6 +63,10 @@ class LocalStorageService {
         description: transaction.description,
         date: transaction.date,
         isSynced: transaction.isSynced,
+        isRecurring: transaction.isRecurring,
+        recurringEndDate: transaction.recurringEndDate,
+        recurringFrequency: transaction.recurringFrequency,
+        isSubscription: transaction.isSubscription,
       );
       
       // Use add to ensure proper auto-incrementing and listener notifications
@@ -71,13 +76,15 @@ class LocalStorageService {
       // Check budgets and send notifications if this is an expense
       if (userTransaction.type == 'expense') {
         BudgetNotificationService.checkBudgetsAndNotify().catchError((e) {
-          print('Error checking budgets after transaction: $e');
-          // Don't throw - budget checking failure shouldn't prevent transaction from being saved
+          // Silently fail - budget checking failure shouldn't prevent transaction from being saved
         });
       }
     } catch (e) {
-      print('Error adding transaction: $e');
-      rethrow;
+      // Re-throw with user-friendly message
+      if (e.toString().contains('Exception: ')) {
+        rethrow;
+      }
+      throw Exception('Failed to save transaction. Please try again.');
     }
   }
 
@@ -109,6 +116,7 @@ class LocalStorageService {
           if (existingTransaction?.id == transaction.id && 
               existingTransaction?.userId == currentUser.id) {
             // Ensure transaction remains associated with current user
+            // Preserve all transaction properties including recurring fields
             final userTransaction = Transaction(
               id: transaction.id,
               userId: currentUser.id,
@@ -118,20 +126,26 @@ class LocalStorageService {
               description: transaction.description,
               date: transaction.date,
               isSynced: transaction.isSynced,
+              isRecurring: transaction.isRecurring,
+              recurringEndDate: transaction.recurringEndDate,
+              recurringFrequency: transaction.recurringFrequency,
+              isSubscription: transaction.isSubscription,
             );
             await box.putAt(i, userTransaction);
             return;
           }
         } catch (e) {
-          // Skip corrupted entries
-          print('Error reading transaction at index $i: $e');
+          // Skip corrupted entries silently
           continue;
         }
       }
       throw Exception('Transaction not found or does not belong to current user');
     } catch (e) {
-      print('Error updating transaction: $e');
-      rethrow;
+      // Re-throw with user-friendly message if needed
+      if (e.toString().contains('Exception: ')) {
+        rethrow;
+      }
+      throw Exception('Failed to update transaction. Please try again.');
     }
   }
 
@@ -162,15 +176,17 @@ class LocalStorageService {
             return;
           }
         } catch (e) {
-          // Skip corrupted entries
-          print('Error reading transaction at index $i: $e');
+          // Skip corrupted entries silently
           continue;
         }
       }
       throw Exception('Transaction not found or does not belong to current user');
     } catch (e) {
-      print('Error deleting transaction: $e');
-      rethrow;
+      // Re-throw with user-friendly message if needed
+      if (e.toString().contains('Exception: ')) {
+        rethrow;
+      }
+      throw Exception('Failed to delete transaction. Please try again.');
     }
   }
 
@@ -202,13 +218,12 @@ class LocalStorageService {
       try {
         return User.fromJson(Map<String, dynamic>.from(userData));
       } catch (e) {
-        print('Error parsing user data: $e');
-        // Clear corrupted user data
+        // Clear corrupted user data silently
         await box.clear();
         return null;
       }
     } catch (e) {
-      print('Error getting current user: $e');
+      // Return null on error - user will be prompted to login
       return null;
     }
   }
@@ -223,8 +238,11 @@ class LocalStorageService {
       await box.put('userId', user.id);
       await box.put('user', user.toJson());
     } catch (e) {
-      print('Error saving user: $e');
-      rethrow;
+      // Re-throw with user-friendly message
+      if (e.toString().contains('Exception: ')) {
+        rethrow;
+      }
+      throw Exception('Failed to save user session. Please try again.');
     }
   }
 
@@ -237,8 +255,7 @@ class LocalStorageService {
       // Note: We don't clear transactions here because they're filtered by userId
       // Transactions will be automatically filtered when a new user logs in
     } catch (e) {
-      print('Error clearing user: $e');
-      // Continue anyway - this is not critical
+      // Silently continue - this is not critical
     }
   }
 
@@ -267,8 +284,11 @@ class LocalStorageService {
       
       // Note: We don't clear settingsBox to preserve user preferences
     } catch (e) {
-      print('Error clearing all data: $e');
-      rethrow;
+      // Re-throw with user-friendly message
+      if (e.toString().contains('Exception: ')) {
+        rethrow;
+      }
+      throw Exception('Failed to clear data. Please try again.');
     }
   }
   
@@ -294,8 +314,7 @@ class LocalStorageService {
             transactionsToDelete.add(i);
           }
         } catch (e) {
-          // Skip corrupted entries
-          print('Error reading transaction at index $i: $e');
+          // Skip corrupted entries silently
           continue;
         }
       }
@@ -305,13 +324,15 @@ class LocalStorageService {
         try {
           await box.deleteAt(transactionsToDelete[i]);
         } catch (e) {
-          print('Error deleting transaction at index ${transactionsToDelete[i]}: $e');
-          // Continue with next deletion
+          // Continue with next deletion silently
         }
       }
     } catch (e) {
-      print('Error clearing user transactions: $e');
-      rethrow;
+      // Re-throw with user-friendly message
+      if (e.toString().contains('Exception: ')) {
+        rethrow;
+      }
+      throw Exception('Failed to clear user transactions. Please try again.');
     }
   }
 }

@@ -95,11 +95,10 @@ class _StatsScreenState extends State<StatsScreen> {
         });
       }
     } catch (e) {
-      print('Error loading statistics: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _errorMessage = Helpers.getUserFriendlyErrorMessage(e.toString());
         });
       }
     }
@@ -809,9 +808,14 @@ class _StatsScreenState extends State<StatsScreen> {
                         textAlign: TextAlign.center,
                       ),
                       SizedBox(height: 16),
-                      ElevatedButton(
+                      ElevatedButton.icon(
                         onPressed: _loadAllData,
-                        child: Text('Retry'),
+                        icon: Icon(Icons.refresh),
+                        label: Text('Retry'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF14B8A6),
+                          foregroundColor: Colors.white,
+                        ),
                       ),
                     ],
                   ),

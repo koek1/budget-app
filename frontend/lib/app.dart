@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,6 +15,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  bool _isAppInBackground = false;
 
   @override
   void initState() {
@@ -53,15 +55,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.detached) {
       // App is being closed/terminated
       _wasDetached = true;
+      _isAppInBackground = true;
       _logoutOnAppClose();
       _enableScreenshotProtection();
+      setState(() {}); // Update UI to show blur overlay
     } else if (state == AppLifecycleState.paused) {
       // App is minimized (goes to background) - only set flag if NOT coming from inactive
       // This prevents notification bar pull-down from triggering logout
       if (!_wasInactive) {
         _wasPaused = true;
+        _isAppInBackground = true;
         _logoutOnAppClose();
         _enableScreenshotProtection();
+        setState(() {}); // Update UI to show blur overlay
       }
       _wasInactive = false; // Reset inactive flag
     } else if (state == AppLifecycleState.inactive) {
@@ -70,15 +76,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _wasInactive = true;
     } else if (state == AppLifecycleState.resumed) {
       // App is active again
+      _isAppInBackground = false;
       if (_wasInactive) {
         // Coming from inactive (notification bar) - don't require login
         _wasInactive = false;
         _disableScreenshotProtection();
+        setState(() {}); // Update UI to hide blur overlay
       } else if (_wasDetached || _wasPaused) {
         // App was minimized or closed - require login immediately
         _wasDetached = false;
         _wasPaused = false;
         _disableScreenshotProtection();
+        setState(() {}); // Update UI to hide blur overlay
         // Navigate immediately to prevent any flashing
         // Use a very short delay to ensure the frame is ready
         Future.delayed(Duration(milliseconds: 10), () {
@@ -87,6 +96,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       } else {
         // App resumed normally (not from inactive, paused, or detached)
         _disableScreenshotProtection();
+        setState(() {}); // Update UI to hide blur overlay
       }
     }
   }
@@ -220,6 +230,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           theme: _buildLightTheme(),
           darkTheme: _buildDarkTheme(),
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          builder: (context, child) {
+            // Wrap the app with protection overlay
+            return AppProtectionOverlay(
+              isInBackground: _isAppInBackground,
+              child: child!,
+            );
+          },
           home: FutureBuilder<bool>(
             future: _checkLoginStatus(),
             builder: (context, snapshot) {
@@ -250,6 +267,71 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       print('Error checking login status: $e');
       return false;
     }
+  }
+}
+
+/// Widget that provides app protection overlay when app is in background
+/// This hides the app content when viewed in the app switcher
+class AppProtectionOverlay extends StatelessWidget {
+  final bool isInBackground;
+  final Widget child;
+
+  const AppProtectionOverlay({
+    super.key,
+    required this.isInBackground,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isInBackground) {
+      // App is active - show normal content
+      return child;
+    }
+
+    // App is in background - show blurred/obscured overlay
+    return Stack(
+      children: [
+        // Blur the actual content
+        child,
+        // Overlay with blur effect
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            color: Colors.black.withOpacity(0.7),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.lock_outline,
+                    size: 64,
+                    color: Colors.white.withOpacity(0.8),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'SpendSense',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'App is protected',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

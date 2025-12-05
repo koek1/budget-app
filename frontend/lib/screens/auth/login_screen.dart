@@ -193,20 +193,10 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e) {
       if (mounted) {
-        String errorMessage = e.toString();
-        // Remove "Exception: " prefix if present
-        if (errorMessage.startsWith('Exception: ')) {
-          errorMessage = errorMessage.substring(11);
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              errorMessage,
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 4),
-          ),
+        // Use centralized error message helper
+        Helpers.showErrorSnackBar(
+          context,
+          Helpers.getUserFriendlyErrorMessage(e.toString()),
         );
       }
     } finally {
@@ -892,12 +882,11 @@ class _RegisterScreenState extends State<RegisterScreen>
       }
     } catch (e) {
       if (mounted) {
-        String errorMessage = e.toString();
-        // Remove "Exception: " prefix if present
-        if (errorMessage.startsWith('Exception: ')) {
-          errorMessage = errorMessage.substring(11);
-        }
-        Helpers.showErrorSnackBar(context, errorMessage);
+        // Use centralized error message helper
+        Helpers.showErrorSnackBar(
+          context,
+          Helpers.getUserFriendlyErrorMessage(e.toString()),
+        );
       }
     } finally {
       if (mounted) {
