@@ -151,10 +151,12 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
           // Clear settings box and set defaults for fresh install
           final settingsBox = Hive.box('settingsBox');
           await settingsBox.clear();
-          // Set default theme to light mode for fresh install
-          await settingsBox.put('themeMode', 'light');
+          // Detect system theme and set it as default for fresh install
+          final systemBrightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+          final systemThemeMode = systemBrightness == Brightness.dark ? 'dark' : 'light';
+          await settingsBox.put('themeMode', systemThemeMode);
           await settingsBox.put('currency', 'R');
-          print('Set default theme to light mode for fresh install');
+          print('Set default theme to system theme ($systemThemeMode) for fresh install');
 
           // Clear custom criteria box
           if (Hive.isBoxOpen('customCriteriaBox')) {
@@ -174,9 +176,11 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
             // Reopen boxes after deletion
             await Hive.openBox('usersBox');
             await Hive.openBox('userBox');
-            // Set defaults
+            // Set defaults - detect system theme
             final settingsBox = Hive.box('settingsBox');
-            await settingsBox.put('themeMode', 'light');
+            final systemBrightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+            final systemThemeMode = systemBrightness == Brightness.dark ? 'dark' : 'light';
+            await settingsBox.put('themeMode', systemThemeMode);
             await settingsBox.put('currency', 'R');
           } catch (deleteError) {
             print('Error deleting boxes: $deleteError');
