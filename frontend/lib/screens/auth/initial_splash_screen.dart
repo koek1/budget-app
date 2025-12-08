@@ -25,7 +25,7 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _animationController;
   int _animationCycleCount = 0;
-  static const int _minAnimationCycles = 2;
+  static const int _minAnimationCycles = 1;
   Completer<void>? _animationCompleter;
   bool _animationLoaded = false;
 
@@ -116,6 +116,29 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
       // 2. User boxes
       final userBox = await Hive.openBox('userBox');
       final usersBox = await Hive.openBox('usersBox'); // Store all users
+      
+      // IMPORTANT: Always clear user session on app startup
+      // This ensures user must login every time app is opened (after being closed or minimized)
+      // This handles cases where logout didn't complete before app was closed
+      print('Clearing user session on app startup to require fresh login');
+      try {
+        await userBox.clear();
+        // Double-check and force clear if needed
+        if (userBox.get('userId') != null) {
+          await userBox.delete('userId');
+          await userBox.delete('user');
+        }
+        print('User session cleared successfully on startup');
+      } catch (e) {
+        print('Error clearing user session on startup: $e');
+        // Try alternative method
+        try {
+          await userBox.delete('userId');
+          await userBox.delete('user');
+        } catch (e2) {
+          print('Error on alternative clear: $e2');
+        }
+      }
 
       // If fresh install, clear ALL data including Hive boxes
       if (isFreshInstall) {
@@ -266,7 +289,7 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         _animationController.forward();
       }
 
-      // Wait for animation to complete at least 2 cycles
+      // Wait for animation to complete at least 1 cycle
       await _waitForAnimationCompletion();
 
       // Navigate to login screen after both initialization and animation complete
@@ -275,27 +298,31 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         await Future.delayed(const Duration(milliseconds: 300));
         
         if (mounted) {
+          // Always navigate to LoginScreen with disableAutoLogin=true
+          // This ensures user must login manually after app restart
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const LoginScreen(),
+              builder: (context) => const LoginScreen(disableAutoLogin: true),
             ),
           );
         }
       }
     } catch (e) {
       print('Initialization error: $e');
-      // Wait for animation to complete at least 2 cycles
+      // Wait for animation to complete at least 1 cycle
       await _waitForAnimationCompletion();
       
       // Navigate anyway if there's an error
       if (mounted) {
         await Future.delayed(const Duration(milliseconds: 300));
         if (mounted) {
+          // Always navigate to LoginScreen with disableAutoLogin=true
+          // This ensures user must login manually after app restart
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const LoginScreen(),
+              builder: (context) => const LoginScreen(disableAutoLogin: true),
             ),
           );
         }

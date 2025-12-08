@@ -250,18 +250,59 @@ class LocalStorageService {
     try {
       if (Hive.isBoxOpen('userBox')) {
         final box = Hive.box('userBox');
+        // Delete specific keys first (more reliable than deleteAll)
+        await box.delete('userId');
+        await box.delete('user');
+        // Clear all keys explicitly to ensure logout
+        if (box.keys.isNotEmpty) {
+          await box.deleteAll(box.keys);
+        }
+        // Also clear the box to be absolutely sure
         await box.clear();
+        // Verify the box is empty
+        final userId = box.get('userId');
+        final user = box.get('user');
+        if (userId != null || user != null) {
+          // If data still exists, force delete it again
+          print('Warning: User data still exists after clear, forcing delete');
+          await box.delete('userId');
+          await box.delete('user');
+          await box.clear();
+        }
+        print('User session cleared successfully');
+      } else {
+        print('Warning: userBox is not open, cannot clear user session');
       }
       // Note: We don't clear transactions here because they're filtered by userId
       // Transactions will be automatically filtered when a new user logs in
     } catch (e) {
-      // Silently continue - this is not critical
+      print('Error clearing user: $e');
+      // Try to force clear if normal clear failed
+      try {
+        if (Hive.isBoxOpen('userBox')) {
+          final box = Hive.box('userBox');
+          await box.delete('userId');
+          await box.delete('user');
+          await box.clear();
+          print('Force cleared user session after error');
+        }
+      } catch (e2) {
+        print('Error force clearing user: $e2');
+      }
     }
   }
 
   static Future<bool> isLoggedIn() async {
-    final box = Hive.box('userBox');
-    return box.get('userId') != null;
+    try {
+      if (!Hive.isBoxOpen('userBox')) {
+        return false;
+      }
+      final box = Hive.box('userBox');
+      return box.get('userId') != null;
+    } catch (e) {
+      // Return false on error - user will be prompted to login
+      return false;
+    }
   }
 
   // Clear all app data (for troubleshooting/reset)
