@@ -26,7 +26,12 @@ class FadePageRoute<T> extends PageRouteBuilder<T> {
 }
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool disableAutoLogin;
+  
+  const LoginScreen({
+    super.key,
+    this.disableAutoLogin = false,
+  });
 
   @override
   _LoginScreenState createState() => _LoginScreenState();
@@ -112,6 +117,18 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _initializeScreen() async {
+    // If auto-login is disabled (e.g., when coming from app resume), skip auto-login check
+    if (widget.disableAutoLogin) {
+      print('LoginScreen: Auto-login disabled - user must login manually');
+      // Just check biometric availability and setup, but don't auto-login
+      await _checkBiometricAvailability();
+      return;
+    }
+    
+    // Small delay to ensure any pending logout operations complete
+    // This prevents race conditions when app resumes from background
+    await Future.delayed(const Duration(milliseconds: 100));
+    
     // Check if user is already logged in
     final isLoggedIn = await AuthService.isLoggedIn();
     if (isLoggedIn && mounted) {
