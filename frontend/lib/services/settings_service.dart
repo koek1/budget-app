@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:flutter/material.dart';
 
 class SettingsService {
   static const String _settingsBoxName = 'settingsBox';
@@ -22,6 +23,16 @@ class SettingsService {
     // Box is already opened in main.dart, just ensure it exists
     if (!Hive.isBoxOpen(_settingsBoxName)) {
       await Hive.openBox(_settingsBoxName);
+    }
+    
+    // Check if this is the first launch (themeMode not set)
+    final box = Hive.box(_settingsBoxName);
+    if (!box.containsKey(_themeModeKey)) {
+      // First launch - detect system theme and set it
+      final systemBrightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      final systemThemeMode = systemBrightness == Brightness.dark ? 'dark' : 'light';
+      await box.put(_themeModeKey, systemThemeMode);
+      print('First launch detected - set theme mode to system default: $systemThemeMode');
     }
   }
 
