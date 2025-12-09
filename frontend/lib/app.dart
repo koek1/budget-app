@@ -71,9 +71,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     print('App lifecycle state changed to: $state');
-    print('Current flags: _wasDetached=$_wasDetached, _wasPaused=$_wasPaused, _wasInactive=$_wasInactive');
+    print(
+        'Current flags: _wasDetached=$_wasDetached, _wasPaused=$_wasPaused, _wasInactive=$_wasInactive');
 
     // Handle different app lifecycle states
     if (state == AppLifecycleState.detached) {
@@ -104,12 +105,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } else if (state == AppLifecycleState.resumed) {
       // App is active again
       print('App resumed');
-      print('Resume flags: _wasDetached=$_wasDetached, _wasPaused=$_wasPaused, _wasInactive=$_wasInactive');
+      print(
+          'Resume flags: _wasDetached=$_wasDetached, _wasPaused=$_wasPaused, _wasInactive=$_wasInactive');
       _isAppInBackground = false;
-      
+
       // Check if we were coming from paused or detached state
       final wasPausedOrDetached = _wasDetached || _wasPaused;
-      
+
       if (_wasInactive && !wasPausedOrDetached) {
         // Coming from inactive ONLY (notification bar) - don't require login
         print('Resumed from inactive only - no login required');
@@ -124,29 +126,32 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _wasPaused = false;
         _wasInactive = false;
         _disableScreenshotProtection();
-        
+
         // CRITICAL: Navigate to login screen IMMEDIATELY in the next frame
         // This prevents the home screen from flashing before navigation
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            print('Navigating to login screen immediately (post-frame callback)');
+            print(
+                'Navigating to login screen immediately (post-frame callback)');
             _forceNavigateToLoginImmediate();
           }
         });
-        
+
         setState(() {}); // Update UI to hide blur overlay
-        
+
         // Do logout in background after navigation has started
         // This ensures navigation happens first, preventing home screen flash
         Future.microtask(() async {
-          print('App resumed from ${wasPaused ? "paused" : "detached"} - forcing logout in background');
+          print(
+              'App resumed from ${wasPaused ? "paused" : "detached"} - forcing logout in background');
           // Force logout multiple times to ensure it completes
           await AuthService.logout();
           // Verify logout completed - retry if needed
           int retryCount = 0;
           while (retryCount < 3) {
             final isLoggedIn = await AuthService.isLoggedIn();
-            print('Logout check attempt ${retryCount + 1}: isLoggedIn = $isLoggedIn');
+            print(
+                'Logout check attempt ${retryCount + 1}: isLoggedIn = $isLoggedIn');
             if (!isLoggedIn) {
               print('Logout successful after ${retryCount + 1} attempt(s)');
               break; // Logout successful
@@ -175,7 +180,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       print('Widget not mounted, cannot navigate');
       return;
     }
-    
+
     if (_navigatorKey.currentState == null) {
       print('Navigator key state is null, scheduling retry');
       // If navigator isn't ready, schedule for next frame
@@ -186,7 +191,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       });
       return;
     }
-    
+
     print('Navigating to login screen immediately with disableAutoLogin=true');
     try {
       // Clear navigation stack and go to login screen immediately without animation
@@ -224,7 +229,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             try {
               _navigatorKey.currentState?.pushAndRemoveUntil(
                 MaterialPageRoute(
-                  builder: (context) => const LoginScreen(disableAutoLogin: true),
+                  builder: (context) =>
+                      const LoginScreen(disableAutoLogin: true),
                 ),
                 (route) => false,
               );
@@ -237,13 +243,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-
   Future<void> _logoutOnAppClose() async {
     try {
       // Clear user session when app is closed or minimized
       // Do this immediately and synchronously to ensure it completes before app is killed
       print('Logging out user due to app being minimized/closed...');
-      
+
       // Force immediate logout - don't wait for async operations if possible
       if (Hive.isBoxOpen('userBox')) {
         final box = Hive.box('userBox');
@@ -254,10 +259,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         box.clear();
         print('User session cleared immediately via direct box access');
       }
-      
+
       // Also call the service method to ensure consistency
       await AuthService.logout();
-      
+
       // Verify logout completed
       final isLoggedIn = await AuthService.isLoggedIn();
       if (isLoggedIn) {

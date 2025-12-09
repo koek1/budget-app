@@ -5,10 +5,12 @@ class SettingsService {
   static const String _settingsBoxName = 'settingsBox';
   static const String _currencyKey = 'currency';
   static const String _themeModeKey = 'themeMode';
+  static const String _startingBalanceKey = 'startingBalance';
   
   // Default values
   static const String defaultCurrency = 'R';
   static const String defaultThemeMode = 'light';
+  static const double defaultStartingBalance = 0.0;
 
   // Available currencies
   static const List<Map<String, String>> availableCurrencies = [
@@ -97,6 +99,33 @@ class SettingsService {
       orElse: () => availableCurrencies[0],
     );
     return currency['symbol']!;
+  }
+
+  // Get starting balance
+  static double getStartingBalance() {
+    if (!Hive.isBoxOpen(_settingsBoxName)) {
+      return defaultStartingBalance;
+    }
+    final box = Hive.box(_settingsBoxName);
+    final balance = box.get(_startingBalanceKey);
+    if (balance == null) {
+      return defaultStartingBalance;
+    }
+    try {
+      return (balance is double) ? balance : (balance as num).toDouble();
+    } catch (e) {
+      print('Error getting starting balance: $e');
+      return defaultStartingBalance;
+    }
+  }
+
+  // Set starting balance
+  static Future<void> setStartingBalance(double balance) async {
+    if (!Hive.isBoxOpen(_settingsBoxName)) {
+      await Hive.openBox(_settingsBoxName);
+    }
+    final box = Hive.box(_settingsBoxName);
+    await box.put(_startingBalanceKey, balance);
   }
 }
 

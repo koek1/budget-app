@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/models/user.dart';
 import 'package:budget_app/services/local_storage_service.dart';
+import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/screens/settings/settings_screen.dart';
 import 'package:budget_app/screens/home/add_transaction_screen.dart';
@@ -24,12 +25,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late Box<Transaction> transactionsBox;
   User? currentUser;
   DateTime _selectedMonth = DateTime.now();
+  bool _showStartingBalanceNotification = false;
 
   @override
   void initState() {
     super.initState();
     transactionsBox = Hive.box<Transaction>('transactionsBox');
     _loadUser();
+    _checkStartingBalanceNotification();
+  }
+
+  Future<void> _checkStartingBalanceNotification() async {
+    // Check if starting balance is still at default (0.0) and notification hasn't been dismissed
+    final startingBalance = SettingsService.getStartingBalance();
+    final settingsBox = Hive.box('settingsBox');
+    final notificationDismissed = settingsBox.get('startingBalanceNotificationDismissed', defaultValue: false) as bool;
+    
+    setState(() {
+      _showStartingBalanceNotification = startingBalance == 0.0 && !notificationDismissed;
+    });
+  }
+
+  Future<void> _dismissStartingBalanceNotification() async {
+    final settingsBox = Hive.box('settingsBox');
+    await settingsBox.put('startingBalanceNotificationDismissed', true);
+    setState(() {
+      _showStartingBalanceNotification = false;
+    });
+  }
+
+  Future<void> _navigateToStartingBalance() async {
+    // Navigate to settings screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SettingsScreen(),
+      ),
+    ).then((_) {
+      // Check again after returning from settings
+      _checkStartingBalanceNotification();
+    });
   }
 
   Future<void> _loadUser() async {
@@ -355,7 +390,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<double> getSavings() async {
-    // Calculate savings as total income minus expenses (all time, user-filtered)
+    // Calculate savings as starting balance + total income minus expenses (all time, user-filtered)
     // Optimized: single pass through transactions
     final allTransactions = await LocalStorageService.getTransactions();
     double totalIncome = 0.0;
@@ -369,7 +404,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
     
-    return totalIncome - totalExpenses;
+    // Include starting balance as baseline
+    final startingBalance = SettingsService.getStartingBalance();
+    return startingBalance + totalIncome - totalExpenses;
   }
 
   // Optimized method to load all dashboard data efficiently
@@ -418,8 +455,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final allTransactions = await LocalStorageService.getTransactions()
       ..sort((a, b) => a.date.compareTo(b.date));
 
-    // Calculate starting balance (all transactions before this month)
-    double startingBalance = 0;
+    // Calculate starting balance (starting balance + all transactions before this month)
+    double startingBalance = SettingsService.getStartingBalance();
     for (var transaction in allTransactions) {
       if (transaction.date.year < _selectedMonth.year ||
           (transaction.date.year == _selectedMonth.year &&
@@ -798,6 +835,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               SizedBox(height: 24),
+
+                              // Starting Balance Notification
+                              if (_showStartingBalanceNotification)
+                                _buildStartingBalanceNotification(theme, isDark, primaryTurquoise),
 
                               // Combined Saving Card with Graph
                               Container(
@@ -1882,6 +1923,94 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return verticalLines;
   }
 
+  // Build notification banner for starting balance
+  Widget _buildStartingBalanceNotification(
+    ThemeData theme,
+    bool isDark,
+    Color primaryTurquoise,
+  ) {
+    return GestureDetector(
+      onTap: _navigateToStartingBalance,
+      child: Container(
+        margin: EdgeInsets.only(bottom: 20),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              primaryTurquoise.withOpacity(0.15),
+              primaryTurquoise.withOpacity(0.08),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: primaryTurquoise.withOpacity(0.4),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: primaryTurquoise.withOpacity(0.2),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: primaryTurquoise.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.account_balance_wallet_rounded,
+              color: primaryTurquoise,
+              size: 24,
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Set Your Starting Balance',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Add your initial balance to track if you\'re saving or losing money over time.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 8),
+          IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              size: 20,
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+            ),
+            onPressed: _dismissStartingBalanceNotification,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(),
+          ),
+        ],
+        ),
+      ),
+    );
+  }
+
   // Build notification banner for upcoming recurring debit orders
   Widget _buildUpcomingRecurringDebitOrdersNotification(
     List<Map<String, dynamic>> upcomingDebitOrders,
@@ -2308,8 +2437,8 @@ class _FullScreenChartDialogState extends State<_FullScreenChartDialog> {
     // Calculate days in range
     final daysInRange = endDate.difference(startDate).inDays + 1;
     
-    // Calculate starting balance (all transactions before start date)
-    double startingBalance = 0;
+    // Calculate starting balance (starting balance + all transactions before start date)
+    double startingBalance = SettingsService.getStartingBalance();
     for (var transaction in allTransactions) {
       final transactionDate = DateTime(
         transaction.date.year,
