@@ -563,11 +563,15 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                         child: Container(
                           padding: EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Color(0xFF2563EB), // Blue color
+                            color: _selectedTab == 'Income' 
+                                ? Color(0xFF10B981) // Green for income
+                                : Color(0xFFEF4444), // Red for expenses
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: Color(0xFF2563EB).withOpacity(0.3),
+                                color: (_selectedTab == 'Income' 
+                                    ? Color(0xFF10B981) 
+                                    : Color(0xFFEF4444)).withOpacity(0.3),
                                 blurRadius: 15,
                                 offset: Offset(0, 5),
                               ),
@@ -705,10 +709,14 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                                 Helpers.formatCurrency(
                                               graphValue,
                                             );
+                                            // Use different color for tooltip based on tab
+                                            final tooltipColor = _selectedTab == 'Income' 
+                                                ? Color(0xFF10B981) 
+                                                : Color(0xFFEF4444);
                                             return LineTooltipItem(
                                               '$amountStr\n$day $monthName',
                                               TextStyle(
-                                                color: Color(0xFF2563EB),
+                                                color: tooltipColor,
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 12,
                                               ),
@@ -746,9 +754,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                                 radius: 4,
                                                 color: Colors.white,
                                                 strokeWidth: 2,
-                                                strokeColor: Color(
-                                                  0xFF2563EB,
-                                                ),
+                                                strokeColor: _selectedTab == 'Income' 
+                                                    ? Color(0xFF10B981) 
+                                                    : Color(0xFFEF4444),
                                               );
                                             }
                                             return FlDotCirclePainter(
@@ -758,7 +766,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                         ),
                                         belowBarData: BarAreaData(
                                           show: true,
-                                          color: Colors.white.withOpacity(0.2),
+                                          color: Colors.white.withOpacity(0.15),
                                         ),
                                       ),
                                     ],
