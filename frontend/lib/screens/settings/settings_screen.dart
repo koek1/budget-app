@@ -22,6 +22,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoading = true;
   String _selectedCurrency = SettingsService.defaultCurrency;
   String _themeMode = SettingsService.defaultThemeMode;
+  double _startingBalance = SettingsService.defaultStartingBalance;
 
   @override
   void initState() {
@@ -63,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _biometricAvailable = available;
           _selectedCurrency = SettingsService.getCurrency();
           _themeMode = SettingsService.getThemeMode();
+          _startingBalance = SettingsService.getStartingBalance();
           _isLoading = false;
         });
       }
@@ -84,6 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _biometricAvailable = available;
           _selectedCurrency = SettingsService.getCurrency();
           _themeMode = SettingsService.getThemeMode();
+          _startingBalance = SettingsService.getStartingBalance();
           _isLoading = false;
         });
       }
@@ -203,6 +206,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
     if (mounted) {
       Helpers.showSuccessSnackBar(context, 'Theme changed to ${newMode} mode');
+    }
+  }
+
+  Future<void> _editStartingBalance() async {
+    final theme = Theme.of(context);
+    final currencySymbol = SettingsService.getCurrencySymbol();
+    final controller = TextEditingController(
+      text: _startingBalance.toStringAsFixed(2),
+    );
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: Text(
+          'Set Starting Balance',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter your starting balance. This will be used as the baseline to determine if you are saving or losing money.',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Starting Balance',
+                prefixText: currencySymbol,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Color(0xFF14B8A6), width: 2),
+                ),
+              ),
+              style: GoogleFonts.inter(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              final value = double.tryParse(controller.text);
+              if (value != null) {
+                Navigator.pop(context, value);
+              } else {
+                Helpers.showErrorSnackBar(
+                  context,
+                  'Please enter a valid number',
+                );
+              }
+            },
+            child: Text(
+              'Save',
+              style: GoogleFonts.inter(
+                color: Color(0xFF14B8A6),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      await SettingsService.setStartingBalance(result);
+      setState(() {
+        _startingBalance = result;
+      });
+      if (mounted) {
+        Helpers.showSuccessSnackBar(
+          context,
+          'Starting balance updated to ${currencySymbol}${result.toStringAsFixed(2)}',
+        );
+      }
     }
   }
 
@@ -493,6 +593,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     // Refresh settings when box changes
                     _selectedCurrency = SettingsService.getCurrency();
                     _themeMode = SettingsService.getThemeMode();
+                    _startingBalance = SettingsService.getStartingBalance();
 
                     return ListView(
                       padding: EdgeInsets.symmetric(vertical: 16),
@@ -578,6 +679,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ],
                               ),
                             ],
+                          ),
+                        ),
+
+                        // Budget Section
+                        Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Text(
+                            'Budget',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ),
+                        _buildSettingsCard(
+                          child: _buildSettingsItem(
+                            icon: Icons.account_balance_wallet_rounded,
+                            title: 'Starting Balance',
+                            subtitle: '${SettingsService.getCurrencySymbol()}${_startingBalance.toStringAsFixed(2)}',
+                            onTap: _editStartingBalance,
+                            iconColor: Color(0xFF14B8A6),
                           ),
                         ),
 
