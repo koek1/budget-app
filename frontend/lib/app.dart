@@ -19,6 +19,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _isAppInBackground = false;
   bool _settingsBoxReady = false;
+  DateTime? _inactiveStartTime; // Track when app went inactive
 
   @override
   void initState() {
@@ -97,11 +98,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       setState(() {}); // Update UI to show blur overlay
       _wasInactive = false; // Reset inactive flag
     } else if (state == AppLifecycleState.inactive) {
-      // App is temporarily inactive (notification bar, incoming call, etc.)
-      // Do NOT logout or set paused flag - this is temporary
-      // But also don't clear _wasPaused if it was already set
-      print('App inactive - temporary (notification bar, etc.)');
+      // App is temporarily inactive (notification bar, incoming call, app switcher, etc.)
+      // Show blur overlay for privacy and logout immediately for security
+      // When user returns from app switcher, they'll need to login again
+      print('App inactive - showing blur overlay and logging out for privacy');
       _wasInactive = true;
+      _inactiveStartTime = DateTime.now(); // Track when inactive started
+      _isAppInBackground = true; // Show blur overlay in app switcher
+      _enableScreenshotProtection();
+      // Logout immediately when app goes to inactive for security
+      _logoutOnAppClose();
+      setState(() {}); // Update UI to show blur overlay
     } else if (state == AppLifecycleState.resumed) {
       // App is active again
       print('App resumed');
@@ -109,15 +116,39 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           'Resume flags: _wasDetached=$_wasDetached, _wasPaused=$_wasPaused, _wasInactive=$_wasInactive');
       _isAppInBackground = false;
 
-      // Check if we were coming from paused or detached state
+      // Check if we were coming from paused, detached, or inactive state
       final wasPausedOrDetached = _wasDetached || _wasPaused;
+      final wasInactiveOnly = _wasInactive && !wasPausedOrDetached;
 
-      if (_wasInactive && !wasPausedOrDetached) {
-        // Coming from inactive ONLY (notification bar) - don't require login
-        print('Resumed from inactive only - no login required');
+      if (wasInactiveOnly) {
+        // Coming from inactive (app switcher) - require login for security
+        final inactiveDuration = _inactiveStartTime != null
+            ? DateTime.now().difference(_inactiveStartTime!)
+            : Duration.zero;
+        print(
+            'Resumed from inactive (${inactiveDuration.inMilliseconds}ms) - requiring login');
         _wasInactive = false;
+        _inactiveStartTime = null;
         _disableScreenshotProtection();
+
+        // Navigate to login screen immediately
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            print('Navigating to login screen from app switcher');
+            _forceNavigateToLoginImmediate();
+          }
+        });
+
         setState(() {}); // Update UI to hide blur overlay
+
+        // Verify logout completed
+        Future.microtask(() async {
+          final isLoggedIn = await AuthService.isLoggedIn();
+          if (isLoggedIn) {
+            print('User still logged in after inactive, forcing logout...');
+            await AuthService.logout();
+          }
+        });
       } else if (wasPausedOrDetached) {
         // App was minimized or closed - require login immediately
         print('Resumed from paused/detached - requiring login');
@@ -125,6 +156,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _wasDetached = false;
         _wasPaused = false;
         _wasInactive = false;
+        _inactiveStartTime = null;
         _disableScreenshotProtection();
 
         // CRITICAL: Navigate to login screen IMMEDIATELY in the next frame
@@ -167,6 +199,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // App resumed normally (not from inactive, paused, or detached)
         print('App resumed normally - no action needed');
         _wasInactive = false;
+        _inactiveStartTime = null;
         _disableScreenshotProtection();
         setState(() {}); // Update UI to hide blur overlay
       }
@@ -448,16 +481,17 @@ class AppProtectionOverlay extends StatelessWidget {
       return child;
     }
 
-    // App is in background - show blurred/obscured overlay
+    // App is in background - show blurred/obscured overlay for privacy
     return Stack(
       children: [
         // Blur the actual content
         child,
-        // Overlay with blur effect
+        // Overlay with strong blur effect and dark background for maximum privacy
         BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Container(
-            color: Colors.black.withOpacity(0.7),
+            color:
+                Colors.black.withOpacity(0.9), // More opaque for better privacy
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
