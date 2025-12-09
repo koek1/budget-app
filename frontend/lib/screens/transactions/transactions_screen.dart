@@ -90,23 +90,40 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       }
     }).toList();
 
+    // Initialize all days with 0 to ensure stable X-axis positions
     Map<int, double> dailyTotals = {};
-    double runningTotal = 0;
-
-    // Initialize all days with 0
     for (int day = 1; day <= daysInMonth; day++) {
       dailyTotals[day] = 0;
     }
 
-    // Sort transactions by date
-    final sortedTransactions = List<Transaction>.from(filteredTransactions)
-      ..sort((a, b) => a.date.compareTo(b.date));
-
-    // Calculate running total for each day
-    for (var transaction in sortedTransactions) {
+    // Group transactions by day to process all transactions on the same day together
+    Map<int, List<Transaction>> transactionsByDay = {};
+    for (var transaction in filteredTransactions) {
       final day = transaction.date.day;
-      runningTotal += transaction.amount;
-      // Update total for this day and all subsequent days until next transaction
+      if (!transactionsByDay.containsKey(day)) {
+        transactionsByDay[day] = [];
+      }
+      transactionsByDay[day]!.add(transaction);
+    }
+
+    // Sort days to process in chronological order
+    final sortedDays = transactionsByDay.keys.toList()..sort();
+    double runningTotal = 0;
+
+    // Process each day's transactions together to calculate cumulative totals
+    for (var day in sortedDays) {
+      final dayTransactions = transactionsByDay[day]!;
+      
+      // Calculate total for this day (sum of all transactions on this day)
+      double dayTotal = 0;
+      for (var transaction in dayTransactions) {
+        dayTotal += transaction.amount;
+      }
+      
+      // Update running total
+      runningTotal += dayTotal;
+      
+      // Update cumulative total for this day and all subsequent days
       for (int d = day; d <= daysInMonth; d++) {
         dailyTotals[d] = runningTotal;
       }

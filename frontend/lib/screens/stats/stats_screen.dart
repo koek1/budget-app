@@ -31,12 +31,16 @@ class _StatsScreenState extends State<StatsScreen> {
   Map<String, dynamic>? _loadedData;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isReloading = false;
+  int _lastTransactionCount = 0;
 
   @override
   void initState() {
     super.initState();
     try {
       transactionsBox = Hive.box<Transaction>('transactionsBox');
+      // Initialize transaction count
+      _lastTransactionCount = transactionsBox.length;
     } catch (e) {
       print('Error initializing StatsScreen: $e');
       // Box will be accessed when needed, which will handle the error
@@ -45,10 +49,16 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   // Load all statistics data in background
-  Future<void> _loadAllData() async {
+  Future<void> _loadAllData({bool forceReload = false}) async {
+    // Prevent multiple simultaneous reloads
+    if (_isReloading && !forceReload) {
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _isReloading = true;
     });
 
     try {
@@ -92,6 +102,14 @@ class _StatsScreenState extends State<StatsScreen> {
         setState(() {
           _loadedData = data;
           _isLoading = false;
+          _isReloading = false;
+          // Update transaction count to track changes
+          try {
+            final box = Hive.box<Transaction>('transactionsBox');
+            _lastTransactionCount = box.length;
+          } catch (e) {
+            // Ignore errors
+          }
         });
       }
     } catch (e) {
@@ -99,6 +117,7 @@ class _StatsScreenState extends State<StatsScreen> {
         setState(() {
           _isLoading = false;
           _errorMessage = Helpers.getUserFriendlyErrorMessage(e.toString());
+          _isReloading = false;
         });
       }
     }
@@ -192,13 +211,27 @@ class _StatsScreenState extends State<StatsScreen> {
           (dailyExpenses[dateKey] ?? 0) + transaction.amount;
     }
 
-    // Get all unique dates and sort
-    final allDates = <String>{};
-    allDates.addAll(dailyIncome.keys);
-    allDates.addAll(dailyExpenses.keys);
-    final sortedDates = allDates.toList()..sort();
+    // Generate all dates in the selected range to ensure stable X-axis positions
+    final startOfDay = DateTime(
+      _selectedStartDate.year,
+      _selectedStartDate.month,
+      _selectedStartDate.day,
+    );
+    final endOfDay = DateTime(
+      _selectedEndDate.year,
+      _selectedEndDate.month,
+      _selectedEndDate.day,
+    );
+    
+    // Create a list of all dates in the range
+    final allDatesInRange = <String>[];
+    var currentDate = startOfDay;
+    while (!currentDate.isAfter(endOfDay)) {
+      allDatesInRange.add(DateFormat('yyyy-MM-dd').format(currentDate));
+      currentDate = currentDate.add(Duration(days: 1));
+    }
 
-    if (sortedDates.isEmpty) {
+    if (allDatesInRange.isEmpty) {
       return {
         'income': [FlSpot(0, 0), FlSpot(1, 0)],
         'expenses': [FlSpot(0, 0), FlSpot(1, 0)],
@@ -206,19 +239,21 @@ class _StatsScreenState extends State<StatsScreen> {
       };
     }
 
-    // Create spots for income (cumulative)
+    // Create spots for income (cumulative) - using all dates in range
     List<FlSpot> incomeSpots = [];
     double cumulativeIncome = 0;
-    for (int i = 0; i < sortedDates.length; i++) {
-      cumulativeIncome += dailyIncome[sortedDates[i]] ?? 0;
+    for (int i = 0; i < allDatesInRange.length; i++) {
+      final dateKey = allDatesInRange[i];
+      cumulativeIncome += dailyIncome[dateKey] ?? 0;
       incomeSpots.add(FlSpot(i.toDouble(), cumulativeIncome));
     }
 
-    // Create spots for expenses (cumulative)
+    // Create spots for expenses (cumulative) - using all dates in range
     List<FlSpot> expenseSpots = [];
     double cumulativeExpenses = 0;
-    for (int i = 0; i < sortedDates.length; i++) {
-      cumulativeExpenses += dailyExpenses[sortedDates[i]] ?? 0;
+    for (int i = 0; i < allDatesInRange.length; i++) {
+      final dateKey = allDatesInRange[i];
+      cumulativeExpenses += dailyExpenses[dateKey] ?? 0;
       expenseSpots.add(FlSpot(i.toDouble(), cumulativeExpenses));
     }
 
@@ -494,7 +529,27 @@ class _StatsScreenState extends State<StatsScreen> {
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
-    if (incomeTransactions.isEmpty) {
+    // Generate all dates in the selected range to ensure stable X-axis positions
+    final startOfDay = DateTime(
+      _selectedStartDate.year,
+      _selectedStartDate.month,
+      _selectedStartDate.day,
+    );
+    final endOfDay = DateTime(
+      _selectedEndDate.year,
+      _selectedEndDate.month,
+      _selectedEndDate.day,
+    );
+    
+    // Create a list of all dates in the range
+    final allDatesInRange = <String>[];
+    var currentDate = startOfDay;
+    while (!currentDate.isAfter(endOfDay)) {
+      allDatesInRange.add(DateFormat('yyyy-MM-dd').format(currentDate));
+      currentDate = currentDate.add(Duration(days: 1));
+    }
+
+    if (allDatesInRange.isEmpty) {
       return [FlSpot(0, 0), FlSpot(1, 0)];
     }
 
@@ -504,12 +559,13 @@ class _StatsScreenState extends State<StatsScreen> {
       dailyIncome[dateKey] = (dailyIncome[dateKey] ?? 0) + transaction.amount;
     }
 
-    final sortedDates = dailyIncome.keys.toList()..sort();
     List<FlSpot> spots = [];
     double cumulativeTotal = 0;
 
-    for (int i = 0; i < sortedDates.length; i++) {
-      cumulativeTotal += dailyIncome[sortedDates[i]]!;
+    // Use all dates in range for stable X-axis positions
+    for (int i = 0; i < allDatesInRange.length; i++) {
+      final dateKey = allDatesInRange[i];
+      cumulativeTotal += dailyIncome[dateKey] ?? 0;
       spots.add(FlSpot(i.toDouble(), cumulativeTotal));
     }
 
@@ -528,7 +584,27 @@ class _StatsScreenState extends State<StatsScreen> {
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
-    if (expenseTransactions.isEmpty) {
+    // Generate all dates in the selected range to ensure stable X-axis positions
+    final startOfDay = DateTime(
+      _selectedStartDate.year,
+      _selectedStartDate.month,
+      _selectedStartDate.day,
+    );
+    final endOfDay = DateTime(
+      _selectedEndDate.year,
+      _selectedEndDate.month,
+      _selectedEndDate.day,
+    );
+    
+    // Create a list of all dates in the range
+    final allDatesInRange = <String>[];
+    var currentDate = startOfDay;
+    while (!currentDate.isAfter(endOfDay)) {
+      allDatesInRange.add(DateFormat('yyyy-MM-dd').format(currentDate));
+      currentDate = currentDate.add(Duration(days: 1));
+    }
+
+    if (allDatesInRange.isEmpty) {
       return [FlSpot(0, 0), FlSpot(1, 0)];
     }
 
@@ -539,12 +615,13 @@ class _StatsScreenState extends State<StatsScreen> {
           (dailyExpenses[dateKey] ?? 0) + transaction.amount;
     }
 
-    final sortedDates = dailyExpenses.keys.toList()..sort();
     List<FlSpot> spots = [];
     double cumulativeTotal = 0;
 
-    for (int i = 0; i < sortedDates.length; i++) {
-      cumulativeTotal += dailyExpenses[sortedDates[i]]!;
+    // Use all dates in range for stable X-axis positions
+    for (int i = 0; i < allDatesInRange.length; i++) {
+      final dateKey = allDatesInRange[i];
+      cumulativeTotal += dailyExpenses[dateKey] ?? 0;
       spots.add(FlSpot(i.toDouble(), cumulativeTotal));
     }
 
@@ -847,6 +924,29 @@ class _StatsScreenState extends State<StatsScreen> {
             return ValueListenableBuilder<Box<Transaction>>(
               valueListenable: box.listenable(),
               builder: (context, box, _) {
+                // Check if transactions have changed and reload if needed
+                final currentTransactionCount = box.length;
+                if (currentTransactionCount != _lastTransactionCount && !_isReloading && mounted) {
+                  // Clear cache to force reload
+                  _cachedTransactions = null;
+                  _cacheDateRangeStart = null;
+                  _cacheDateRangeEnd = null;
+                  // Use post-frame callback to avoid rebuilding during build
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && !_isReloading) {
+                      // Double-check the count hasn't changed again
+                      try {
+                        final currentBox = Hive.box<Transaction>('transactionsBox');
+                        if (currentBox.length != _lastTransactionCount) {
+                          _loadAllData(forceReload: true);
+                        }
+                      } catch (e) {
+                        // Ignore errors
+                      }
+                    }
+                  });
+                }
+
                 // Use pre-loaded data
                 if (_loadedData == null) {
                   return StatsLoadingScreen(
