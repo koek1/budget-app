@@ -7,6 +7,7 @@ import 'package:budget_app/models/user.dart';
 class BiometricService {
   static final LocalAuthentication _localAuth = LocalAuthentication();
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  static bool _isAuthenticating = false; // Track if biometric auth is in progress
 
   // Check if biometric authentication is available (fingerprint, face, etc.)
   static Future<bool> isAvailable() async {
@@ -91,9 +92,15 @@ class BiometricService {
     }
   }
 
+  // Check if biometric authentication is currently in progress
+  static bool get isAuthenticating => _isAuthenticating;
+
   // Authenticate using fingerprint only
   static Future<bool> authenticate() async {
     try {
+      // Mark that authentication is in progress
+      _isAuthenticating = true;
+      
       // Check if device supports biometrics
       final bool isDeviceSupported = await _localAuth.isDeviceSupported();
       final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
@@ -101,6 +108,7 @@ class BiometricService {
       print('Device supported: $isDeviceSupported, Can check biometrics: $canCheckBiometrics');
       
       if (!isDeviceSupported && !canCheckBiometrics) {
+        _isAuthenticating = false; // Reset flag on error
         throw PlatformException(
           code: 'FINGERPRINT_NOT_AVAILABLE',
           message: 'Fingerprint authentication is not available on this device',
@@ -123,8 +131,10 @@ class BiometricService {
       );
       
       print('Fingerprint authentication result: $didAuthenticate');
+      _isAuthenticating = false; // Reset flag after authentication completes
       return didAuthenticate;
     } on PlatformException catch (e) {
+      _isAuthenticating = false; // Reset flag on error
       print('Fingerprint authentication PlatformException: ${e.code} - ${e.message}');
       
       // Handle specific error codes
@@ -158,6 +168,7 @@ class BiometricService {
         message: e.message ?? 'Fingerprint authentication failed',
       );
     } catch (e) {
+      _isAuthenticating = false; // Reset flag on any error
       print('Fingerprint authentication error: $e');
       if (e is PlatformException) {
         rethrow;
@@ -215,6 +226,8 @@ class BiometricService {
 
   // Perform biometric login
   static Future<User?> loginWithBiometric() async {
+    // Set flag early to prevent app lifecycle from logging out during biometric dialog
+    _isAuthenticating = true;
     try {
       // First authenticate with biometric
       print('Starting fingerprint authentication...');
@@ -252,12 +265,16 @@ class BiometricService {
       }
     } on PlatformException catch (e) {
       print('Platform exception during biometric login: $e');
+      // Ensure flag is reset even if exception occurs
+      _isAuthenticating = false;
       if (e.code == 'FINGERPRINT_NOT_AVAILABLE') {
         throw Exception('Fingerprint authentication is not available. Please set up fingerprint in your device settings.');
       }
       throw Exception('Fingerprint authentication error: ${e.message ?? e.code}');
     } catch (e) {
       print('Biometric login error: $e');
+      // Ensure flag is reset even if exception occurs
+      _isAuthenticating = false;
       final errorMsg = e.toString();
       if (errorMsg.contains('Exception: ')) {
         rethrow; // Re-throw if it's already a formatted exception

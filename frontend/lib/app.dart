@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:lottie/lottie.dart';
 import 'package:budget_app/services/auth_service.dart';
+import 'package:budget_app/services/biometric_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/initial_splash_screen.dart';
 
@@ -98,16 +99,25 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       setState(() {}); // Update UI to show blur overlay
       _wasInactive = false; // Reset inactive flag
     } else if (state == AppLifecycleState.inactive) {
-      // App is temporarily inactive (notification bar, incoming call, app switcher, etc.)
-      // Show blur overlay for privacy and logout immediately for security
-      // When user returns from app switcher, they'll need to login again
-      print('App inactive - showing blur overlay and logging out for privacy');
+      // App is temporarily inactive (notification bar, incoming call, app switcher, biometric dialog, etc.)
+      // IMPORTANT: Don't logout if biometric authentication is in progress (system dialog causes inactive state)
+      // Also, don't logout immediately - wait to see if it's a brief inactive (system dialog) or longer (app switcher)
+      print('App inactive - checking if biometric auth is in progress: ${BiometricService.isAuthenticating}');
       _wasInactive = true;
       _inactiveStartTime = DateTime.now(); // Track when inactive started
       _isAppInBackground = true; // Show blur overlay in app switcher
       _enableScreenshotProtection();
-      // Logout immediately when app goes to inactive for security
-      _logoutOnAppClose();
+      
+      // Only logout immediately if biometric is NOT in progress
+      // If biometric is in progress, the inactive state is just from the system dialog
+      if (!BiometricService.isAuthenticating) {
+        // Don't logout immediately - wait to see duration
+        // Brief inactive states (< 3 seconds) are likely system dialogs
+        // Longer inactive states are likely app switcher or user leaving app
+        print('App inactive (biometric not in progress) - will check duration on resume');
+      } else {
+        print('App inactive but biometric authentication in progress - ignoring inactive state');
+      }
       setState(() {}); // Update UI to show blur overlay
     } else if (state == AppLifecycleState.resumed) {
       // App is active again
@@ -121,12 +131,37 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final wasInactiveOnly = _wasInactive && !wasPausedOrDetached;
 
       if (wasInactiveOnly) {
-        // Coming from inactive (app switcher) - require login for security
+        // Coming from inactive - check if it was a brief inactive (system dialog) or longer (app switcher)
         final inactiveDuration = _inactiveStartTime != null
             ? DateTime.now().difference(_inactiveStartTime!)
             : Duration.zero;
         print(
-            'Resumed from inactive (${inactiveDuration.inMilliseconds}ms) - requiring login');
+            'Resumed from inactive (${inactiveDuration.inMilliseconds}ms) - biometric in progress: ${BiometricService.isAuthenticating}');
+        
+        // If biometric was in progress during inactive, don't logout - it was just the system dialog
+        if (BiometricService.isAuthenticating) {
+          print('Biometric authentication was in progress during inactive - not logging out');
+          _wasInactive = false;
+          _inactiveStartTime = null;
+          _disableScreenshotProtection();
+          setState(() {}); // Update UI to hide blur overlay
+          return; // Don't logout or navigate - let biometric login continue
+        }
+        
+        // If inactive was very brief (< 2 seconds), it's likely a system dialog (permissions, etc.)
+        // Don't logout for brief inactive states
+        if (inactiveDuration.inSeconds < 2) {
+          print('Inactive duration was brief (${inactiveDuration.inMilliseconds}ms) - likely system dialog, not logging out');
+          _wasInactive = false;
+          _inactiveStartTime = null;
+          _disableScreenshotProtection();
+          setState(() {}); // Update UI to hide blur overlay
+          return; // Don't logout for brief inactive states
+        }
+        
+        // Inactive was longer (> 2 seconds) - likely app switcher or user left app
+        // Require login for security
+        print('Inactive duration was ${inactiveDuration.inSeconds}s - requiring login');
         _wasInactive = false;
         _inactiveStartTime = null;
         _disableScreenshotProtection();
