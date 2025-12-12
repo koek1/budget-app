@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:hive/hive.dart';
 
 part 'transaction.g.dart';
@@ -40,6 +41,12 @@ class Transaction {
     @HiveField(11)
     bool isSubscription; // For subscriptions like Gym, Spotify, Netflix, etc.
 
+    @HiveField(12)
+    int? subscriptionPaymentDay; // Day of month (1-31) when subscription is due
+
+    @HiveField(13)
+    String? subscriptionPriceHistory; // JSON string of price history: [{"date": "2024-01-01", "amount": 9.99}]
+
     Transaction({
         required this.id,
         required this.userId,
@@ -53,6 +60,8 @@ class Transaction {
         this.recurringEndDate,
         this.recurringFrequency,
         this.isSubscription = false,
+        this.subscriptionPaymentDay,
+        this.subscriptionPriceHistory,
     });
 
     Map<String, dynamic> toJson() {
@@ -67,6 +76,8 @@ class Transaction {
             'recurringEndDate': recurringEndDate?.toIso8601String(),
             'recurringFrequency': recurringFrequency,
             'isSubscription': isSubscription,
+            'subscriptionPaymentDay': subscriptionPaymentDay,
+            'subscriptionPriceHistory': subscriptionPriceHistory,
         };
     }
 
@@ -86,6 +97,47 @@ class Transaction {
                 : null,
             recurringFrequency: json['recurringFrequency'],
             isSubscription: json['isSubscription'] ?? false,
+            subscriptionPaymentDay: json['subscriptionPaymentDay'] != null 
+                ? (json['subscriptionPaymentDay'] as num).toInt() 
+                : null,
+            subscriptionPriceHistory: json['subscriptionPriceHistory'],
         );
+    }
+
+    // Helper methods for subscription price history
+    List<Map<String, dynamic>> getPriceHistory() {
+        if (subscriptionPriceHistory == null || subscriptionPriceHistory!.isEmpty) {
+            return [];
+        }
+        try {
+            final decoded = jsonDecode(subscriptionPriceHistory!);
+            if (decoded is List) {
+                return List<Map<String, dynamic>>.from(decoded);
+            }
+            return [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    void addPriceChange(DateTime date, double amount) {
+        final history = getPriceHistory();
+        history.add({
+            'date': date.toIso8601String(),
+            'amount': amount,
+        });
+        // Sort by date
+        history.sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
+        subscriptionPriceHistory = jsonEncode(history);
+    }
+
+    double getCurrentPrice() {
+        final history = getPriceHistory();
+        if (history.isEmpty) {
+            return amount; // Use transaction amount as default
+        }
+        // Get the most recent price
+        final latest = history.last;
+        return (latest['amount'] as num).toDouble();
     }
 }

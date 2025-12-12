@@ -10,6 +10,7 @@ class AppConstants {
     'Healthcare',
     'Education',
     'Travel',
+    'Subscriptions',
     'Other'
   ];
 
@@ -31,6 +32,7 @@ class AppConstants {
     'Healthcare': Colors.green,
     'Education': Colors.teal,
     'Travel': Colors.cyan,
+    'Subscriptions': Colors.indigo,
     'Salary': Colors.green,
     'Freelance': Colors.blue,
     'Investment': Colors.amber,

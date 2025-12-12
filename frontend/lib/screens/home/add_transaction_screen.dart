@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,6 +39,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime? _recurringEndDate;
   String? _recurringFrequency;
   bool _isSubscription = false; // For subscriptions like Gym, Spotify, Netflix
+  int? _subscriptionPaymentDay; // Day of month (1-31) when subscription is due
 
   @override
   void initState() {
@@ -59,6 +61,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _recurringEndDate = transaction.recurringEndDate;
       _recurringFrequency = transaction.recurringFrequency ?? 'monthly';
       _isSubscription = transaction.isSubscription;
+      _subscriptionPaymentDay = transaction.subscriptionPaymentDay;
     } else {
       _selectedType = 'expense';
       _selectedDate = DateTime.now();
@@ -175,6 +178,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         throw Exception('Amount is too large. Maximum allowed is 999,999,999');
       }
 
+      // Initialize price history for subscriptions
+      String? priceHistory;
+      if (_isSubscription && _selectedType == 'expense') {
+        // Create initial price history entry
+        final initialPrice = [{
+          'date': _selectedDate.toIso8601String(),
+          'amount': amount,
+        }];
+        priceHistory = jsonEncode(initialPrice);
+      }
+
       final transaction = Transaction(
         id: _isEditing ? widget.transaction!.id : Uuid().v4(),
         userId: _isEditing
@@ -196,6 +210,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ? _recurringFrequency
             : null,
         isSubscription: _selectedType == 'expense' ? _isSubscription : false,
+        subscriptionPaymentDay: _selectedType == 'expense' && _isSubscription
+            ? _subscriptionPaymentDay
+            : null,
+        subscriptionPriceHistory: _selectedType == 'expense' && _isSubscription
+            ? priceHistory
+            : null,
       );
 
       if (_isEditing) {
@@ -685,7 +705,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             );
                           }).toList(),
                           onChanged: (value) {
-                            setState(() => _selectedCategory = value);
+                            setState(() {
+                              _selectedCategory = value;
+                              // Auto-enable subscription mode if Subscriptions category is selected
+                              if (value == 'Subscriptions' && _selectedType == 'expense') {
+                                _isSubscription = true;
+                                _isRecurring = true;
+                                _recurringFrequency = 'monthly';
+                                // Set payment day to the day of the selected date if not set
+                                if (_subscriptionPaymentDay == null) {
+                                  _subscriptionPaymentDay = _selectedDate.day;
+                                }
+                              } else if (value != 'Subscriptions') {
+                                // If switching away from Subscriptions, keep subscription settings but allow user to change
+                              }
+                            });
                           },
                           validator: (value) {
                             if (value == null || value.isEmpty) {
@@ -1079,6 +1113,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     // Clear end date when switching to subscription
                                     if (value) {
                                       _recurringEndDate = null;
+                                      // Set default payment day if not set
+                                      if (_subscriptionPaymentDay == null) {
+                                        _subscriptionPaymentDay = _selectedDate.day;
+                                      }
                                     }
                                   });
                                 },
@@ -1087,6 +1125,54 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             ],
                           ),
                         ),
+                        // Payment day selector for subscriptions
+                        if (_isSubscription) ...[
+                          SizedBox(height: 16),
+                          DropdownButtonFormField<int>(
+                            value: _subscriptionPaymentDay,
+                            decoration: InputDecoration(
+                              labelText: 'Payment Day (Day of Month)',
+                              prefixIcon: Icon(Icons.calendar_today),
+                              helperText: 'Select which day of the month this subscription is charged',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).dividerColor,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: const Color(0xFF14B8A6),
+                                  width: 2,
+                                ),
+                              ),
+                              filled: true,
+                              fillColor: Theme.of(context).brightness == Brightness.dark
+                                  ? Theme.of(context).scaffoldBackgroundColor
+                                  : Colors.white,
+                            ),
+                            items: List.generate(31, (index) {
+                              final day = index + 1;
+                              return DropdownMenuItem(
+                                value: day,
+                                child: Text('Day $day'),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() => _subscriptionPaymentDay = value);
+                            },
+                            validator: (value) {
+                              if (_isSubscription && (value == null)) {
+                                return 'Please select a payment day';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
                       ],
                     ],
                   ),
