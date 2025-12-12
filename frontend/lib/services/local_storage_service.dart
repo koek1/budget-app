@@ -67,6 +67,8 @@ class LocalStorageService {
         recurringEndDate: transaction.recurringEndDate,
         recurringFrequency: transaction.recurringFrequency,
         isSubscription: transaction.isSubscription,
+        subscriptionPaymentDay: transaction.subscriptionPaymentDay,
+        subscriptionPriceHistory: transaction.subscriptionPriceHistory,
       );
       
       // Use add to ensure proper auto-incrementing and listener notifications
@@ -130,6 +132,8 @@ class LocalStorageService {
               recurringEndDate: transaction.recurringEndDate,
               recurringFrequency: transaction.recurringFrequency,
               isSubscription: transaction.isSubscription,
+              subscriptionPaymentDay: transaction.subscriptionPaymentDay,
+              subscriptionPriceHistory: transaction.subscriptionPriceHistory,
             );
             await box.putAt(i, userTransaction);
             return;

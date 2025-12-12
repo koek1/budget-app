@@ -217,6 +217,14 @@ class Helpers {
 
         final now = DateTime.now();
         final nowDate = DateTime(now.year, now.month, now.day);
+        
+        // For subscriptions with payment day, calculate based on payment day
+        if (transaction.isSubscription && 
+            transaction.subscriptionPaymentDay != null && 
+            transaction.recurringFrequency == 'monthly') {
+            return getNextSubscriptionPaymentDate(transaction, nowDate);
+        }
+        
         final startDate = DateTime(transaction.date.year, transaction.date.month, transaction.date.day);
         
         // Start from the transaction date and find the next occurrence
@@ -235,6 +243,36 @@ class Helpers {
         }
 
         return nextDate;
+    }
+
+    // Get next subscription payment date based on payment day
+    static DateTime? getNextSubscriptionPaymentDate(Transaction transaction, DateTime fromDate) {
+        if (!transaction.isSubscription || transaction.subscriptionPaymentDay == null) {
+            return null;
+        }
+
+        final paymentDay = transaction.subscriptionPaymentDay!;
+        
+        // Try this month first
+        try {
+            final thisMonthDate = DateTime(fromDate.year, fromDate.month, paymentDay);
+            if (thisMonthDate.isAfter(fromDate) || thisMonthDate.isAtSameMomentAs(fromDate)) {
+                return thisMonthDate;
+            }
+        } catch (e) {
+            // Day doesn't exist in this month, will try next month
+        }
+
+        // Try next month
+        try {
+            final nextMonth = DateTime(fromDate.year, fromDate.month + 1, paymentDay);
+            return nextMonth;
+        } catch (e) {
+            // If day doesn't exist in next month (e.g., day 31 in Feb),
+            // use the last day of the target month
+            final nextMonthLastDay = DateTime(fromDate.year, fromDate.month + 2, 0);
+            return DateTime(fromDate.year, fromDate.month + 1, nextMonthLastDay.day);
+        }
     }
 
     // Get upcoming recurring debit orders (expenses) within a date range
@@ -333,9 +371,14 @@ class Helpers {
                 nextDate = fromDate.add(Duration(days: 14));
                 break;
             case 'monthly':
+                // For subscriptions, use the payment day if specified
+                int dayToUse = fromDate.day;
+                if (transaction.isSubscription && transaction.subscriptionPaymentDay != null) {
+                    dayToUse = transaction.subscriptionPaymentDay!;
+                }
                 // Handle month edge cases (e.g., Jan 31 -> Feb should use Feb 28/29)
                 try {
-                    nextDate = DateTime(fromDate.year, fromDate.month + 1, fromDate.day);
+                    nextDate = DateTime(fromDate.year, fromDate.month + 1, dayToUse);
                 } catch (e) {
                     // If day doesn't exist in next month (e.g., Jan 31 -> Feb 31),
                     // use the last day of the target month

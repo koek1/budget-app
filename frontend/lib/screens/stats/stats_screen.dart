@@ -5,6 +5,7 @@ import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/utils/constants.dart';
+import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/screens/stats/stats_loading_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -78,6 +79,7 @@ class _StatsScreenState extends State<StatsScreen> {
         _getUpcomingRecurringDebitOrders(),
         _getDebtInfo(),
         _getPendingTransactions(),
+        _getSubscriptionData(),
       ]).timeout(Duration(seconds: 15), onTimeout: () {
         throw Exception('Loading statistics timed out');
       }).then((results) => {
@@ -96,6 +98,7 @@ class _StatsScreenState extends State<StatsScreen> {
             'upcomingRecurringDebitOrders': results[12],
             'debtInfo': results[13],
             'pendingTransactions': results[14],
+            'subscriptionData': results[15],
           });
 
       if (mounted) {
@@ -656,6 +659,43 @@ class _StatsScreenState extends State<StatsScreen> {
     return Helpers.getPendingRecurringTransactions(allTransactions);
   }
 
+  // Get subscription data with monthly/yearly predictions
+  Future<Map<String, dynamic>> _getSubscriptionData() async {
+    final allTransactions = await LocalStorageService.getTransactions();
+    final subscriptions = allTransactions.where((t) => 
+      t.type == 'expense' && 
+      t.isSubscription && 
+      t.isRecurring
+    ).toList();
+
+    double monthlyTotal = 0.0;
+    double yearlyTotal = 0.0;
+    List<Map<String, dynamic>> subscriptionList = [];
+
+    for (var subscription in subscriptions) {
+      final currentPrice = subscription.getCurrentPrice();
+      monthlyTotal += currentPrice;
+      yearlyTotal += currentPrice * 12;
+      
+      final nextPaymentDate = Helpers.getNextRecurringDate(subscription);
+      subscriptionList.add({
+        'transaction': subscription,
+        'currentPrice': currentPrice,
+        'monthlyCost': currentPrice,
+        'yearlyCost': currentPrice * 12,
+        'nextPaymentDate': nextPaymentDate,
+        'paymentDay': subscription.subscriptionPaymentDay,
+      });
+    }
+
+    return {
+      'subscriptions': subscriptionList,
+      'monthlyTotal': monthlyTotal,
+      'yearlyTotal': yearlyTotal,
+      'count': subscriptions.length,
+    };
+  }
+
   // Calculate cash flow analysis
   Future<Map<String, dynamic>> _getCashFlowAnalysis() async {
     final income = await _getTotalIncome();
@@ -1051,6 +1091,13 @@ class _StatsScreenState extends State<StatsScreen> {
                       _buildDebtAnalysis(
                         data['debtInfo'] as Map<String, double>,
                         data['pendingTransactions'] as List<Map<String, dynamic>>,
+                        theme,
+                      ),
+                      SizedBox(height: 20),
+
+                      // Subscriptions Section
+                      _buildSubscriptionsSection(
+                        data['subscriptionData'] as Map<String, dynamic>,
                         theme,
                       ),
                       SizedBox(height: 20),
@@ -2666,5 +2713,364 @@ class _StatsScreenState extends State<StatsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildSubscriptionsSection(
+    Map<String, dynamic> subscriptionData,
+    ThemeData theme,
+  ) {
+    final subscriptions = subscriptionData['subscriptions'] as List<Map<String, dynamic>>;
+    final monthlyTotal = subscriptionData['monthlyTotal'] as double;
+    final yearlyTotal = subscriptionData['yearlyTotal'] as double;
+    final count = subscriptionData['count'] as int;
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (count == 0) {
+      return SizedBox.shrink();
+    }
+
+    return _buildChartCard(
+      theme,
+      'Subscriptions',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Summary Cards
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.indigo.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Monthly Total',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        Helpers.formatCurrency(monthlyTotal),
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.purple.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Yearly Total',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        Helpers.formatCurrency(yearlyTotal),
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          
+          // Subscription List
+          Text(
+            'Active Subscriptions ($count)',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
+          SizedBox(height: 12),
+          
+          ...subscriptions.map((sub) {
+            final transaction = sub['transaction'] as Transaction;
+            final monthlyCost = sub['monthlyCost'] as double;
+            final yearlyCost = sub['yearlyCost'] as double;
+            final nextPaymentDate = sub['nextPaymentDate'] as DateTime?;
+            final paymentDay = sub['paymentDay'] as int?;
+
+            return Container(
+              margin: EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Color(0xFF1E293B) : Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.subscriptions,
+                          color: Colors.indigo[700],
+                          size: 20,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              transaction.description.isNotEmpty 
+                                  ? transaction.description 
+                                  : 'Subscription',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                            if (paymentDay != null)
+                              Text(
+                                'Due on day $paymentDay of each month',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.edit, size: 20),
+                        onPressed: () => _editSubscriptionPrice(context, transaction),
+                        tooltip: 'Edit price',
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Monthly',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              Helpers.formatCurrency(monthlyCost),
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Yearly',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              Helpers.formatCurrency(yearlyCost),
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (nextPaymentDate != null) ...[
+                    SizedBox(height: 12),
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 16, color: Colors.blue[700]),
+                          SizedBox(width: 8),
+                          Text(
+                            'Next payment: ${Helpers.formatDateRelative(nextPaymentDate)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editSubscriptionPrice(BuildContext context, Transaction subscription) async {
+    final priceHistory = subscription.getPriceHistory();
+    final currentPrice = subscription.getCurrentPrice();
+    
+    final amountController = TextEditingController(
+      text: currentPrice.toStringAsFixed(2),
+    );
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Update Subscription Price'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              decoration: InputDecoration(
+                labelText: 'New Monthly Price',
+                prefixText: SettingsService.getCurrencySymbol(),
+              ),
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+            ),
+            if (priceHistory.isNotEmpty) ...[
+              SizedBox(height: 16),
+              Text(
+                'Price History:',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 8),
+              ...priceHistory.map((entry) {
+                final date = DateTime.parse(entry['date']);
+                final amount = (entry['amount'] as num).toDouble();
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        Helpers.formatDateRelative(date),
+                        style: GoogleFonts.inter(fontSize: 12),
+                      ),
+                      Text(
+                        Helpers.formatCurrency(amount),
+                        style: GoogleFonts.inter(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newAmount = double.tryParse(amountController.text);
+              if (newAmount == null || newAmount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Please enter a valid amount')),
+                );
+                return;
+              }
+
+              // Add price change to history
+              subscription.addPriceChange(DateTime.now(), newAmount);
+              
+              // Update transaction amount to current price
+              final updatedTransaction = Transaction(
+                id: subscription.id,
+                userId: subscription.userId,
+                amount: subscription.getCurrentPrice(),
+                type: subscription.type,
+                category: subscription.category,
+                description: subscription.description,
+                date: subscription.date,
+                isSynced: subscription.isSynced,
+                isRecurring: subscription.isRecurring,
+                recurringEndDate: subscription.recurringEndDate,
+                recurringFrequency: subscription.recurringFrequency,
+                isSubscription: subscription.isSubscription,
+                subscriptionPaymentDay: subscription.subscriptionPaymentDay,
+                subscriptionPriceHistory: subscription.subscriptionPriceHistory,
+              );
+
+              await LocalStorageService.updateTransaction(updatedTransaction);
+              Navigator.pop(context, true);
+            },
+            child: Text('Update'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      _loadAllData(forceReload: true);
+      Helpers.showSuccessSnackBar(context, 'Subscription price updated');
+    }
   }
 }

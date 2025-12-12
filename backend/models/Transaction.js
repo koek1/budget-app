@@ -12,6 +12,12 @@ class Transaction {
     this.description = data.description || '';
     this.date = data.date ? new Date(data.date) : new Date();
     this.isSynced = data.isSynced !== undefined ? data.isSynced : true;
+    this.isRecurring = data.isRecurring || false;
+    this.recurringEndDate = data.recurringEndDate ? new Date(data.recurringEndDate) : null;
+    this.recurringFrequency = data.recurringFrequency || null;
+    this.isSubscription = data.isSubscription || false;
+    this.subscriptionPaymentDay = data.subscriptionPaymentDay || null;
+    this.subscriptionPriceHistory = data.subscriptionPriceHistory || null;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
   }
@@ -42,6 +48,12 @@ class Transaction {
         description: this.description,
         date: this.date,
         isSynced: this.isSynced,
+        isRecurring: this.isRecurring,
+        recurringEndDate: this.recurringEndDate,
+        recurringFrequency: this.recurringFrequency,
+        isSubscription: this.isSubscription,
+        subscriptionPaymentDay: this.subscriptionPaymentDay,
+        subscriptionPriceHistory: this.subscriptionPriceHistory,
       };
       const updated = await transactionStorage.update(this._id, updates);
       if (updated) {
@@ -58,6 +70,12 @@ class Transaction {
         description: this.description,
         date: this.date,
         isSynced: this.isSynced,
+        isRecurring: this.isRecurring,
+        recurringEndDate: this.recurringEndDate,
+        recurringFrequency: this.recurringFrequency,
+        isSubscription: this.isSubscription,
+        subscriptionPaymentDay: this.subscriptionPaymentDay,
+        subscriptionPriceHistory: this.subscriptionPriceHistory,
       });
       Object.assign(this, newTransaction);
       return this;
