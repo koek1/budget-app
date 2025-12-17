@@ -55,11 +55,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _navigateToStartingBalance() async {
-    // Navigate to settings screen
+    // Navigate to settings screen with highlight parameter
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const SettingsScreen(),
+        builder: (context) => const SettingsScreen(highlightBudgetSetting: true),
       ),
     ).then((_) {
       // Check again after returning from settings
