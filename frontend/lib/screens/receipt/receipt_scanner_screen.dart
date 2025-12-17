@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:budget_app/services/receipt_scanner_service.dart';
@@ -102,7 +103,7 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
       print('Error processing image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to process receipt: $e')),
+          SnackBar(content: Text('Failed to process document: $e')),
         );
       }
       setState(() {
@@ -175,7 +176,7 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Scan Receipt',
+          'Scan Document',
           style: TextStyle(color: Colors.white),
         ),
         actions: [
@@ -194,7 +195,7 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                   CircularProgressIndicator(color: Color(0xFF14B8A6)),
                   SizedBox(height: 16),
                   Text(
-                    'Processing receipt...',
+                    'Processing document...',
                     style: TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ],
@@ -229,45 +230,47 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
         Positioned.fill(
           child: CameraPreview(_cameraController!),
         ),
-        // Overlay with guide
+        // Fixed overlay with guide frame
         Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
-            ),
+          child: CustomPaint(
+            painter: DocumentGuidePainter(),
             child: Column(
               children: [
-                Expanded(
-                  child: Container(),
-                ),
-                // Receipt guide frame
-                Container(
-                  margin: EdgeInsets.symmetric(horizontal: 40),
-                  height: 300,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Color(0xFF14B8A6),
-                      width: 2,
+                // Top guidance text
+                SafeArea(
+                  child: Container(
+                    margin: EdgeInsets.only(top: 20),
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'Position receipt within frame',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.white, size: 18),
+                        SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Position document within the frame for a clearer picture',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                Expanded(
-                  child: Container(),
-                ),
+                Spacer(),
                 // Capture button
                 Padding(
-                  padding: EdgeInsets.only(bottom: 40),
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).padding.bottom + 120,
+                  ),
                   child: GestureDetector(
                     onTap: _captureImage,
                     child: Container(
@@ -424,38 +427,43 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                   
                   SizedBox(height: 30),
                   
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _retakePhoto,
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(color: Color(0xFF14B8A6)),
-                          ),
-                          child: Text(
-                            'Retake',
-                            style: TextStyle(color: Color(0xFF14B8A6)),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: _scannedData!.confidence > 0.3 ? _useScannedData : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF14B8A6),
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: Text(
-                            'Use This Data',
-                            style: TextStyle(color: Colors.white),
+                  // Action buttons - account for bottom navigation
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).padding.bottom + 20,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _retakePhoto,
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              side: BorderSide(color: Color(0xFF14B8A6)),
+                            ),
+                            child: Text(
+                              'Retake',
+                              style: TextStyle(color: Color(0xFF14B8A6)),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 16),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: _scannedData!.confidence > 0.3 ? _useScannedData : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFF14B8A6),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: Text(
+                              'Use This Data',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -469,7 +477,7 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                   Icon(Icons.error_outline, size: 64, color: Colors.red),
                   SizedBox(height: 16),
                   Text(
-                    'Could not extract receipt data',
+                    'Could not extract document data',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   SizedBox(height: 8),
@@ -544,5 +552,126 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
       ),
     );
   }
+}
+
+/// Custom painter for drawing fixed document guide frame
+class DocumentGuidePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw darkened overlay
+    final overlayPaint = Paint()
+      ..color = Colors.black.withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), overlayPaint);
+
+    // Draw larger rectangular guide frame (more rectangular, not square)
+    final horizontalMargin = size.width * 0.08; // 8% margin on sides
+    final verticalMargin = size.height * 0.15; // 15% margin on top/bottom
+    final guideRect = Rect.fromLTWH(
+      horizontalMargin,
+      verticalMargin,
+      size.width - 2 * horizontalMargin,
+      size.height - 2 * verticalMargin - 200, // Account for capture button area
+    );
+
+    // Create cutout path for the guide area
+    final cutoutPath = Path()
+      ..addRRect(RRect.fromRectAndRadius(guideRect, Radius.circular(12)));
+
+    // Draw the cutout (clear area for document)
+    final fullRect = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final overlayPath = Path.combine(
+      PathOperation.difference,
+      fullRect,
+      cutoutPath,
+    );
+    canvas.drawPath(overlayPath, overlayPaint);
+
+    // Draw guide frame border
+    final borderPaint = Paint()
+      ..color = Color(0xFF14B8A6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(guideRect, Radius.circular(12)),
+      borderPaint,
+    );
+
+    // Draw corner indicators
+    final cornerPaint = Paint()
+      ..color = Color(0xFF14B8A6)
+      ..style = PaintingStyle.fill;
+
+    final cornerLength = 30.0;
+
+    // Top-left corner
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.left, guideRect.top, cornerLength, 4),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.left, guideRect.top, 4, cornerLength),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+
+    // Top-right corner
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.right - cornerLength, guideRect.top, cornerLength, 4),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.right - 4, guideRect.top, 4, cornerLength),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+
+    // Bottom-left corner
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.left, guideRect.bottom - 4, cornerLength, 4),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.left, guideRect.bottom - cornerLength, 4, cornerLength),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+
+    // Bottom-right corner
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.right - cornerLength, guideRect.bottom - 4, cornerLength, 4),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(guideRect.right - 4, guideRect.bottom - cornerLength, 4, cornerLength),
+        Radius.circular(2),
+      ),
+      cornerPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(DocumentGuidePainter oldDelegate) => false;
 }
 
