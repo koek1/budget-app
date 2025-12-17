@@ -8,26 +8,106 @@ import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/screens/auth/login_screen.dart';
 import 'package:budget_app/screens/settings/manage_criteria_screen.dart';
 import 'package:budget_app/utils/helpers.dart';
+import 'dart:math' as math;
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final bool highlightBudgetSetting;
+  
+  const SettingsScreen({super.key, this.highlightBudgetSetting = false});
 
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStateMixin {
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
   bool _isLoading = true;
   String _selectedCurrency = SettingsService.defaultCurrency;
   String _themeMode = SettingsService.defaultThemeMode;
   double _startingBalance = SettingsService.defaultStartingBalance;
+  bool _highlightBudgetSetting = false;
+  final GlobalKey _budgetSettingKey = GlobalKey();
+  late AnimationController _highlightAnimationController;
+  late AnimationController _fadeOutAnimationController;
+  late Animation<double> _highlightAnimation;
+  late Animation<double> _fadeOutAnimation;
 
   @override
   void initState() {
     super.initState();
+    _highlightBudgetSetting = widget.highlightBudgetSetting;
+    
+    // Initialize animation controllers if highlighting is needed
+    if (_highlightBudgetSetting) {
+      _highlightAnimationController = AnimationController(
+        vsync: this,
+        duration: Duration(milliseconds: 1000),
+      );
+      _highlightAnimation = Tween<double>(begin: 0.3, end: 0.8).animate(
+        CurvedAnimation(
+          parent: _highlightAnimationController,
+          curve: Curves.easeInOut,
+        ),
+      );
+      
+      // Fade-out animation controller for smooth transition
+      _fadeOutAnimationController = AnimationController(
+        vsync: this,
+        duration: Duration(milliseconds: 800),
+      );
+      _fadeOutAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+        CurvedAnimation(
+          parent: _fadeOutAnimationController,
+          curve: Curves.easeOut,
+        ),
+      );
+      
+      _highlightAnimationController.repeat(reverse: true);
+    }
+    
     _loadSettings();
+    
+    // If we need to highlight, scroll to the budget setting after a short delay
+    if (_highlightBudgetSetting) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBudgetSetting();
+      });
+      
+      // Start fade-out after 3 seconds, then remove highlight
+      Future.delayed(Duration(seconds: 3), () {
+        if (mounted) {
+          _highlightAnimationController.stop();
+          // Start fade-out animation
+          _fadeOutAnimationController.forward().then((_) {
+            if (mounted) {
+              setState(() {
+                _highlightBudgetSetting = false;
+              });
+            }
+          });
+        }
+      });
+    }
+  }
+  
+  @override
+  void dispose() {
+    if (widget.highlightBudgetSetting) {
+      _highlightAnimationController.dispose();
+      _fadeOutAnimationController.dispose();
+    }
+    super.dispose();
+  }
+  
+  void _scrollToBudgetSetting() {
+    if (_budgetSettingKey.currentContext != null) {
+      Scrollable.ensureVisible(
+        _budgetSettingKey.currentContext!,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -293,6 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (result != null) {
+      final previousBalance = _startingBalance;
       await SettingsService.setStartingBalance(result);
       setState(() {
         _startingBalance = result;
@@ -302,6 +383,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           context,
           'Starting balance updated to ${currencySymbol}${result.toStringAsFixed(2)}',
         );
+        
+        // If balance was changed from default (0.0) and we came from notification, navigate back
+        if (widget.highlightBudgetSetting && previousBalance == 0.0 && result != 0.0) {
+          // Wait a moment for the snackbar to show, then navigate back
+          Future.delayed(Duration(milliseconds: 500), () {
+            if (mounted) {
+              Navigator.pop(context);
+            }
+          });
+        }
       }
     }
   }
@@ -695,14 +786,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                         ),
-                        _buildSettingsCard(
-                          child: _buildSettingsItem(
-                            icon: Icons.account_balance_wallet_rounded,
-                            title: 'Starting Balance',
-                            subtitle: '${SettingsService.getCurrencySymbol()}${_startingBalance.toStringAsFixed(2)}',
-                            onTap: _editStartingBalance,
-                            iconColor: Color(0xFF14B8A6),
-                          ),
+                        Container(
+                          key: _budgetSettingKey,
+                          child: _highlightBudgetSetting
+                              ? AnimatedBuilder(
+                                  animation: Listenable.merge([_highlightAnimation, _fadeOutAnimation]),
+                                  builder: (context, child) {
+                                    // Combine pulsing and fade-out animations
+                                    final pulseValue = _highlightAnimation.value;
+                                    final fadeValue = _fadeOutAnimation.value;
+                                    final combinedOpacity = pulseValue * fadeValue;
+                                    
+                                    return Container(
+                                      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      padding: EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(27),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Color(0xFF14B8A6).withOpacity(combinedOpacity),
+                                            Color(0xFF14B8A6).withOpacity(combinedOpacity * 0.5),
+                                          ],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Color(0xFF14B8A6).withOpacity(combinedOpacity * 0.8),
+                                            blurRadius: 25 * fadeValue,
+                                            spreadRadius: 3 * fadeValue,
+                                          ),
+                                        ],
+                                      ),
+                                      child: _buildSettingsCard(
+                                        child: _buildSettingsItem(
+                                          icon: Icons.account_balance_wallet_rounded,
+                                          title: 'Starting Balance',
+                                          subtitle: '${SettingsService.getCurrencySymbol()}${_startingBalance.toStringAsFixed(2)}',
+                                          onTap: _editStartingBalance,
+                                          iconColor: Color(0xFF14B8A6),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : _buildSettingsCard(
+                                  child: _buildSettingsItem(
+                                    icon: Icons.account_balance_wallet_rounded,
+                                    title: 'Starting Balance',
+                                    subtitle: '${SettingsService.getCurrencySymbol()}${_startingBalance.toStringAsFixed(2)}',
+                                    onTap: _editStartingBalance,
+                                    iconColor: Color(0xFF14B8A6),
+                                  ),
+                                ),
                         ),
 
                         // Security Section
