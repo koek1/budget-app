@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Plain splash screen - adapts to system theme (light/dark) -->
+<!-- Splash screen with logo - adapts to system theme (light/dark) -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background color that adapts to system theme -->
     <item android:drawable="?android:colorBackground" />
+    <!-- Logo centered with transparent background -->
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/splash_logo" />
+    </item>
 </layer-list>

@@ -30,38 +30,42 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
   static const int _minAnimationCycles = 1;
   Completer<void>? _animationCompleter;
   bool _animationLoaded = false;
+  bool _hasReachedEnd = false;
 
   @override
   void initState() {
     super.initState();
-    // Create animation controller
-    // Animation is 121 frames at 30fps = ~4.03 seconds
+    // Create animation controller with a default duration
+    // The actual duration will be updated when the animation loads
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4033),
+      duration: const Duration(milliseconds: 4000), // Default, will be updated
     );
 
     // Create completer early so it's ready when needed
     _animationCompleter = Completer<void>();
 
-    // Listen for animation completion - track cycles
-    _animationController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _animationCycleCount++;
-        print('Animation cycle completed: $_animationCycleCount');
+    // Track animation cycles using a listener
+    // When using repeat(), we need to detect cycle completion by watching the value
+    _animationController.addListener(() {
+      final value = _animationController.value;
+      
+      // Detect when animation reaches the end (value >= 0.99)
+      if (value >= 0.99 && !_hasReachedEnd) {
+        _hasReachedEnd = true;
+        _animationCycleCount = 1;
+        print('Animation completed first cycle');
         
-        // If we've completed minimum cycles, complete the completer
-        if (_animationCycleCount >= _minAnimationCycles) {
-          if (_animationCompleter != null && !_animationCompleter!.isCompleted) {
-            print('Animation completed $_minAnimationCycles cycles, marking as ready');
-            _animationCompleter!.complete();
-            // Stop looping after minimum cycles - just keep showing the last frame
-            return;
-          }
+        // Mark that minimum cycles are complete
+        if (_animationCompleter != null && !_animationCompleter!.isCompleted) {
+          print('Animation completed minimum cycles, marking as ready');
+          _animationCompleter!.complete();
         }
-        
-        // Continue looping the animation until we reach minimum cycles
-        _animationController.repeat();
+      }
+      
+      // Reset flag when animation loops back to start (value < 0.1 after reaching end)
+      if (value < 0.1 && _hasReachedEnd) {
+        _hasReachedEnd = false; // Reset for next cycle detection
       }
     });
 
@@ -370,10 +374,10 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
       _animationCompleter = Completer<void>();
     }
 
-    // Ensure animation is playing
-    if (!_animationController.isAnimating && !_animationController.isCompleted) {
+    // Ensure animation is playing (should already be repeating, but check anyway)
+    if (!_animationController.isAnimating) {
       print('Animation not playing, starting it...');
-      _animationController.forward();
+      _animationController.repeat();
     }
 
     // Wait for animation to complete minimum cycles
@@ -624,7 +628,7 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
           width: 300,
           height: 300,
           fit: BoxFit.contain,
-          repeat: false, // We'll control repetition manually
+          repeat: true, // Let Lottie handle repeating for smooth playback
           frameRate: FrameRate(30),
           onLoaded: (composition) {
             // Animation loaded successfully - start playing immediately
@@ -635,10 +639,9 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
               });
               // Update controller duration to match actual animation duration
               _animationController.duration = composition.duration;
-              // Reset to beginning and start the animation immediately
-              _animationController.reset();
-              _animationController.forward();
-              print('Animation started, will complete ${composition.duration.inMilliseconds}ms cycles');
+              // Start the animation immediately - it will loop continuously
+              _animationController.repeat();
+              print('Animation started, duration: ${composition.duration.inMilliseconds}ms, will loop continuously');
             }
           },
         ),

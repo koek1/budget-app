@@ -8,10 +8,10 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowIsTranslucent">false</item>
         <item name="android:windowIsFloating">false</item>
-        <!-- Android 12+ SplashScreen API - plain dark background -->
+        <!-- Android 12+ SplashScreen API - transparent icon background -->
         <!-- Note: Android 12+ may still show app icon, but we minimize it -->
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#00000000</item>
         <!-- Set icon size to minimum to make it less visible -->
         <item name="android:windowSplashScreenBrandingImage">@null</item>
     </style>
