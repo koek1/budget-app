@@ -9,12 +9,14 @@ import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/screens/receipt/receipt_scanner_screen.dart';
+import 'package:budget_app/screens/receipt/batch_receipt_scanner_screen.dart';
 import 'package:budget_app/services/receipt_scanner_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final Transaction? transaction;
+  final ReceiptData? prefillData;
 
-  const AddTransactionScreen({super.key, this.transaction});
+  const AddTransactionScreen({super.key, this.transaction, this.prefillData});
 
   @override
   _AddTransactionScreenState createState() => _AddTransactionScreenState();
@@ -62,12 +64,39 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _recurringFrequency = transaction.recurringFrequency ?? 'monthly';
       _isSubscription = transaction.isSubscription;
       _subscriptionPaymentDay = transaction.subscriptionPaymentDay;
+    } else if (widget.prefillData != null) {
+      // Prefill from receipt scan
+      final receiptData = widget.prefillData!;
+      if (receiptData.amount != null) {
+        _amountController.text = receiptData.amount!.toStringAsFixed(2);
+      }
+      if (receiptData.date != null) {
+        _selectedDate = receiptData.date!;
+      } else {
+        _selectedDate = DateTime.now();
+      }
+      if (receiptData.merchantName != null && receiptData.merchantName!.isNotEmpty) {
+        _descriptionController.text = receiptData.merchantName!;
+      } else if (receiptData.description != null && receiptData.description!.isNotEmpty) {
+        _descriptionController.text = receiptData.description!;
+      }
+      _selectedType = 'expense';
+      _recurringFrequency = 'monthly';
     } else {
       _selectedType = 'expense';
       _selectedDate = DateTime.now();
       _recurringFrequency = 'monthly';
     }
-    _loadCategories();
+    _loadCategories().then((_) {
+      // Set suggested category after categories are loaded
+      if (widget.prefillData?.suggestedCategory != null && !_isEditing) {
+        if (_availableCategories.contains(widget.prefillData!.suggestedCategory)) {
+          setState(() {
+            _selectedCategory = widget.prefillData!.suggestedCategory;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _loadCategories() async {
@@ -268,7 +297,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         // Small delay to show success message before navigating
         await Future.delayed(Duration(milliseconds: 300));
         if (mounted) {
-          Navigator.pop(context, true);
+          // Return the transaction if called from batch scanner, otherwise return true
+          Navigator.pop(context, widget.prefillData != null ? transaction : true);
         }
       }
     } catch (e) {
@@ -544,23 +574,118 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               SizedBox(height: 20),
 
-              // Scan Receipt Button
+              // Scan Receipt Buttons
               if (!_isEditing)
-                Container(
-                  margin: EdgeInsets.only(bottom: 20),
-                  child: ElevatedButton.icon(
-                    onPressed: _scanReceipt,
-                    icon: Icon(Icons.camera_alt),
-                    label: Text('Scan Receipt'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF14B8A6),
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                Builder(
+                  builder: (context) {
+                    final theme = Theme.of(context);
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark
+                            ? Color(0xFF1E293B)
+                            : Colors.grey[50],
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.dividerColor.withOpacity(0.5),
+                        ),
                       ),
-                    ),
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.camera_alt,
+                                color: Color(0xFF14B8A6),
+                                size: 20,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Scan Receipt',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.textTheme.bodyLarge?.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _scanReceipt,
+                              icon: Icon(Icons.camera_alt, size: 20),
+                              label: Text('Single'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFF14B8A6),
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => BatchReceiptScannerScreen(),
+                                  ),
+                                );
+                                if (result != null && mounted) {
+                                  Navigator.pop(context, true);
+                                }
+                              },
+                              icon: Icon(Icons.folder, size: 20),
+                              label: Text('Batch'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Color(0xFF14B8A6),
+                                side: BorderSide(color: Color(0xFF14B8A6), width: 2),
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Single: One receipt • Batch: Multiple receipts together',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
+                );
+                  },
                 ),
 
               // Amount

@@ -7,11 +7,13 @@ import '../../models/user.dart';
 import '../../models/transaction.dart';
 import '../../models/custom_criteria.dart';
 import '../../models/budget.dart';
+import '../../models/receipt_batch.dart';
 import '../../services/settings_service.dart';
 import '../../services/custom_criteria_service.dart';
 import '../../services/budget_service.dart';
 import '../../services/budget_notification_service.dart';
 import '../../services/recurring_debit_notification_service.dart';
+import '../../services/receipt_batch_service.dart';
 import 'login_screen.dart';
 
 class InitialSplashScreen extends StatefulWidget {
@@ -104,6 +106,11 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         Hive.registerAdapter(BudgetAdapter());
       } catch (e) {
         print('BudgetAdapter already registered or error: $e');
+      }
+      try {
+        Hive.registerAdapter(ReceiptBatchAdapter());
+      } catch (e) {
+        print('ReceiptBatchAdapter already registered or error: $e');
       }
 
       // Check if this is a fresh install by checking for app version marker
@@ -219,6 +226,13 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         }
       }
 
+      // Open receipt batches box
+      try {
+        await Hive.openBox<ReceiptBatch>('receiptBatchesBox');
+      } catch (e) {
+        print('Error opening receipt batches box: $e');
+      }
+
       // Settings box already opened above
       // Ensure custom criteria box is open
       if (!Hive.isBoxOpen('customCriteriaBox')) {
@@ -272,6 +286,9 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         
         // Initialize recurring debit notification service
         RecurringDebitNotificationService.init(),
+        
+        // Initialize receipt batch service
+        ReceiptBatchService.init(),
       ]);
 
       // Schedule notifications for recurring debits (non-blocking)
