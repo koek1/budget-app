@@ -539,6 +539,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                           },
                           tooltip: 'View Receipt Batches',
                         ),
+                        SizedBox(width: 8),
                         Padding(
                           padding: EdgeInsets.only(right: 16),
                           child: GestureDetector(

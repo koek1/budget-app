@@ -687,7 +687,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     _startingBalance = SettingsService.getStartingBalance();
 
                     return ListView(
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      padding: EdgeInsets.only(top: 16, bottom: 24, left: 0, right: 0),
                       children: [
                         // Appearance Section
                         Padding(
