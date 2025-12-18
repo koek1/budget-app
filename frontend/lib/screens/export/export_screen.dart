@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:budget_app/widgets/date_range_picker.dart';
 import 'package:budget_app/services/export_service.dart';
 import 'package:budget_app/utils/helpers.dart';
@@ -103,136 +104,351 @@ class _ExportScreenState extends State<ExportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Export Report'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          'Export Report',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+          ),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+      body: SafeArea(
         child: Column(
           children: [
-            // Date Range Picker
-            DateRangePicker(
-              startDate: _startDate,
-              endDate: _endDate,
-              onStartDateChanged: (date) => _onDateRangeChanged(date, _endDate),
-              onEndDateChanged: (date) => _onDateRangeChanged(_startDate, date),
-            ),
-            SizedBox(height: 24),
-
-            // Report Type Selection
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Report Type',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date Range Picker Card
+                    Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: isDark ? Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Color(0xFF14B8A6).withOpacity(0.3),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
                       ),
-                ),
-                SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedReportType,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  items: _reportTypes.map((type) {
-                    return DropdownMenuItem(
-                      value: type['value'],
-                      child: Text(type['label']!),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() => _selectedReportType = value!);
-                    _loadSummary();
-                  },
-                ),
-              ],
-            ),
-            SizedBox(height: 24),
-
-            // Summary Preview
-            if (_isLoading)
-              Center(child: CircularProgressIndicator())
-            else if (_summary != null)
-              _buildSummaryCard(),
-            SizedBox(height: 24),
-
-            // Export Button
-            _isGenerating
-                ? Center(child: CircularProgressIndicator())
-                : SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: _exportToExcel,
-                      icon: Icon(Icons.file_download),
-                      label: Text('Export to Excel'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
+                      child: DateRangePicker(
+                        startDate: _startDate,
+                        endDate: _endDate,
+                        onStartDateChanged: (date) => _onDateRangeChanged(date, _endDate),
+                        onEndDateChanged: (date) => _onDateRangeChanged(_startDate, date),
                       ),
                     ),
+                    SizedBox(height: 16),
+
+                    // Report Type Selection Card
+                    Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: isDark ? Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Color(0xFF14B8A6).withOpacity(0.3),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF14B8A6).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.filter_list_rounded,
+                                  color: Color(0xFF14B8A6),
+                                  size: 20,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                'Report Type',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: theme.textTheme.bodyLarge?.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? theme.scaffoldBackgroundColor
+                                  : Colors.grey[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Color(0xFF14B8A6).withOpacity(0.3),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedReportType,
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              dropdownColor: isDark ? Color(0xFF1E293B) : Colors.white,
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                color: theme.textTheme.bodyLarge?.color,
+                              ),
+                              items: _reportTypes.map((type) {
+                                return DropdownMenuItem(
+                                  value: type['value'],
+                                  child: Text(type['label']!),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedReportType = value!);
+                                _loadSummary();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+
+                    // Summary Preview
+                    if (_isLoading)
+                      Container(
+                        padding: EdgeInsets.all(40),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF14B8A6)),
+                          ),
+                        ),
+                      )
+                    else if (_summary != null)
+                      _buildSummaryCard(theme, isDark),
+                  ],
+                ),
+              ),
+            ),
+
+            // Export Button (Fixed at bottom with SafeArea)
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, -2),
                   ),
+                ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: _isGenerating
+                    ? Container(
+                        height: 56,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF14B8A6)),
+                          ),
+                        ),
+                      )
+                    : SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: _exportToExcel,
+                          icon: Icon(Icons.file_download_rounded, size: 24),
+                          label: Text(
+                            'Export to Excel',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF14B8A6),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard(ThemeData theme, bool isDark) {
     final summary = _summary!;
     final totalIncome = (summary['totalIncome'] as num).toDouble();
     final totalExpenses = (summary['totalExpenses'] as num).toDouble();
     final netTotal = (summary['netTotal'] as num).toDouble();
     final totalTransactions = summary['totalTransactions'] as int;
 
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Report Summary',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            SizedBox(height: 16),
-            _buildSummaryRow(
-                'Total Transactions', totalTransactions.toString()),
-            _buildSummaryRow(
-                'Total Income', Helpers.formatCurrency(totalIncome)),
-            _buildSummaryRow(
-                'Total Expenses', Helpers.formatCurrency(totalExpenses)),
-            Divider(),
-            _buildSummaryRow(
-              'Net Total',
-              Helpers.formatCurrency(netTotal),
-              isBold: true,
-              color: netTotal >= 0 ? Colors.green : Colors.red,
-            ),
-            SizedBox(height: 16),
-
-            // Daily Income Preview (if income report)
-            if (_selectedReportType != 'expense' &&
-                summary['dailyIncome'] != null)
-              _buildDailyIncomePreview(summary['dailyIncome']),
-
-            SizedBox(height: 16),
-
-            // Export Insights
-            _buildExportInsights(
-              totalIncome,
-              totalExpenses,
-              netTotal,
-              totalTransactions,
-            ),
-          ],
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Color(0xFF14B8A6).withOpacity(0.3),
+          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Color(0xFF14B8A6).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.summarize_rounded,
+                  color: Color(0xFF14B8A6),
+                  size: 20,
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Report Summary',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          _buildSummaryRow(
+            theme,
+            'Total Transactions',
+            totalTransactions.toString(),
+          ),
+          SizedBox(height: 12),
+          _buildSummaryRow(
+            theme,
+            'Total Income',
+            Helpers.formatCurrency(totalIncome),
+            valueColor: Colors.green,
+          ),
+          SizedBox(height: 12),
+          _buildSummaryRow(
+            theme,
+            'Total Expenses',
+            Helpers.formatCurrency(totalExpenses),
+            valueColor: Colors.red,
+          ),
+          SizedBox(height: 16),
+          Divider(
+            color: theme.dividerColor.withOpacity(0.3),
+          ),
+          SizedBox(height: 16),
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: (netTotal >= 0 ? Colors.green : Colors.red)
+                  .withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: (netTotal >= 0 ? Colors.green : Colors.red)
+                    .withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Net Total',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                ),
+                Text(
+                  Helpers.formatCurrency(netTotal),
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: netTotal >= 0 ? Colors.green : Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20),
+
+          // Daily Income Preview (if income report)
+          if (_selectedReportType != 'expense' &&
+              summary['dailyIncome'] != null)
+            _buildDailyIncomePreview(theme, isDark, summary['dailyIncome']),
+
+          if (_selectedReportType != 'expense' &&
+              summary['dailyIncome'] != null)
+            SizedBox(height: 20),
+
+          // Export Insights
+          _buildExportInsights(
+            theme,
+            isDark,
+            totalIncome,
+            totalExpenses,
+            netTotal,
+            totalTransactions,
+          ),
+        ],
       ),
     );
   }
@@ -314,12 +530,13 @@ class _ExportScreenState extends State<ExportScreen> {
   }
 
   Widget _buildExportInsights(
+    ThemeData theme,
+    bool isDark,
     double totalIncome,
     double totalExpenses,
     double netTotal,
     int totalTransactions,
   ) {
-    final theme = Theme.of(context);
     final insights = _getExportInsights(
       totalIncome,
       totalExpenses,
@@ -336,21 +553,30 @@ class _ExportScreenState extends State<ExportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Divider(),
+        Divider(
+          color: theme.dividerColor.withOpacity(0.3),
+        ),
         SizedBox(height: 16),
         Row(
           children: [
-            Icon(
-              Icons.insights_rounded,
-              color: insightColor,
-              size: 20,
+            Container(
+              padding: EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: insightColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.insights_rounded,
+                color: insightColor,
+                size: 18,
+              ),
             ),
             SizedBox(width: 8),
             Text(
               'Export Insights',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
                 color: theme.textTheme.bodyLarge?.color,
               ),
             ),
@@ -380,7 +606,7 @@ class _ExportScreenState extends State<ExportScreen> {
                   SizedBox(width: 8),
                   Text(
                     'Analysis',
-                    style: TextStyle(
+                    style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: theme.textTheme.bodyLarge?.color,
@@ -391,7 +617,7 @@ class _ExportScreenState extends State<ExportScreen> {
               SizedBox(height: 12),
               Text(
                 insights['analysis'] as String,
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 14,
                   color: theme.textTheme.bodyMedium?.color,
                   height: 1.5,
@@ -425,7 +651,7 @@ class _ExportScreenState extends State<ExportScreen> {
                     SizedBox(width: 8),
                     Text(
                       'Recommendation',
-                      style: TextStyle(
+                      style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: theme.textTheme.bodyLarge?.color,
@@ -436,7 +662,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 SizedBox(height: 12),
                 Text(
                   insights['recommendation'] as String,
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 14,
                     color: theme.textTheme.bodyMedium?.color,
                     height: 1.5,
@@ -450,62 +676,108 @@ class _ExportScreenState extends State<ExportScreen> {
     );
   }
 
-  Widget _buildSummaryRow(String label, String value,
-      {bool isBold = false, Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-            ),
+  Widget _buildSummaryRow(
+    ThemeData theme,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: color,
-            ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? theme.textTheme.bodyLarge?.color,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildDailyIncomePreview(List<dynamic> dailyIncome) {
+  Widget _buildDailyIncomePreview(
+      ThemeData theme, bool isDark, List<dynamic> dailyIncome) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Daily Income:',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        SizedBox(height: 8),
-        ...dailyIncome.take(5).map((daily) {
-          final date = DateTime.parse(daily['date']);
-          final amount = (daily['amount'] as num).toDouble();
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(DateFormat('MMM dd').format(date)),
-                Text(
-                  Helpers.formatCurrency(amount),
-                  style: TextStyle(color: Colors.green),
-                ),
-              ],
+        Row(
+          children: [
+            Icon(
+              Icons.trending_up_rounded,
+              color: Colors.green,
+              size: 18,
             ),
-          );
-        }).toList(),
-        if (dailyIncome.length > 5)
-          Text(
-            '... and ${dailyIncome.length - 5} more days',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            SizedBox(width: 8),
+            Text(
+              'Daily Income Preview',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 12),
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark ? theme.scaffoldBackgroundColor : Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
           ),
+          child: Column(
+            children: [
+              ...dailyIncome.take(5).map((daily) {
+                final date = DateTime.parse(daily['date']);
+                final amount = (daily['amount'] as num).toDouble();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        DateFormat('MMM dd, yyyy').format(date),
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                      ),
+                      Text(
+                        Helpers.formatCurrency(amount),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              if (dailyIncome.length > 5)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    '... and ${dailyIncome.length - 5} more days',
+                    style: GoogleFonts.inter(
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }

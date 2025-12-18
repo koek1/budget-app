@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:budget_app/services/receipt_scanner_service.dart';
 import 'package:budget_app/services/receipt_batch_service.dart';
+import 'package:budget_app/services/permission_service.dart';
 import 'package:budget_app/models/receipt_batch.dart';
 import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/screens/home/add_transaction_screen.dart';
@@ -55,8 +56,13 @@ class _BatchReceiptScannerScreenState extends State<BatchReceiptScannerScreen> {
 
   Future<void> _initializeCamera() async {
     try {
+      // Mark that we're requesting camera permission
+      // This prevents the app from logging out when the permission dialog appears
+      PermissionService.startPermissionRequest();
+      
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) {
+        PermissionService.endPermissionRequest();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('No cameras available')),
@@ -71,13 +77,20 @@ class _BatchReceiptScannerScreenState extends State<BatchReceiptScannerScreen> {
         enableAudio: false,
       );
 
+      // Camera initialization may trigger permission dialog
       await _cameraController!.initialize();
+      
+      // Permission request completed (either granted or denied)
+      PermissionService.endPermissionRequest();
+      
       if (mounted) {
         setState(() {
           _isInitialized = true;
         });
       }
     } catch (e) {
+      // Make sure to end permission request even if there's an error
+      PermissionService.endPermissionRequest();
       print('Error initializing camera: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -227,6 +240,8 @@ class _BatchReceiptScannerScreenState extends State<BatchReceiptScannerScreen> {
 
   @override
   void dispose() {
+    // Make sure to end permission request when screen is disposed
+    PermissionService.endPermissionRequest();
     _cameraController?.dispose();
     super.dispose();
   }

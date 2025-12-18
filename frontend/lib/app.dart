@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:lottie/lottie.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/services/biometric_service.dart';
+import 'package:budget_app/services/permission_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/initial_splash_screen.dart';
 
@@ -99,24 +100,30 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       setState(() {}); // Update UI to show blur overlay
       _wasInactive = false; // Reset inactive flag
     } else if (state == AppLifecycleState.inactive) {
-      // App is temporarily inactive (notification bar, incoming call, app switcher, biometric dialog, etc.)
-      // IMPORTANT: Don't logout if biometric authentication is in progress (system dialog causes inactive state)
+      // App is temporarily inactive (notification bar, incoming call, app switcher, biometric dialog, permission dialog, etc.)
+      // IMPORTANT: Don't logout if biometric authentication or permission requests are in progress (system dialogs cause inactive state)
       // Also, don't logout immediately - wait to see if it's a brief inactive (system dialog) or longer (app switcher)
       print('App inactive - checking if biometric auth is in progress: ${BiometricService.isAuthenticating}');
+      print('App inactive - checking if permission request is in progress: ${PermissionService.isRequestingPermission}');
       _wasInactive = true;
       _inactiveStartTime = DateTime.now(); // Track when inactive started
       _isAppInBackground = true; // Show blur overlay in app switcher
       _enableScreenshotProtection();
       
-      // Only logout immediately if biometric is NOT in progress
-      // If biometric is in progress, the inactive state is just from the system dialog
-      if (!BiometricService.isAuthenticating) {
+      // Only logout immediately if biometric and permission requests are NOT in progress
+      // If either is in progress, the inactive state is just from the system dialog
+      if (!BiometricService.isAuthenticating && !PermissionService.isRequestingPermission) {
         // Don't logout immediately - wait to see duration
         // Brief inactive states (< 3 seconds) are likely system dialogs
         // Longer inactive states are likely app switcher or user leaving app
-        print('App inactive (biometric not in progress) - will check duration on resume');
+        print('App inactive (biometric and permission not in progress) - will check duration on resume');
       } else {
-        print('App inactive but biometric authentication in progress - ignoring inactive state');
+        if (BiometricService.isAuthenticating) {
+          print('App inactive but biometric authentication in progress - ignoring inactive state');
+        }
+        if (PermissionService.isRequestingPermission) {
+          print('App inactive but permission request in progress - ignoring inactive state');
+        }
       }
       setState(() {}); // Update UI to show blur overlay
     } else if (state == AppLifecycleState.resumed) {
@@ -136,9 +143,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             ? DateTime.now().difference(_inactiveStartTime!)
             : Duration.zero;
         print(
-            'Resumed from inactive (${inactiveDuration.inMilliseconds}ms) - biometric in progress: ${BiometricService.isAuthenticating}');
+            'Resumed from inactive (${inactiveDuration.inMilliseconds}ms) - biometric in progress: ${BiometricService.isAuthenticating}, permission in progress: ${PermissionService.isRequestingPermission}');
         
-        // If biometric was in progress during inactive, don't logout - it was just the system dialog
+        // If biometric or permission request was in progress during inactive, don't logout - it was just the system dialog
         if (BiometricService.isAuthenticating) {
           print('Biometric authentication was in progress during inactive - not logging out');
           _wasInactive = false;
@@ -148,9 +155,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           return; // Don't logout or navigate - let biometric login continue
         }
         
-        // If inactive was very brief (< 2 seconds), it's likely a system dialog (permissions, etc.)
+        if (PermissionService.isRequestingPermission) {
+          print('Permission request was in progress during inactive - not logging out');
+          _wasInactive = false;
+          _inactiveStartTime = null;
+          _disableScreenshotProtection();
+          setState(() {}); // Update UI to hide blur overlay
+          return; // Don't logout or navigate - permission dialog was shown
+        }
+        
+        // If inactive was very brief (< 5 seconds), it's likely a system dialog (permissions, etc.)
+        // Increased timeout to 5 seconds to account for users taking time to respond to permission dialogs
         // Don't logout for brief inactive states
-        if (inactiveDuration.inSeconds < 2) {
+        if (inactiveDuration.inSeconds < 5) {
           print('Inactive duration was brief (${inactiveDuration.inMilliseconds}ms) - likely system dialog, not logging out');
           _wasInactive = false;
           _inactiveStartTime = null;
