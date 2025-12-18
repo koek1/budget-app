@@ -107,7 +107,7 @@ class _ExportScreenState extends State<ExportScreen> {
       appBar: AppBar(
         title: Text('Export Report'),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
