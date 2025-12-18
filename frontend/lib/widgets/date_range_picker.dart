@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class DateRangePicker extends StatefulWidget {
   final DateTime? startDate;
@@ -58,14 +59,36 @@ class _DateRangePickerState extends State<DateRangePicker> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Select Date Range',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Color(0xFF14B8A6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.calendar_today_rounded,
+                color: Color(0xFF14B8A6),
+                size: 20,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Select Date Range',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
+            ),
+          ],
         ),
         SizedBox(height: 16),
         Row(
@@ -74,21 +97,45 @@ class _DateRangePickerState extends State<DateRangePicker> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('From', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'From',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    ),
+                  ),
                   SizedBox(height: 8),
                   InkWell(
                     onTap: _selectStartDate,
+                    borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: EdgeInsets.all(12),
+                      padding: EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
+                        color: isDark
+                            ? theme.scaffoldBackgroundColor
+                            : Colors.grey[50],
+                        border: Border.all(
+                          color: Color(0xFF14B8A6).withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.calendar_today, size: 20),
-                          SizedBox(width: 8),
-                          Text(DateFormat('MMM dd, yyyy').format(_startDate)),
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 18,
+                            color: Color(0xFF14B8A6),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            DateFormat('MMM dd, yyyy').format(_startDate),
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -101,21 +148,45 @@ class _DateRangePickerState extends State<DateRangePicker> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('To', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'To',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    ),
+                  ),
                   SizedBox(height: 8),
                   InkWell(
                     onTap: _selectEndDate,
+                    borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: EdgeInsets.all(12),
+                      padding: EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
+                        color: isDark
+                            ? theme.scaffoldBackgroundColor
+                            : Colors.grey[50],
+                        border: Border.all(
+                          color: Color(0xFF14B8A6).withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.calendar_today, size: 20),
-                          SizedBox(width: 8),
-                          Text(DateFormat('MMM dd, yyyy').format(_endDate)),
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 18,
+                            color: Color(0xFF14B8A6),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            DateFormat('MMM dd, yyyy').format(_endDate),
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
                         ],
                       ),
                     ),

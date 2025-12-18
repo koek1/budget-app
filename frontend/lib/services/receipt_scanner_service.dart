@@ -2,6 +2,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:budget_app/services/settings_service.dart';
+import 'package:budget_app/services/permission_service.dart';
 
 class ReceiptData {
   final double? amount;
@@ -28,13 +29,23 @@ class ReceiptScannerService {
   /// Scan receipt from camera
   static Future<XFile?> captureReceipt() async {
     try {
+      // Mark that we're requesting camera permission
+      // This prevents the app from logging out when the permission dialog appears
+      PermissionService.startPermissionRequest();
+      
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.camera,
         imageQuality: 90,
         preferredCameraDevice: CameraDevice.rear,
       );
+      
+      // Permission request completed (either granted or denied)
+      PermissionService.endPermissionRequest();
+      
       return image;
     } catch (e) {
+      // Make sure to end permission request even if there's an error
+      PermissionService.endPermissionRequest();
       print('Error capturing image: $e');
       return null;
     }
