@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Plain splash screen - no logo, just background color -->
+<!-- Splash screen with logo on transparent background -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background color -->
     <item android:drawable="@android:color/white" />
+    <!-- Logo centered with transparent background -->
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/splash_logo" />
+    </item>
 </layer-list>

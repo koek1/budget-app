@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#00000000</color>
+    <!-- Dark mode background color: #0F172A (full opacity) - for launcher icon -->
+    <color name="ic_launcher_background">#FF0F172A</color>
+    <!-- Transparent color for splash screen icon -->
+    <color name="splash_icon_background">#00000000</color>
 </resources>
