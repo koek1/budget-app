@@ -6,6 +6,7 @@ import 'package:budget_app/screens/home/add_transaction_screen.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 import 'package:budget_app/screens/settings/settings_screen.dart';
+import 'package:budget_app/screens/receipt/batches_list_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
@@ -526,6 +527,18 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                         ),
                       ),
                       actions: [
+                        IconButton(
+                          icon: Icon(Icons.folder),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const BatchesListScreen(),
+                              ),
+                            );
+                          },
+                          tooltip: 'View Receipt Batches',
+                        ),
                         Padding(
                           padding: EdgeInsets.only(right: 16),
                           child: GestureDetector(
@@ -571,6 +584,63 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                           ),
                         ),
                       ],
+                      bottom: PreferredSize(
+                        preferredSize: Size.fromHeight(60),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: theme.brightness == Brightness.dark
+                                  ? Color(0xFF1E293B)
+                                  : Colors.grey[200],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: TabBar(
+                              controller: _tabController,
+                              indicator: BoxDecoration(
+                                color: Color(0xFF14B8A6),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              indicatorSize: TabBarIndicatorSize.tab,
+                              dividerColor: Colors.transparent,
+                              labelColor: Colors.white,
+                              unselectedLabelColor: theme.brightness == Brightness.dark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[700],
+                              labelStyle: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                              unselectedLabelStyle: GoogleFonts.inter(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 15,
+                              ),
+                              tabs: [
+                                Tab(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.arrow_downward, size: 18),
+                                      SizedBox(width: 6),
+                                      Text('Spendings'),
+                                    ],
+                                  ),
+                                ),
+                                Tab(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.arrow_upward, size: 18),
+                                      SizedBox(width: 6),
+                                      Text('Income'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
 
                     // Balance Card with Graph
@@ -807,27 +877,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                    ),
-
-                    // Tabs
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
-                        child: TabBar(
-                          controller: _tabController,
-                          indicatorColor: Color(0xFF2563EB),
-                          labelColor: Color(0xFF2563EB),
-                          unselectedLabelColor: Colors.grey,
-                          labelStyle: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
-                          tabs: [
-                            Tab(text: 'Spendings'),
-                            Tab(text: 'Income'),
-                          ],
                         ),
                       ),
                     ),

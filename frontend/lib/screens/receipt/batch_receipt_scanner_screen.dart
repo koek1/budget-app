@@ -1,19 +1,23 @@
 import 'dart:io';
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:budget_app/services/receipt_scanner_service.dart';
+import 'package:budget_app/services/receipt_batch_service.dart';
+import 'package:budget_app/models/receipt_batch.dart';
+import 'package:budget_app/models/transaction.dart';
+import 'package:budget_app/screens/home/add_transaction_screen.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/widgets/resizable_document_guide.dart';
+import 'package:intl/intl.dart';
 
-class ReceiptScannerScreen extends StatefulWidget {
-  const ReceiptScannerScreen({super.key});
+class BatchReceiptScannerScreen extends StatefulWidget {
+  const BatchReceiptScannerScreen({super.key});
 
   @override
-  State<ReceiptScannerScreen> createState() => _ReceiptScannerScreenState();
+  State<BatchReceiptScannerScreen> createState() => _BatchReceiptScannerScreenState();
 }
 
-class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
+class _BatchReceiptScannerScreenState extends State<BatchReceiptScannerScreen> {
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
@@ -21,11 +25,32 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
   bool _showPreview = false;
   String? _capturedImagePath;
   ReceiptData? _scannedData;
+  ReceiptBatch? _currentBatch;
+  int _scannedCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _createBatch();
     _initializeCamera();
+  }
+
+  Future<void> _createBatch() async {
+    try {
+      final batchName = 'Batch - ${DateFormat('MMM dd, yyyy HH:mm').format(DateTime.now())}';
+      final batch = await ReceiptBatchService.createBatch(batchName);
+      setState(() {
+        _currentBatch = batch;
+      });
+    } catch (e) {
+      print('Error creating batch: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create batch: $e')),
+        );
+        Navigator.pop(context);
+      }
+    }
   }
 
   Future<void> _initializeCamera() async {
@@ -78,7 +103,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
         _showPreview = true;
       });
 
-      // Process the image
       await _processImage(image.path);
     } catch (e) {
       print('Error capturing image: $e');
@@ -113,34 +137,48 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
     }
   }
 
-  Future<void> _pickFromGallery() async {
-    try {
-      setState(() {
-        _isProcessing = true;
-      });
+  Future<void> _editAndSave() async {
+    if (_scannedData == null || _currentBatch == null) return;
 
-      final image = await ReceiptScannerService.pickReceiptFromGallery();
-      if (image != null) {
+    // Navigate to edit screen with scanned data pre-filled
+    final result = await Navigator.push<Transaction?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddTransactionScreen(
+          prefillData: _scannedData,
+        ),
+      ),
+    );
+
+    if (result != null && _currentBatch != null) {
+      // Save transaction to batch
+      try {
+        await ReceiptBatchService.addTransactionToBatch(_currentBatch!.id, result);
         setState(() {
-          _capturedImagePath = image.path;
-          _showPreview = true;
+          _scannedCount++;
         });
-        await _processImage(image.path);
-      } else {
-        setState(() {
-          _isProcessing = false;
-        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Transaction added to batch'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+
+        // Reset for next scan
+        _retakePhoto();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to save transaction: $e')),
+          );
+        }
       }
-    } catch (e) {
-      print('Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to pick image: $e')),
-        );
-      }
-      setState(() {
-        _isProcessing = false;
-      });
+    } else {
+      // User cancelled, just reset
+      _retakePhoto();
     }
   }
 
@@ -152,9 +190,38 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
     });
   }
 
-  void _useScannedData() {
-    if (_scannedData != null) {
-      Navigator.pop(context, _scannedData);
+  Future<void> _finishBatch() async {
+    if (_currentBatch == null) {
+      Navigator.pop(context);
+      return;
+    }
+
+    // Show confirmation
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Finish Batch?'),
+        content: Text(
+          'You have scanned $_scannedCount receipt(s). All transactions have been saved to the batch.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Continue Scanning'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF14B8A6),
+            ),
+            child: Text('Finish'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      Navigator.pop(context, _currentBatch);
     }
   }
 
@@ -174,18 +241,31 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
         backgroundColor: Colors.black,
         leading: IconButton(
           icon: Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => _finishBatch(),
         ),
-        title: Text(
-          'Scan Document',
-          style: TextStyle(color: Colors.white),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Batch Receipt Scan',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            if (_currentBatch != null)
+              Text(
+                '${_scannedCount} receipt(s) • Tap Finish when done',
+                style: TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+          ],
         ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.photo_library, color: Colors.white),
-            onPressed: _isProcessing ? null : _pickFromGallery,
-            tooltip: 'Pick from Gallery',
-          ),
+          if (_scannedCount > 0)
+            TextButton(
+              onPressed: _finishBatch,
+              child: Text(
+                'Finish',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
         ],
       ),
       body: _isProcessing
@@ -227,18 +307,15 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
 
     return Stack(
       children: [
-        // Camera preview
         Positioned.fill(
           child: CameraPreview(_cameraController!),
         ),
-        // Resizable overlay with guide frame
         Positioned.fill(
           child: Stack(
             children: [
               ResizableDocumentGuide(),
               Column(
                 children: [
-                  // Top guidance text
                   SafeArea(
                     child: Container(
                       margin: EdgeInsets.only(top: 20),
@@ -314,7 +391,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Image preview
           Container(
             width: double.infinity,
             height: 400,
@@ -326,8 +402,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                   )
                 : SizedBox(),
           ),
-          
-          // Scanned data
           if (_scannedData != null) ...[
             Container(
               color: theme.scaffoldBackgroundColor,
@@ -335,7 +409,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Confidence indicator
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
@@ -379,8 +452,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                     ),
                   ),
                   SizedBox(height: 20),
-                  
-                  // Amount
                   if (_scannedData!.amount != null)
                     _buildDataRow(
                       theme,
@@ -389,8 +460,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                       Icons.attach_money,
                       Colors.green,
                     ),
-                  
-                  // Date
                   if (_scannedData!.date != null)
                     _buildDataRow(
                       theme,
@@ -399,8 +468,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                       Icons.calendar_today,
                       Colors.blue,
                     ),
-                  
-                  // Merchant
                   if (_scannedData!.merchantName != null)
                     _buildDataRow(
                       theme,
@@ -409,8 +476,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                       Icons.store,
                       Colors.purple,
                     ),
-                  
-                  // Category suggestion
                   if (_scannedData!.suggestedCategory != null)
                     _buildDataRow(
                       theme,
@@ -419,8 +484,6 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                       Icons.category,
                       Color(0xFF14B8A6),
                     ),
-                  
-                  // Description
                   if (_scannedData!.description != null)
                     _buildDataRow(
                       theme,
@@ -429,10 +492,7 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                       Icons.description,
                       Colors.orange,
                     ),
-                  
                   SizedBox(height: 30),
-                  
-                  // Action buttons - account for bottom navigation
                   Padding(
                     padding: EdgeInsets.only(
                       bottom: MediaQuery.of(context).padding.bottom + 20,
@@ -456,13 +516,13 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                         Expanded(
                           flex: 2,
                           child: ElevatedButton(
-                            onPressed: _scannedData!.confidence > 0.3 ? _useScannedData : null,
+                            onPressed: _editAndSave,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Color(0xFF14B8A6),
                               padding: EdgeInsets.symmetric(vertical: 16),
                             ),
                             child: Text(
-                              'Use This Data',
+                              'Edit & Add to Batch',
                               style: TextStyle(color: Colors.white),
                             ),
                           ),

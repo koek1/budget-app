@@ -1,6 +1,7 @@
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:budget_app/services/settings_service.dart';
 
 class ReceiptData {
   final double? amount;
@@ -111,19 +112,39 @@ class ReceiptScannerService {
 
   /// Extract amount from text
   static double? _extractAmount(String text, List<String> lines) {
-    // Common currency patterns
+    // Get user's preferred currency symbol from settings
+    final userCurrency = SettingsService.getCurrencySymbol();
+    // Escape special regex characters (especially $)
+    final escapedCurrency = RegExp.escape(userCurrency);
+    
+    // All available currency symbols for fallback patterns
+    final allCurrencies = ['\$', 'R', '£', '€'];
+    final allCurrenciesEscaped = allCurrencies.map((c) => RegExp.escape(c)).join('');
+    
+    // Build patterns prioritizing user's currency
     final currencyPatterns = [
-      RegExp(r'[\$R]\s*(\d+[.,]\d{2})'), // $123.45 or R123.45
-      RegExp(r'(\d+[.,]\d{2})\s*[\$R]'), // 123.45$ or 123.45R
-      RegExp(r'TOTAL[:\s]*[\$R]?\s*(\d+[.,]\d{2})', caseSensitive: false),
-      RegExp(r'AMOUNT[:\s]*[\$R]?\s*(\d+[.,]\d{2})', caseSensitive: false),
-      RegExp(r'DUE[:\s]*[\$R]?\s*(\d+[.,]\d{2})', caseSensitive: false),
-      RegExp(r'PAID[:\s]*[\$R]?\s*(\d+[.,]\d{2})', caseSensitive: false),
+      // Priority 1: User's currency symbol before amount
+      RegExp('$escapedCurrency\\s*(\\d+[.,]\\d{2})'),
+      // Priority 2: Amount followed by user's currency symbol
+      RegExp('(\\d+[.,]\\d{2})\\s*$escapedCurrency'),
+      // Priority 3: TOTAL/AMOUNT/DUE/PAID with user's currency
+      RegExp('TOTAL[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      RegExp('AMOUNT[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      RegExp('DUE[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      RegExp('PAID[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      // Fallback: Any currency symbol (in case OCR misreads)
+      RegExp('[$allCurrenciesEscaped]\\s*(\\d+[.,]\\d{2})'),
+      RegExp('(\\d+[.,]\\d{2})\\s*[$allCurrenciesEscaped]'),
+      RegExp('TOTAL[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      RegExp('AMOUNT[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      RegExp('DUE[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      RegExp('PAID[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
+      // Final fallback: Large numbers with thousands separator (no currency symbol)
       RegExp(
-          r'(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})'), // Large numbers with thousands separator
+          r'(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})'),
     ];
 
-    // Try patterns in order
+    // Try patterns in order (user's currency patterns first)
     for (final pattern in currencyPatterns) {
       final match = pattern.firstMatch(text);
       if (match != null) {
