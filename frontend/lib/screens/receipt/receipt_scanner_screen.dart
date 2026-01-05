@@ -6,9 +6,13 @@ import 'package:budget_app/services/receipt_scanner_service.dart';
 import 'package:budget_app/services/permission_service.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/widgets/resizable_document_guide.dart';
+import 'package:budget_app/screens/home/add_transaction_screen.dart';
+import 'package:budget_app/models/transaction.dart';
 
 class ReceiptScannerScreen extends StatefulWidget {
-  const ReceiptScannerScreen({super.key});
+  final bool allowDirectReturn; // If true, allows returning ReceiptData directly (for AddTransactionScreen)
+  
+  const ReceiptScannerScreen({super.key, this.allowDirectReturn = false});
 
   @override
   State<ReceiptScannerScreen> createState() => _ReceiptScannerScreenState();
@@ -165,8 +169,29 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
     });
   }
 
+  Future<void> _editAndSave() async {
+    if (_scannedData == null) return;
+
+    // Navigate to edit screen with scanned data pre-filled
+    final result = await Navigator.push<Transaction?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddTransactionScreen(
+          prefillData: _scannedData,
+        ),
+      ),
+    );
+
+    // If transaction was saved, return it to the caller
+    if (result != null && mounted) {
+      Navigator.pop(context, result);
+    }
+    // If user cancelled, stay on this screen so they can retake or try again
+  }
+
   void _useScannedData() {
     if (_scannedData != null) {
+      // Return ReceiptData directly (for when called from AddTransactionScreen)
       Navigator.pop(context, _scannedData);
     }
   }
@@ -452,36 +477,55 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
                     padding: EdgeInsets.only(
                       bottom: MediaQuery.of(context).padding.bottom + 20,
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _retakePhoto,
-                            style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              side: BorderSide(color: Color(0xFF14B8A6)),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _retakePhoto,
+                                style: OutlinedButton.styleFrom(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  side: BorderSide(color: Color(0xFF14B8A6)),
+                                ),
+                                child: Text(
+                                  'Retake',
+                                  style: TextStyle(color: Color(0xFF14B8A6)),
+                                ),
+                              ),
                             ),
-                            child: Text(
-                              'Retake',
-                              style: TextStyle(color: Color(0xFF14B8A6)),
+                            SizedBox(width: 16),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed: _scannedData!.confidence > 0.3 ? _editAndSave : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color(0xFF14B8A6),
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                ),
+                                child: Text(
+                                  'Edit & Save',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
+                        // Show "Use This Data" button if called from AddTransactionScreen
+                        if (widget.allowDirectReturn) ...[
+                          SizedBox(height: 12),
+                          OutlinedButton(
                             onPressed: _scannedData!.confidence > 0.3 ? _useScannedData : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF14B8A6),
-                              padding: EdgeInsets.symmetric(vertical: 16),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              side: BorderSide(color: Colors.grey),
                             ),
                             child: Text(
-                              'Use This Data',
-                              style: TextStyle(color: Colors.white),
+                              'Use This Data (Fill Form)',
+                              style: TextStyle(color: Colors.grey[700]),
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),

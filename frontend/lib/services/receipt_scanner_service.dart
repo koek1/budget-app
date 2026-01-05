@@ -132,45 +132,131 @@ class ReceiptScannerService {
     final allCurrencies = ['\$', 'R', '£', '€'];
     final allCurrenciesEscaped = allCurrencies.map((c) => RegExp.escape(c)).join('');
     
-    // Build patterns prioritizing user's currency
-    final currencyPatterns = [
-      // Priority 1: User's currency symbol before amount
-      RegExp('$escapedCurrency\\s*(\\d+[.,]\\d{2})'),
-      // Priority 2: Amount followed by user's currency symbol
-      RegExp('(\\d+[.,]\\d{2})\\s*$escapedCurrency'),
-      // Priority 3: TOTAL/AMOUNT/DUE/PAID with user's currency
-      RegExp('TOTAL[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      RegExp('AMOUNT[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      RegExp('DUE[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      RegExp('PAID[:\\s]*$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      // Fallback: Any currency symbol (in case OCR misreads)
-      RegExp('[$allCurrenciesEscaped]\\s*(\\d+[.,]\\d{2})'),
-      RegExp('(\\d+[.,]\\d{2})\\s*[$allCurrenciesEscaped]'),
-      RegExp('TOTAL[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      RegExp('AMOUNT[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      RegExp('DUE[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      RegExp('PAID[:\\s]*[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false),
-      // Final fallback: Large numbers with thousands separator (no currency symbol)
-      RegExp(
-          r'(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})'),
-    ];
-
-    // Try patterns in order (user's currency patterns first)
-    for (final pattern in currencyPatterns) {
-      final match = pattern.firstMatch(text);
-      if (match != null) {
+    // Strategy 1: Look for TOTAL/AMOUNT/DUE/PAID keywords (highest priority)
+    // These are the most reliable indicators of the total amount
+    final totalKeywords = ['TOTAL', 'AMOUNT', 'DUE', 'PAID', 'BALANCE', 'OWING', 'CHARGE'];
+    final totalPatterns = <RegExp>[];
+    
+    for (final keyword in totalKeywords) {
+      // User's currency patterns first
+      totalPatterns.add(RegExp('$keyword[:\\s]+$escapedCurrency?\\s*(\\d+[.,]\\d{2})', caseSensitive: false));
+      totalPatterns.add(RegExp('$keyword[:\\s]+(\\d+[.,]\\d{2})\\s*$escapedCurrency', caseSensitive: false));
+      // Fallback to any currency
+      totalPatterns.add(RegExp('$keyword[:\\s]+[$allCurrenciesEscaped]?\\s*(\\d+[.,]\\d{2})', caseSensitive: false));
+      totalPatterns.add(RegExp('$keyword[:\\s]+(\\d+[.,]\\d{2})\\s*[$allCurrenciesEscaped]', caseSensitive: false));
+    }
+    
+    // Try to find total keywords first (check all matches, not just first)
+    for (final pattern in totalPatterns) {
+      final matches = pattern.allMatches(text);
+      for (final match in matches) {
         final amountStr = match.group(1)?.replaceAll(',', '') ??
             match.group(0)?.replaceAll(RegExp(r'[^\d.]'), '');
         if (amountStr != null) {
           final amount = double.tryParse(amountStr);
           if (amount != null && amount > 0 && amount < 1000000) {
-            return amount;
+            return amount; // Return first valid total found
           }
         }
       }
     }
-
-    // Fallback: look for largest number that looks like an amount
+    
+    // Strategy 2: Look at the bottom of the receipt (last 5-10 lines)
+    // Totals are usually at the bottom
+    final bottomLines = lines.length > 10 
+        ? lines.sublist(lines.length - 10) 
+        : lines;
+    final bottomText = bottomLines.join('\n');
+    
+    // Check bottom lines for amounts with currency symbols
+    final bottomPatterns = [
+      RegExp('$escapedCurrency\\s*(\\d+[.,]\\d{2})'),
+      RegExp('(\\d+[.,]\\d{2})\\s*$escapedCurrency'),
+      RegExp('[$allCurrenciesEscaped]\\s*(\\d+[.,]\\d{2})'),
+      RegExp('(\\d+[.,]\\d{2})\\s*[$allCurrenciesEscaped]'),
+    ];
+    
+    // Collect all amounts from bottom lines
+    final bottomAmounts = <double>[];
+    for (final pattern in bottomPatterns) {
+      final matches = pattern.allMatches(bottomText);
+      for (final match in matches) {
+        final amountStr = match.group(1)?.replaceAll(',', '') ??
+            match.group(0)?.replaceAll(RegExp(r'[^\d.]'), '');
+        if (amountStr != null) {
+          final amount = double.tryParse(amountStr);
+          if (amount != null && amount > 0 && amount < 1000000) {
+            bottomAmounts.add(amount);
+          }
+        }
+      }
+    }
+    
+    // If we found amounts in bottom lines, return the largest one
+    // (usually the total is the largest amount at the bottom)
+    if (bottomAmounts.isNotEmpty) {
+      bottomAmounts.sort((a, b) => b.compareTo(a));
+      return bottomAmounts.first;
+    }
+    
+    // Strategy 3: Look for amounts with currency symbols anywhere in text
+    // But prioritize those that appear after common receipt keywords
+    final contextKeywords = ['SUBTOTAL', 'TAX', 'VAT', 'DISCOUNT', 'TOTAL', 'AMOUNT'];
+    final contextPatterns = [
+      RegExp('$escapedCurrency\\s*(\\d+[.,]\\d{2})'),
+      RegExp('(\\d+[.,]\\d{2})\\s*$escapedCurrency'),
+      RegExp('[$allCurrenciesEscaped]\\s*(\\d+[.,]\\d{2})'),
+      RegExp('(\\d+[.,]\\d{2})\\s*[$allCurrenciesEscaped]'),
+    ];
+    
+    // Find all amounts with currency symbols
+    final allAmounts = <MapEntry<double, int>>[]; // amount and its position in text
+    for (final pattern in contextPatterns) {
+      final matches = pattern.allMatches(text);
+      for (final match in matches) {
+        final amountStr = match.group(1)?.replaceAll(',', '') ??
+            match.group(0)?.replaceAll(RegExp(r'[^\d.]'), '');
+        if (amountStr != null) {
+          final amount = double.tryParse(amountStr);
+          if (amount != null && amount > 0 && amount < 1000000) {
+            // Check if this amount appears near a context keyword
+            final matchStart = match.start;
+            final contextWindow = text.substring(
+              matchStart > 50 ? matchStart - 50 : 0,
+              matchStart + match.end - matchStart + 50 < text.length 
+                  ? matchStart + match.end - matchStart + 50 
+                  : text.length
+            ).toUpperCase();
+            
+            bool nearKeyword = false;
+            for (final keyword in contextKeywords) {
+              if (contextWindow.contains(keyword)) {
+                nearKeyword = true;
+                break;
+              }
+            }
+            
+            allAmounts.add(MapEntry(amount, nearKeyword ? 1 : 0)); // 1 = near keyword, 0 = not
+          }
+        }
+      }
+    }
+    
+    // Prioritize amounts near keywords, then by size
+    if (allAmounts.isNotEmpty) {
+      allAmounts.sort((a, b) {
+        // First sort by whether near keyword (1 > 0)
+        if (a.value != b.value) {
+          return b.value.compareTo(a.value);
+        }
+        // Then by amount size (larger is better)
+        return b.key.compareTo(a.key);
+      });
+      return allAmounts.first.key;
+    }
+    
+    // Strategy 4: Final fallback - look for largest number that looks like an amount
+    // This is the last resort
     final numberPattern = RegExp(r'\d+[.,]\d{2}');
     final matches = numberPattern.allMatches(text);
     double? maxAmount;
