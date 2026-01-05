@@ -348,7 +348,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       final receiptData = await Navigator.push<ReceiptData>(
         context,
         MaterialPageRoute(
-          builder: (context) => ReceiptScannerScreen(),
+          builder: (context) => ReceiptScannerScreen(
+            allowDirectReturn: true, // Allow returning ReceiptData to fill form
+          ),
         ),
       );
 
