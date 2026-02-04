@@ -13,7 +13,19 @@ import 'package:intl/intl.dart';
 class TransactionsScreen extends StatefulWidget {
   final VoidCallback? onMenuTap;
 
-  const TransactionsScreen({super.key, this.onMenuTap});
+  /// If non-null, the transactions screen will open with this tab selected:
+  /// 0 = Spendings (expenses), 1 = Income. Used when navigating from stats pie chart.
+  final int? initialTabIndex;
+
+  /// When false, the leading hamburger is not shown (parent shows an overlay menu instead).
+  final bool showLeading;
+
+  const TransactionsScreen({
+    super.key,
+    this.onMenuTap,
+    this.initialTabIndex,
+    this.showLeading = true,
+  });
 
   @override
   _TransactionsScreenState createState() => _TransactionsScreenState();
@@ -28,7 +40,12 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    final initialIndex = widget.initialTabIndex != null
+        ? widget.initialTabIndex!.clamp(0, 1)
+        : 0;
+    _tabController =
+        TabController(length: 2, vsync: this, initialIndex: initialIndex);
+    _selectedTab = initialIndex == 0 ? 'Spendings' : 'Income';
     _tabController.addListener(() {
       setState(() {
         _selectedTab = _tabController.index == 0 ? 'Spendings' : 'Income';
@@ -114,16 +131,16 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     // Process each day's transactions together to calculate cumulative totals
     for (var day in sortedDays) {
       final dayTransactions = transactionsByDay[day]!;
-      
+
       // Calculate total for this day (sum of all transactions on this day)
       double dayTotal = 0;
       for (var transaction in dayTransactions) {
         dayTotal += transaction.amount;
       }
-      
+
       // Update running total
       runningTotal += dayTotal;
-      
+
       // Update cumulative total for this day and all subsequent days
       for (int d = day; d <= daysInMonth; d++) {
         dailyTotals[d] = runningTotal;
@@ -317,11 +334,167 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     }
   }
 
+  PreferredSizeWidget _buildAppBar(ThemeData theme) {
+    return AppBar(
+      backgroundColor:
+          theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
+      elevation: 0,
+      leadingWidth: widget.showLeading ? 56 : 0,
+      leading: widget.showLeading
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: widget.onMenuTap ?? () {},
+                  borderRadius: BorderRadius.circular(24),
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: Icon(
+                        Icons.menu,
+                        color: theme.iconTheme.color,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
+      centerTitle: true,
+      title: Text(
+        'Transactions',
+        style: TextStyle(
+          color: theme.textTheme.titleLarge?.color ?? Colors.black,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.folder),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BatchesListScreen(),
+              ),
+            );
+          },
+          tooltip: 'View Receipt Batches',
+        ),
+        SizedBox(width: 8),
+        Padding(
+          padding: EdgeInsets.only(right: 16),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Color(0xFF2563EB).withOpacity(0.1),
+                  child: Icon(
+                    Icons.person,
+                    color: Color(0xFF2563EB),
+                    size: 20,
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: Color(0xFF2563EB),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+      bottom: PreferredSize(
+        preferredSize: Size.fromHeight(60),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.brightness == Brightness.dark
+                  ? Color(0xFF1E293B)
+                  : Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Color(0xFF14B8A6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: Colors.white,
+              unselectedLabelColor: theme.brightness == Brightness.dark
+                  ? Colors.grey[400]
+                  : Colors.grey[700],
+              labelStyle: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+              unselectedLabelStyle: GoogleFonts.inter(
+                fontWeight: FontWeight.w500,
+                fontSize: 15,
+              ),
+              tabs: [
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.arrow_downward, size: 18),
+                      SizedBox(width: 6),
+                      Text('Spendings'),
+                    ],
+                  ),
+                ),
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.arrow_upward, size: 18),
+                      SizedBox(width: 6),
+                      Text('Income'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: _buildAppBar(theme),
       body: SafeArea(
         child: ValueListenableBuilder<Box<Transaction>>(
           valueListenable: Hive.box<Transaction>(
@@ -500,150 +673,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
                 return CustomScrollView(
                   slivers: [
-                    // Header
-                    SliverAppBar(
-                      backgroundColor: theme.appBarTheme.backgroundColor ??
-                          theme.scaffoldBackgroundColor,
-                      elevation: 0,
-                      leading: Padding(
-                        padding: EdgeInsets.only(left: 16),
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.menu,
-                            color: theme.iconTheme.color,
-                            size: 24,
-                          ),
-                          onPressed: widget.onMenuTap,
-                        ),
-                      ),
-                      centerTitle: true,
-                      title: Text(
-                        'Transactions',
-                        style: TextStyle(
-                          color:
-                              theme.textTheme.titleLarge?.color ?? Colors.black,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      actions: [
-                        IconButton(
-                          icon: Icon(Icons.folder),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const BatchesListScreen(),
-                              ),
-                            );
-                          },
-                          tooltip: 'View Receipt Batches',
-                        ),
-                        SizedBox(width: 8),
-                        Padding(
-                          padding: EdgeInsets.only(right: 16),
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SettingsScreen(),
-                                ),
-                              );
-                            },
-                            child: Stack(
-                              children: [
-                                CircleAvatar(
-                                  radius: 18,
-                                  backgroundColor: Color(
-                                    0xFF2563EB,
-                                  ).withOpacity(0.1),
-                                  child: Icon(
-                                    Icons.person,
-                                    color: Color(0xFF2563EB),
-                                    size: 20,
-                                  ),
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFF2563EB),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                      bottom: PreferredSize(
-                        preferredSize: Size.fromHeight(60),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme.brightness == Brightness.dark
-                                  ? Color(0xFF1E293B)
-                                  : Colors.grey[200],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: TabBar(
-                              controller: _tabController,
-                              indicator: BoxDecoration(
-                                color: Color(0xFF14B8A6),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              indicatorSize: TabBarIndicatorSize.tab,
-                              dividerColor: Colors.transparent,
-                              labelColor: Colors.white,
-                              unselectedLabelColor: theme.brightness == Brightness.dark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[700],
-                              labelStyle: GoogleFonts.inter(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
-                              ),
-                              unselectedLabelStyle: GoogleFonts.inter(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 15,
-                              ),
-                              tabs: [
-                                Tab(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.arrow_downward, size: 18),
-                                      SizedBox(width: 6),
-                                      Text('Spendings'),
-                                    ],
-                                  ),
-                                ),
-                                Tab(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.arrow_upward, size: 18),
-                                      SizedBox(width: 6),
-                                      Text('Income'),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
                     // Balance Card with Graph
                     SliverToBoxAdapter(
                       child: Padding(
@@ -651,15 +680,16 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                         child: Container(
                           padding: EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: _selectedTab == 'Income' 
+                            color: _selectedTab == 'Income'
                                 ? Color(0xFF10B981) // Green for income
                                 : Color(0xFFEF4444), // Red for expenses
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: (_selectedTab == 'Income' 
-                                    ? Color(0xFF10B981) 
-                                    : Color(0xFFEF4444)).withOpacity(0.3),
+                                color: (_selectedTab == 'Income'
+                                        ? Color(0xFF10B981)
+                                        : Color(0xFFEF4444))
+                                    .withOpacity(0.3),
                                 blurRadius: 15,
                                 offset: Offset(0, 5),
                               ),
@@ -798,9 +828,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                               graphValue,
                                             );
                                             // Use different color for tooltip based on tab
-                                            final tooltipColor = _selectedTab == 'Income' 
-                                                ? Color(0xFF10B981) 
-                                                : Color(0xFFEF4444);
+                                            final tooltipColor =
+                                                _selectedTab == 'Income'
+                                                    ? Color(0xFF10B981)
+                                                    : Color(0xFFEF4444);
                                             return LineTooltipItem(
                                               '$amountStr\n$day $monthName',
                                               TextStyle(
@@ -842,9 +873,10 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                                                 radius: 4,
                                                 color: Colors.white,
                                                 strokeWidth: 2,
-                                                strokeColor: _selectedTab == 'Income' 
-                                                    ? Color(0xFF10B981) 
-                                                    : Color(0xFFEF4444),
+                                                strokeColor:
+                                                    _selectedTab == 'Income'
+                                                        ? Color(0xFF10B981)
+                                                        : Color(0xFFEF4444),
                                               );
                                             }
                                             return FlDotCirclePainter(
@@ -894,16 +926,12 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                         ),
                       ),
 
-                    // Transaction List
-                    SliverFillRemaining(
-                      hasScrollBody: true,
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildTransactionList(spendings, pendingExpenses),
-                          _buildTransactionList(income, []),
-                        ],
-                      ),
+                    // Single scroll for entire page: list for current tab (no separate body scroll)
+                    ..._buildTransactionSlivers(
+                      theme,
+                      spendings,
+                      income,
+                      pendingExpenses,
                     ),
                   ],
                 );
@@ -1186,14 +1214,102 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     );
   }
 
-  Widget _buildTransactionList(
+  /// Builds the transaction list as slivers for the current tab (empty state or SliverList).
+  /// Used so the entire page is one CustomScrollView and one scroll gesture.
+  List<Widget> _buildTransactionSlivers(
+    ThemeData theme,
+    List<Transaction> spendings,
+    List<Transaction> income,
+    List<Map<String, dynamic>> pendingExpenses,
+  ) {
+    final currentListItems = _selectedTab == 'Spendings'
+        ? _getCurrentTabListItems(spendings, pendingExpenses)
+        : _getCurrentTabListItems(income, []);
+
+    if (currentListItems.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 40),
+                Icon(Icons.receipt_long, size: 80, color: Colors.grey[300]),
+                SizedBox(height: 16),
+                Text(
+                  'No ${_selectedTab.toLowerCase()} for ${DateFormat('MMMM yyyy').format(_selectedMonth)}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Try selecting a different month or add a transaction',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddTransactionScreen(),
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.add),
+                  label: Text('Add Transaction'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF14B8A6),
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: EdgeInsets.all(20),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final item = currentListItems[index];
+              final transaction = item['transaction'] as Transaction;
+              final isPending = item['isPending'] as bool;
+              final dueDate = item['dueDate'] as DateTime;
+              return _ModernTransactionCard(
+                transaction: transaction,
+                isPending: isPending,
+                dueDate: isPending ? dueDate : null,
+                onEdit: isPending ? null : () => _editTransaction(transaction),
+                onDelete:
+                    isPending ? null : () => _deleteTransaction(transaction),
+              );
+            },
+            childCount: currentListItems.length,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// Returns combined and sorted list items for the given transactions and pending list.
+  /// Used by both the single-scroll sliver list and the empty-state check.
+  List<Map<String, dynamic>> _getCurrentTabListItems(
     List<Transaction> transactions,
     List<Map<String, dynamic>> pendingTransactions,
   ) {
-    // Combine actual transactions with pending ones
     final allItems = <Map<String, dynamic>>[];
-
-    // Add actual transactions
     for (var transaction in transactions) {
       allItems.add({
         'transaction': transaction,
@@ -1201,8 +1317,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         'dueDate': transaction.date,
       });
     }
-
-    // Add pending transactions
     for (var pending in pendingTransactions) {
       allItems.add({
         'transaction': pending['transaction'] as Transaction,
@@ -1210,81 +1324,12 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         'dueDate': pending['dueDate'] as DateTime,
       });
     }
-
-    // Sort by date (most recent first, but pending ones by due date)
     allItems.sort((a, b) {
       final dateA = a['dueDate'] as DateTime;
       final dateB = b['dueDate'] as DateTime;
       return dateB.compareTo(dateA);
     });
-
-    if (allItems.isEmpty) {
-      return Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(height: 40),
-              Icon(Icons.receipt_long, size: 80, color: Colors.grey[300]),
-              SizedBox(height: 16),
-              Text(
-                'No ${_selectedTab.toLowerCase()} for ${DateFormat('MMMM yyyy').format(_selectedMonth)}',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Try selecting a different month or add a transaction',
-                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AddTransactionScreen(),
-                    ),
-                  );
-                },
-                icon: Icon(Icons.add),
-                label: Text('Add Transaction'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF14B8A6),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: EdgeInsets.all(20),
-      itemCount: allItems.length,
-      physics: AlwaysScrollableScrollPhysics(),
-      shrinkWrap: false,
-      itemBuilder: (context, index) {
-        final item = allItems[index];
-        final transaction = item['transaction'] as Transaction;
-        final isPending = item['isPending'] as bool;
-        final dueDate = item['dueDate'] as DateTime;
-
-        return _ModernTransactionCard(
-          transaction: transaction,
-          isPending: isPending,
-          dueDate: isPending ? dueDate : null,
-          onEdit: isPending ? null : () => _editTransaction(transaction),
-          onDelete: isPending ? null : () => _deleteTransaction(transaction),
-        );
-      },
-    );
+    return allItems;
   }
 }
 

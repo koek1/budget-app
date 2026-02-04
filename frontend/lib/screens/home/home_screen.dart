@@ -26,7 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
         DashboardScreen(
             onMenuTap: () => _scaffoldKey.currentState?.openDrawer()),
         TransactionsScreen(
-            onMenuTap: () => _scaffoldKey.currentState?.openDrawer()),
+            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+            showLeading: false),
       ];
 
   @override
@@ -35,7 +36,40 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: _screens[_currentIndex],
+      body: _currentIndex == 1
+          ? Builder(
+              builder: (context) {
+                return Stack(
+                  children: [
+                    _screens[_currentIndex],
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      child: SafeArea(
+                        bottom: false,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => Scaffold.of(context).openDrawer(),
+                            borderRadius: BorderRadius.circular(24),
+                            child: SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: Icon(
+                                Icons.menu,
+                                color: theme.iconTheme.color,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            )
+          : _screens[_currentIndex],
       floatingActionButton: _currentIndex == 1
           ? FloatingActionButton(
               onPressed: () async {

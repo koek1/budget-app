@@ -7,6 +7,7 @@ import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/utils/constants.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/screens/stats/stats_loading_screen.dart';
+import 'package:budget_app/screens/transactions/transactions_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
@@ -1710,9 +1711,40 @@ class _StatsScreenState extends State<StatsScreen> {
                         sections: data,
                         centerSpaceRadius: 50,
                         sectionsSpace: 2,
+                        pieTouchData: PieTouchData(
+                          touchCallback: (FlTouchEvent event, PieTouchResponse? response) {
+                            if (event is FlTapDownEvent &&
+                                response?.touchedSection != null &&
+                                data.length == 2) {
+                              final sectionIndex = response!.touchedSection!.touchedSectionIndex;
+                              if (!mounted) return;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TransactionsScreen(
+                                    initialTabIndex: sectionIndex == 0 ? 1 : 0,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        ),
                       ),
                     ),
                   ),
+                  if (data.length == 2)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Tap a segment to view list',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: theme.textTheme.bodyMedium?.color
+                              ?.withOpacity(0.5),
+                        ),
+                      ),
+                    ),
                   SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,

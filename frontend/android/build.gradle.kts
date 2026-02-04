@@ -21,6 +21,11 @@ subprojects {
             compileSdkVersion(36)
         }
     }
+    
+    // Suppress "unchecked or unsafe operations" notes from dependencies (e.g. google_mlkit_*)
+    tasks.withType<JavaCompile>().configureEach {
+        options.compilerArgs.add("-Xlint:-unchecked")
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")
