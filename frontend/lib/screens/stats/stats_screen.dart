@@ -7,6 +7,7 @@ import 'package:budget_app/utils/helpers.dart';
 import 'package:budget_app/utils/constants.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/screens/stats/stats_loading_screen.dart';
+import 'package:budget_app/screens/transactions/transactions_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
@@ -286,7 +287,7 @@ class _StatsScreenState extends State<StatsScreen> {
           value: 1,
           title: 'No Data',
           color: Colors.grey,
-          radius: 60,
+          radius: 48,
           titleStyle: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -304,7 +305,7 @@ class _StatsScreenState extends State<StatsScreen> {
         value: income,
         title: income > 0 ? '${incomePercent.toStringAsFixed(1)}%' : '',
         color: Colors.green,
-        radius: 70,
+        radius: 54,
         titleStyle: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
@@ -315,7 +316,7 @@ class _StatsScreenState extends State<StatsScreen> {
         value: expenses,
         title: expenses > 0 ? '${expensePercent.toStringAsFixed(1)}%' : '',
         color: Colors.red,
-        radius: 70,
+        radius: 54,
         titleStyle: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
@@ -337,7 +338,7 @@ class _StatsScreenState extends State<StatsScreen> {
           value: 1,
           title: 'No Data',
           color: Colors.grey,
-          radius: 60,
+          radius: 48,
           titleStyle: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -364,7 +365,7 @@ class _StatsScreenState extends State<StatsScreen> {
           value: 1,
           title: 'No Data',
           color: Colors.grey,
-          radius: 60,
+          radius: 48,
         ),
       ];
     }
@@ -400,7 +401,7 @@ class _StatsScreenState extends State<StatsScreen> {
             ? '${percentage.toStringAsFixed(0)}%'
             : '', // Only show percentage if >= 5%
         color: color,
-        radius: 65,
+        radius: 54,
         titleStyle: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -1702,17 +1703,54 @@ class _StatsScreenState extends State<StatsScreen> {
               theme,
               'Income vs Expenses',
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(
-                    height: 200,
-                    child: PieChart(
-                      PieChartData(
-                        sections: data,
-                        centerSpaceRadius: 50,
-                        sectionsSpace: 2,
+                    height: 240,
+                    child: ClipRect(
+                      child: PieChart(
+                        PieChartData(
+                          sections: data,
+                          centerSpaceRadius: 38,
+                          sectionsSpace: 2,
+                          pieTouchData: PieTouchData(
+                            touchCallback: (FlTouchEvent event, PieTouchResponse? response) {
+                              if (event is FlTapDownEvent &&
+                                  response?.touchedSection != null &&
+                                  data.length == 2) {
+                                final sectionIndex = response!.touchedSection!.touchedSectionIndex;
+                                if (!mounted) return;
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => TransactionsScreen(
+                                      initialTabIndex: sectionIndex == 0 ? 1 : 0,
+                                      showBackButton: true,
+                                      initialDateRangeStart: _selectedStartDate,
+                                      initialDateRangeEnd: _selectedEndDate,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
                       ),
                     ),
                   ),
+                  if (data.length == 2)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: Text(
+                        'Tap a segment to view list',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: theme.textTheme.bodyMedium?.color
+                              ?.withOpacity(0.5),
+                        ),
+                      ),
+                    ),
                   SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1789,14 +1827,57 @@ class _StatsScreenState extends State<StatsScreen> {
           theme,
           'Expense Breakdown by Category',
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                height: 200,
-                child: PieChart(
-                  PieChartData(
-                    sections: data,
-                    centerSpaceRadius: 40,
-                    sectionsSpace: 2,
+                height: 240,
+                child: ClipRect(
+                  child: PieChart(
+                    PieChartData(
+                      sections: data,
+                      centerSpaceRadius: 38,
+                      sectionsSpace: 2,
+                      pieTouchData: PieTouchData(
+                        touchCallback:
+                            (FlTouchEvent event, PieTouchResponse? response) {
+                          if (event is FlTapDownEvent &&
+                              response?.touchedSection != null) {
+                            final sectionIndex = response!
+                                .touchedSection!.touchedSectionIndex;
+                            if (sectionIndex >= 0 &&
+                                sectionIndex < sortedCategories.length &&
+                                mounted) {
+                              final categoryName =
+                                  sortedCategories[sectionIndex].key;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TransactionsScreen(
+                                    initialTabIndex: 0,
+                                    showBackButton: true,
+                                    initialDateRangeStart: _selectedStartDate,
+                                    initialDateRangeEnd: _selectedEndDate,
+                                    initialCategory: categoryName,
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: Text(
+                  'Tap a segment to view list',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: theme.textTheme.bodyMedium?.color
+                        ?.withOpacity(0.5),
                   ),
                 ),
               ),
