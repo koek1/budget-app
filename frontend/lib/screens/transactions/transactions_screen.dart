@@ -20,11 +20,25 @@ class TransactionsScreen extends StatefulWidget {
   /// When false, the leading hamburger is not shown (parent shows an overlay menu instead).
   final bool showLeading;
 
+  /// When true, show a back arrow instead of the menu; tapping it pops the route (e.g. return to Statistics).
+  final bool showBackButton;
+
+  /// When both are non-null, the list and data are filtered to this date range (e.g. from Statistics screen).
+  final DateTime? initialDateRangeStart;
+  final DateTime? initialDateRangeEnd;
+
+  /// When non-null (e.g. from Statistics category pie), show only expenses in this category.
+  final String? initialCategory;
+
   const TransactionsScreen({
     super.key,
     this.onMenuTap,
     this.initialTabIndex,
     this.showLeading = true,
+    this.showBackButton = false,
+    this.initialDateRangeStart,
+    this.initialDateRangeEnd,
+    this.initialCategory,
   });
 
   @override
@@ -36,10 +50,32 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   late TabController _tabController;
   DateTime _selectedMonth = DateTime.now();
   String _selectedTab = 'Spendings';
+  /// When set, list and data are filtered by this range (e.g. from Statistics).
+  DateTime? _dateRangeStart;
+  DateTime? _dateRangeEnd;
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialDateRangeStart != null && widget.initialDateRangeEnd != null) {
+      _dateRangeStart = DateTime(
+        widget.initialDateRangeStart!.year,
+        widget.initialDateRangeStart!.month,
+        widget.initialDateRangeStart!.day,
+      );
+      _dateRangeEnd = DateTime(
+        widget.initialDateRangeEnd!.year,
+        widget.initialDateRangeEnd!.month,
+        widget.initialDateRangeEnd!.day,
+        23,
+        59,
+        59,
+      );
+      _selectedMonth = DateTime(
+        widget.initialDateRangeStart!.year,
+        widget.initialDateRangeStart!.month,
+      );
+    }
     final initialIndex = widget.initialTabIndex != null
         ? widget.initialTabIndex!.clamp(0, 1)
         : 0;
@@ -60,18 +96,22 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   }
 
   Future<List<Transaction>> _getTransactionsForMonth() async {
-    // Get user-filtered transactions
     final allTransactions = await LocalStorageService.getTransactions();
+    if (allTransactions.isEmpty) return [];
 
-    // If no transactions, return empty list
-    if (allTransactions.isEmpty) {
-      return [];
+    if (_dateRangeStart != null && _dateRangeEnd != null) {
+      final start = _dateRangeStart!;
+      final end = _dateRangeEnd!;
+      return allTransactions.where((transaction) {
+        final d = transaction.date;
+        final transactionDay = DateTime(d.year, d.month, d.day);
+        return !transactionDay.isBefore(start) && !transactionDay.isAfter(end);
+      }).toList();
     }
 
-    // Filter transactions by selected month
-    final filtered = allTransactions.where((transaction) {
+    // Filter by selected month
+    return allTransactions.where((transaction) {
       final transactionDate = transaction.date;
-      // Normalize dates to compare only year and month (ignore time)
       final transactionYearMonth = DateTime(
         transactionDate.year,
         transactionDate.month,
@@ -82,8 +122,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       );
       return transactionYearMonth == selectedYearMonth;
     }).toList();
-
-    return filtered;
   }
 
   Future<List<Map<String, dynamic>>> _getPendingTransactions() async {
@@ -100,13 +138,21 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     ).day;
 
     // Filter transactions based on selected tab
-    final filteredTransactions = transactions.where((t) {
+    var filteredTransactions = transactions.where((t) {
       if (_selectedTab == 'Income') {
         return t.type == 'income';
       } else {
         return t.type == 'expense';
       }
     }).toList();
+
+    // When showing a date range, graph only the first month so day indices are correct
+    if (_dateRangeStart != null && _dateRangeEnd != null) {
+      filteredTransactions = filteredTransactions.where((t) {
+        return t.date.year == _selectedMonth.year &&
+            t.date.month == _selectedMonth.month;
+      }).toList();
+    }
 
     // Initialize all days with 0 to ensure stable X-axis positions
     Map<int, double> dailyTotals = {};
@@ -165,16 +211,34 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   Future<void> _selectMonth() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedMonth,
+      initialDate: _dateRangeStart ?? _selectedMonth,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year,
     );
     if (picked != null) {
       setState(() {
+        _dateRangeStart = null;
+        _dateRangeEnd = null;
         _selectedMonth = DateTime(picked.year, picked.month);
       });
     }
+  }
+
+  /// Label for the current period (month or date range) for display in the card and empty state.
+  String get _periodLabel {
+    if (_dateRangeStart != null && _dateRangeEnd != null) {
+      return '${DateFormat('MMM d').format(_dateRangeStart!)} – ${DateFormat('MMM d, yyyy').format(_dateRangeEnd!)}';
+    }
+    return DateFormat('MMMM yyyy').format(_selectedMonth);
+  }
+
+  /// Short label for the balance card header (month name or "Date range").
+  String get _periodShortLabel {
+    if (_dateRangeStart != null && _dateRangeEnd != null) {
+      return '${DateFormat('MMM d').format(_dateRangeStart!)} – ${DateFormat('MMM d').format(_dateRangeEnd!)}';
+    }
+    return DateFormat('MMMM').format(_selectedMonth);
   }
 
   Future<void> _editTransaction(Transaction transaction) async {
@@ -339,30 +403,37 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       backgroundColor:
           theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
       elevation: 0,
-      leadingWidth: widget.showLeading ? 56 : 0,
-      leading: widget.showLeading
-          ? Align(
-              alignment: Alignment.centerLeft,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: widget.onMenuTap ?? () {},
-                  borderRadius: BorderRadius.circular(24),
-                  child: SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Center(
-                      child: Icon(
-                        Icons.menu,
-                        color: theme.iconTheme.color,
-                        size: 24,
+      automaticallyImplyLeading: false,
+      leadingWidth: (widget.showBackButton || widget.showLeading) ? 56 : 0,
+      leading: widget.showBackButton
+          ? IconButton(
+              icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
+              onPressed: () => Navigator.of(context).pop(),
+              tooltip: 'Back to Statistics',
+            )
+          : widget.showLeading
+              ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onMenuTap ?? () {},
+                      borderRadius: BorderRadius.circular(24),
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Center(
+                          child: Icon(
+                            Icons.menu,
+                            color: theme.iconTheme.color,
+                            size: 24,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            )
-          : null,
+                )
+              : null,
       centerTitle: true,
       title: Text(
         'Transactions',
@@ -516,24 +587,31 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 final pendingTransactions =
                     results[2] as List<Map<String, dynamic>>;
 
-                // Filter pending transactions for the selected month
-                final monthStart = DateTime(
-                  _selectedMonth.year,
-                  _selectedMonth.month,
-                  1,
-                );
-                final monthEnd = DateTime(
-                  _selectedMonth.year,
-                  _selectedMonth.month + 1,
-                  0,
-                );
-
+                // Filter pending transactions for the selected period (month or date range)
+                final DateTime rangeStart;
+                final DateTime rangeEnd;
+                if (_dateRangeStart != null && _dateRangeEnd != null) {
+                  rangeStart = _dateRangeStart!;
+                  rangeEnd = _dateRangeEnd!;
+                } else {
+                  rangeStart = DateTime(
+                    _selectedMonth.year,
+                    _selectedMonth.month,
+                    1,
+                  );
+                  rangeEnd = DateTime(
+                    _selectedMonth.year,
+                    _selectedMonth.month + 1,
+                    0,
+                    23,
+                    59,
+                    59,
+                  );
+                }
                 final pendingForMonth = pendingTransactions.where((p) {
                   final dueDate = p['dueDate'] as DateTime;
-                  return dueDate.isAfter(
-                        monthStart.subtract(Duration(days: 1)),
-                      ) &&
-                      dueDate.isBefore(monthEnd.add(Duration(days: 1)));
+                  return !dueDate.isBefore(rangeStart) &&
+                      !dueDate.isAfter(rangeEnd);
                 }).toList();
 
                 final spendings = transactions
@@ -546,16 +624,20 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                   ..sort((a, b) => b.date.compareTo(a.date));
                 final graphData = results[1] as List<FlSpot>;
 
-                // Calculate totals - only include actual transactions (not pending)
+                // Calculate totals - when filtering by category, show that category's total
                 final currentTabTotal = _selectedTab == 'Income'
                     ? income.fold<double>(
                         0.0,
                         (sum, t) => sum + t.amount,
                       )
-                    : spendings.fold<double>(
-                        0.0,
-                        (sum, t) => sum + t.amount,
-                      );
+                    : widget.initialCategory != null
+                        ? spendings
+                            .where((t) => t.category == widget.initialCategory)
+                            .fold<double>(0.0, (sum, t) => sum + t.amount)
+                        : spendings.fold<double>(
+                            0.0,
+                            (sum, t) => sum + t.amount,
+                          );
 
                 return {
                   'spendings': spendings,
@@ -698,17 +780,20 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Month Selector
+                              // Period selector (month or date range)
                               InkWell(
                                 onTap: _selectMonth,
                                 child: Row(
                                   children: [
-                                    Text(
-                                      DateFormat('MMMM').format(_selectedMonth),
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w600,
+                                    Flexible(
+                                      child: Text(
+                                        _periodShortLabel,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     SizedBox(width: 8),
@@ -1222,8 +1307,18 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     List<Transaction> income,
     List<Map<String, dynamic>> pendingExpenses,
   ) {
+    final List<Transaction> spendingsToShow = widget.initialCategory != null
+        ? spendings.where((t) => t.category == widget.initialCategory).toList()
+        : spendings;
+    final List<Map<String, dynamic>> pendingToShow = widget.initialCategory != null
+        ? pendingExpenses
+            .where((p) =>
+                (p['transaction'] as Transaction).category == widget.initialCategory)
+            .toList()
+        : pendingExpenses;
+
     final currentListItems = _selectedTab == 'Spendings'
-        ? _getCurrentTabListItems(spendings, pendingExpenses)
+        ? _getCurrentTabListItems(spendingsToShow, pendingToShow)
         : _getCurrentTabListItems(income, []);
 
     if (currentListItems.isEmpty) {
@@ -1239,7 +1334,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 Icon(Icons.receipt_long, size: 80, color: Colors.grey[300]),
                 SizedBox(height: 16),
                 Text(
-                  'No ${_selectedTab.toLowerCase()} for ${DateFormat('MMMM yyyy').format(_selectedMonth)}',
+                  widget.initialCategory != null
+                      ? 'No expenses in ${widget.initialCategory} for $_periodLabel'
+                      : 'No ${_selectedTab.toLowerCase()} for $_periodLabel',
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.grey[600],
@@ -1249,7 +1346,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'Try selecting a different month or add a transaction',
+                  widget.initialCategory != null
+                      ? 'Try a different period or category'
+                      : 'Try selecting a different month or add a transaction',
                   style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                   textAlign: TextAlign.center,
                 ),
