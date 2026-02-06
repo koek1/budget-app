@@ -75,9 +75,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       } else {
         _selectedDate = DateTime.now();
       }
-      if (receiptData.merchantName != null && receiptData.merchantName!.isNotEmpty) {
+      if (receiptData.merchantName != null &&
+          receiptData.merchantName!.isNotEmpty) {
         _descriptionController.text = receiptData.merchantName!;
-      } else if (receiptData.description != null && receiptData.description!.isNotEmpty) {
+      } else if (receiptData.description != null &&
+          receiptData.description!.isNotEmpty) {
         _descriptionController.text = receiptData.description!;
       }
       _selectedType = 'expense';
@@ -90,7 +92,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _loadCategories().then((_) {
       // Set suggested category after categories are loaded
       if (widget.prefillData?.suggestedCategory != null && !_isEditing) {
-        if (_availableCategories.contains(widget.prefillData!.suggestedCategory)) {
+        if (_availableCategories
+            .contains(widget.prefillData!.suggestedCategory)) {
           setState(() {
             _selectedCategory = widget.prefillData!.suggestedCategory;
           });
@@ -154,12 +157,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       // Subscriptions don't require end dates (they're ongoing)
       // Regular recurring bills need an end date
       if (!_isSubscription && _recurringEndDate == null) {
-        Helpers.showErrorSnackBar(
-            context, 'Please select an end date for this recurring bill. Subscriptions don\'t require end dates.');
+        Helpers.showErrorSnackBar(context,
+            'Please select an end date for this recurring bill. Subscriptions don\'t require end dates.');
         return;
       }
       // If end date is provided, ensure it's strictly after the transaction date
-      if (_recurringEndDate != null && !_recurringEndDate!.isAfter(_selectedDate)) {
+      if (_recurringEndDate != null &&
+          !_recurringEndDate!.isAfter(_selectedDate)) {
         Helpers.showErrorSnackBar(
             context, 'End date must be after the transaction date');
         return;
@@ -184,7 +188,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
 
       // Parse and validate amount - handle formatted numbers
-      final amountText = _amountController.text.trim()
+      final amountText = _amountController.text
+          .trim()
           .replaceAll(' ', '')
           .replaceAll(',', '')
           .replaceAll('_', '');
@@ -211,10 +216,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       String? priceHistory;
       if (_isSubscription && _selectedType == 'expense') {
         // Create initial price history entry
-        final initialPrice = [{
-          'date': _selectedDate.toIso8601String(),
-          'amount': amount,
-        }];
+        final initialPrice = [
+          {
+            'date': _selectedDate.toIso8601String(),
+            'amount': amount,
+          }
+        ];
         priceHistory = jsonEncode(initialPrice);
       }
 
@@ -242,9 +249,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         subscriptionPaymentDay: _selectedType == 'expense' && _isSubscription
             ? _subscriptionPaymentDay
             : null,
-        subscriptionPriceHistory: _selectedType == 'expense' && _isSubscription
-            ? priceHistory
-            : null,
+        subscriptionPriceHistory:
+            _selectedType == 'expense' && _isSubscription ? priceHistory : null,
       );
 
       if (_isEditing) {
@@ -263,29 +269,35 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ? 'Transaction updated successfully'
               : 'Transaction added successfully',
         );
-        
+
         // Show reminder for recurring bills about next due date
-        if (transaction.isRecurring && transaction.type == 'expense' && transaction.recurringFrequency != null) {
+        if (transaction.isRecurring &&
+            transaction.type == 'expense' &&
+            transaction.recurringFrequency != null) {
           final nextDate = Helpers.getNextRecurringDate(transaction);
           if (nextDate != null) {
             // Small delay to show success message first
             await Future.delayed(Duration(milliseconds: 1500));
-            
+
             if (mounted) {
               final now = DateTime.now();
               final today = DateTime(now.year, now.month, now.day);
-              final nextDateOnly = DateTime(nextDate.year, nextDate.month, nextDate.day);
+              final nextDateOnly =
+                  DateTime(nextDate.year, nextDate.month, nextDate.day);
               final daysUntil = nextDateOnly.difference(today).inDays;
-              
+
               String reminderText;
               if (daysUntil == 0) {
-                reminderText = 'Next payment is due today (${Helpers.formatDateRelative(nextDate)})';
+                reminderText =
+                    'Next payment is due today (${Helpers.formatDateRelative(nextDate)})';
               } else if (daysUntil == 1) {
-                reminderText = 'Next payment is due tomorrow (${Helpers.formatDateRelative(nextDate)})';
+                reminderText =
+                    'Next payment is due tomorrow (${Helpers.formatDateRelative(nextDate)})';
               } else {
-                reminderText = 'Next payment due in $daysUntil days (${Helpers.formatDateRelative(nextDate)})';
+                reminderText =
+                    'Next payment due in $daysUntil days (${Helpers.formatDateRelative(nextDate)})';
               }
-              
+
               Helpers.showInfoSnackBar(
                 context,
                 'Reminder: $reminderText. Balance will deduct on the due date.',
@@ -293,12 +305,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             }
           }
         }
-        
+
         // Small delay to show success message before navigating
         await Future.delayed(Duration(milliseconds: 300));
         if (mounted) {
           // Return the transaction if called from batch scanner, otherwise return true
-          Navigator.pop(context, widget.prefillData != null ? transaction : true);
+          Navigator.pop(
+              context, widget.prefillData != null ? transaction : true);
         }
       }
     } catch (e) {
@@ -319,10 +332,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Future<void> _selectDate() async {
     // Allow future dates for income (e.g., expected salary), but limit expenses to past/present
-    final maxDate = _selectedType == 'income' 
-        ? DateTime.now().add(Duration(days: 365)) // Allow up to 1 year in future for income
+    final maxDate = _selectedType == 'income'
+        ? DateTime.now()
+            .add(Duration(days: 365)) // Allow up to 1 year in future for income
         : DateTime.now(); // Expenses can only be in the past or today
-    
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
@@ -614,79 +628,81 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               ),
                             ],
                           ),
-                      SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _scanReceipt,
-                              icon: Icon(Icons.camera_alt, size: 20),
-                              label: Text('Single'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFF14B8A6),
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                elevation: 0,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => BatchReceiptScannerScreen(),
+                          SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _scanReceipt,
+                                  icon: Icon(Icons.camera_alt, size: 20),
+                                  label: Text('Single'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Color(0xFF14B8A6),
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
                                   ),
-                                );
-                                if (result != null && mounted) {
-                                  Navigator.pop(context, true);
-                                }
-                              },
-                              icon: Icon(Icons.folder, size: 20),
-                              label: Text('Batch'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Color(0xFF14B8A6),
-                                side: BorderSide(color: Color(0xFF14B8A6), width: 2),
-                                padding: EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            BatchReceiptScannerScreen(),
+                                      ),
+                                    );
+                                    if (result != null && mounted) {
+                                      Navigator.pop(context, true);
+                                    }
+                                  },
+                                  icon: Icon(Icons.folder, size: 20),
+                                  label: Text('Batch'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Color(0xFF14B8A6),
+                                    side: BorderSide(
+                                        color: Color(0xFF14B8A6), width: 2),
+                                    padding: EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Padding(
+                            padding: EdgeInsets.only(left: 4),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 14,
+                                  color: Colors.grey[600],
+                                ),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Single: One receipt • Batch: Multiple receipts together',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: 8),
-                      Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
-                            SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'Single: One receipt • Batch: Multiple receipts together',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                    );
                   },
                 ),
 
@@ -738,7 +754,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     return 'Please enter an amount';
                   }
                   // Remove any spaces, commas, or other formatting
-                  final cleanedValue = value.trim()
+                  final cleanedValue = value
+                      .trim()
                       .replaceAll(' ', '')
                       .replaceAll(',', '')
                       .replaceAll('_', '');
@@ -835,7 +852,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             setState(() {
                               _selectedCategory = value;
                               // Auto-enable subscription mode if Subscriptions category is selected
-                              if (value == 'Subscriptions' && _selectedType == 'expense') {
+                              if (value == 'Subscriptions' &&
+                                  _selectedType == 'expense') {
                                 _isSubscription = true;
                                 _isRecurring = true;
                                 _recurringFrequency = 'monthly';
@@ -995,7 +1013,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 if (!value) {
                                   _recurringEndDate = null;
                                   _recurringFrequency = 'monthly';
-                                  _isSubscription = false; // Reset subscription when recurring is disabled
+                                  _isSubscription =
+                                      false; // Reset subscription when recurring is disabled
                                 }
                               });
                             },
@@ -1105,7 +1124,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                         SizedBox(height: 4),
                                         Text(
                                           _recurringEndDate != null
-                                              ? Helpers.formatDateRelative(_recurringEndDate!)
+                                              ? Helpers.formatDateRelative(
+                                                  _recurringEndDate!)
                                               : 'Select end date',
                                           style: GoogleFonts.inter(
                                             fontSize: 16,
@@ -1137,7 +1157,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               padding: EdgeInsets.only(top: 8),
                               child: Row(
                                 children: [
-                                  Icon(Icons.info_outline, size: 14, color: Colors.orange),
+                                  Icon(Icons.info_outline,
+                                      size: 14, color: Colors.orange),
                                   SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
@@ -1164,7 +1185,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                                Icon(Icons.info_outline,
+                                    size: 16, color: Colors.blue[700]),
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -1190,10 +1212,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               color: Theme.of(context).dividerColor,
                             ),
                             borderRadius: BorderRadius.circular(12),
-                            color: Theme.of(context).brightness ==
-                                    Brightness.dark
-                                ? Theme.of(context).scaffoldBackgroundColor
-                                : Colors.white,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Theme.of(context).scaffoldBackgroundColor
+                                    : Colors.white,
                           ),
                           child: Row(
                             children: [
@@ -1242,7 +1264,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       _recurringEndDate = null;
                                       // Set default payment day if not set
                                       if (_subscriptionPaymentDay == null) {
-                                        _subscriptionPaymentDay = _selectedDate.day;
+                                        _subscriptionPaymentDay =
+                                            _selectedDate.day;
                                       }
                                     }
                                   });
@@ -1256,11 +1279,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         if (_isSubscription) ...[
                           SizedBox(height: 16),
                           DropdownButtonFormField<int>(
-                            value: _subscriptionPaymentDay,
+                            initialValue: _subscriptionPaymentDay,
                             decoration: InputDecoration(
                               labelText: 'Payment Day (Day of Month)',
                               prefixIcon: Icon(Icons.calendar_today),
-                              helperText: 'Select which day of the month this subscription is charged',
+                              helperText:
+                                  'Select which day of the month this subscription is charged',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -1278,7 +1302,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 ),
                               ),
                               filled: true,
-                              fillColor: Theme.of(context).brightness == Brightness.dark
+                              fillColor: Theme.of(context).brightness ==
+                                      Brightness.dark
                                   ? Theme.of(context).scaffoldBackgroundColor
                                   : Colors.white,
                             ),

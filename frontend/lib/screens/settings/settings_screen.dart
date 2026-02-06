@@ -1,14 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:budget_app/services/biometric_service.dart';
 import 'package:budget_app/services/settings_service.dart';
 import 'package:budget_app/services/auth_service.dart';
 import 'package:budget_app/services/local_storage_service.dart';
+import 'package:budget_app/services/import_service.dart';
 import 'package:budget_app/screens/auth/login_screen.dart';
 import 'package:budget_app/screens/settings/manage_criteria_screen.dart';
 import 'package:budget_app/utils/helpers.dart';
-import 'dart:math' as math;
 
 class SettingsScreen extends StatefulWidget {
   final bool highlightBudgetSetting;
@@ -473,6 +475,159 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       });
       if (mounted) {
         Helpers.showInfoSnackBar(context, 'Fingerprint login disabled');
+      }
+    }
+  }
+
+  Future<void> _importFromCsv() async {
+    final theme = Theme.of(context);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      String? content;
+      if (file.bytes != null && file.bytes!.isNotEmpty) {
+        content = utf8.decode(file.bytes!);
+      } else {
+        if (mounted) {
+          Helpers.showErrorSnackBar(
+            context,
+            'Could not read file content. Try choosing the file again.',
+          );
+        }
+        return;
+      }
+
+      if (content.trim().isEmpty) {
+        if (mounted) {
+          Helpers.showErrorSnackBar(context, 'File is empty.');
+        }
+        return;
+      }
+
+      // Confirm before import
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: Text(
+            'Import from CSV',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Text(
+            'This will add all transactions from the CSV file to your account. '
+            'Existing transactions will not be removed.\n\n'
+            'Use a CSV file exported from this app (Date, Type, Category, Description, Amount).',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: theme.textTheme.bodyMedium?.color,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  color: theme.textTheme.bodyMedium?.color,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'Import',
+                style: GoogleFonts.inter(
+                  color: Color(0xFF14B8A6),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true || !mounted) return;
+
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PopScope(
+          canPop: false,
+          child: Center(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
+                color: theme.brightness == Brightness.dark
+                    ? Color(0xFF1E293B)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(
+                    color: Color(0xFF14B8A6),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Importing…',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final importResult = await ImportService.importFromCsvContent(content);
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Dismiss loading
+
+      if (importResult.successCount > 0) {
+        Helpers.showSuccessSnackBar(
+          context,
+          'Imported ${importResult.successCount} transaction${importResult.successCount == 1 ? '' : 's'}.',
+        );
+      }
+      if (importResult.hasErrors) {
+        final msg = importResult.errors.length > 3
+            ? '${importResult.errors.take(3).join(' ')} … (${importResult.errors.length} errors)'
+            : importResult.errors.join(' ');
+        Helpers.showErrorSnackBar(context, msg);
+      }
+      if (importResult.successCount == 0 && !importResult.hasErrors) {
+        Helpers.showInfoSnackBar(
+          context,
+          'No transactions found in the file. Use a CSV exported from this app.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        Helpers.showErrorSnackBar(context, 'Import failed: $msg');
       }
     }
   }
@@ -947,6 +1102,30 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                                 ),
                               );
                             },
+                          ),
+                        ),
+
+                        // Data Section
+                        Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Text(
+                            'Data',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ),
+                        _buildSettingsCard(
+                          child: _buildSettingsItem(
+                            icon: Icons.upload_file_rounded,
+                            title: 'Import from CSV',
+                            subtitle:
+                                'Reload transactions from an exported CSV file',
+                            iconColor: Color(0xFF14B8A6),
+                            onTap: _importFromCsv,
                           ),
                         ),
 

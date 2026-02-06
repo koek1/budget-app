@@ -60,24 +60,24 @@ class _ExportScreenState extends State<ExportScreen> {
 
   Future<void> _exportToExcel() async {
     if (!mounted) return;
-    
+
     setState(() => _isGenerating = true);
 
     try {
       await ExportService.exportToExcel(
-      startDate: _startDate,
-      endDate: _endDate,
-      reportType: _selectedReportType,
-      onSuccess: (message) {
-        if (mounted) {
-          Helpers.showSuccessSnackBar(context, message);
-        }
-      },
-      onError: (error) {
-        if (mounted) {
-          Helpers.showErrorSnackBar(context, error);
-        }
-      },
+        startDate: _startDate,
+        endDate: _endDate,
+        reportType: _selectedReportType,
+        onSuccess: (message) {
+          if (mounted) {
+            Helpers.showSuccessSnackBar(context, message);
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            Helpers.showErrorSnackBar(context, error);
+          }
+        },
       );
     } catch (e) {
       if (mounted) {
@@ -150,8 +150,10 @@ class _ExportScreenState extends State<ExportScreen> {
                       child: DateRangePicker(
                         startDate: _startDate,
                         endDate: _endDate,
-                        onStartDateChanged: (date) => _onDateRangeChanged(date, _endDate),
-                        onEndDateChanged: (date) => _onDateRangeChanged(_startDate, date),
+                        onStartDateChanged: (date) =>
+                            _onDateRangeChanged(date, _endDate),
+                        onEndDateChanged: (date) =>
+                            _onDateRangeChanged(_startDate, date),
                       ),
                     ),
                     SizedBox(height: 16),
@@ -215,7 +217,7 @@ class _ExportScreenState extends State<ExportScreen> {
                               ),
                             ),
                             child: DropdownButtonFormField<String>(
-                              value: _selectedReportType,
+                              initialValue: _selectedReportType,
                               decoration: InputDecoration(
                                 border: InputBorder.none,
                                 contentPadding: EdgeInsets.symmetric(
@@ -223,7 +225,8 @@ class _ExportScreenState extends State<ExportScreen> {
                                   vertical: 12,
                                 ),
                               ),
-                              dropdownColor: isDark ? Color(0xFF1E293B) : Colors.white,
+                              dropdownColor:
+                                  isDark ? Color(0xFF1E293B) : Colors.white,
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 color: theme.textTheme.bodyLarge?.color,
@@ -251,7 +254,8 @@ class _ExportScreenState extends State<ExportScreen> {
                         padding: EdgeInsets.all(40),
                         child: Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF14B8A6)),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF14B8A6)),
                           ),
                         ),
                       )
@@ -282,7 +286,8 @@ class _ExportScreenState extends State<ExportScreen> {
                         height: 56,
                         child: Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF14B8A6)),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF14B8A6)),
                           ),
                         ),
                       )
@@ -397,8 +402,8 @@ class _ExportScreenState extends State<ExportScreen> {
           Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: (netTotal >= 0 ? Colors.green : Colors.red)
-                  .withOpacity(0.1),
+              color:
+                  (netTotal >= 0 ? Colors.green : Colors.red).withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: (netTotal >= 0 ? Colors.green : Colors.red)
@@ -770,7 +775,8 @@ class _ExportScreenState extends State<ExportScreen> {
                   child: Text(
                     '... and ${dailyIncome.length - 5} more days',
                     style: GoogleFonts.inter(
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                      color:
+                          theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
                       fontSize: 12,
                     ),
                   ),
