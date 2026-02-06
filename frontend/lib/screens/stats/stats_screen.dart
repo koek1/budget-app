@@ -81,6 +81,7 @@ class _StatsScreenState extends State<StatsScreen> {
         _getDebtInfo(),
         _getPendingTransactions(),
         _getSubscriptionData(),
+        _getSavedLostOverTimeData(),
       ]).timeout(Duration(seconds: 15), onTimeout: () {
         throw Exception('Loading statistics timed out');
       }).then((results) => {
@@ -100,6 +101,7 @@ class _StatsScreenState extends State<StatsScreen> {
             'debtInfo': results[13],
             'pendingTransactions': results[14],
             'subscriptionData': results[15],
+            'savedLostOverTime': results[16],
           });
 
       if (mounted) {
@@ -739,6 +741,74 @@ class _StatsScreenState extends State<StatsScreen> {
     };
   }
 
+  /// Returns total saved (positive) or lost (negative) for the period and
+  /// cumulative saved/lost trend over time (one point per day).
+  Future<Map<String, dynamic>> _getSavedLostOverTimeData() async {
+    final transactions = await _getTransactionsForDateRange();
+    final incomeTransactions = transactions
+        .where((t) => t.type == 'income')
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+    final expenseTransactions = transactions
+        .where((t) => t.type == 'expense')
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    Map<String, double> dailyIncome = {};
+    for (var t in incomeTransactions) {
+      final key = DateFormat('yyyy-MM-dd').format(t.date);
+      dailyIncome[key] = (dailyIncome[key] ?? 0) + t.amount;
+    }
+    Map<String, double> dailyExpenses = {};
+    for (var t in expenseTransactions) {
+      final key = DateFormat('yyyy-MM-dd').format(t.date);
+      dailyExpenses[key] = (dailyExpenses[key] ?? 0) + t.amount;
+    }
+
+    final startOfDay = DateTime(
+      _selectedStartDate.year,
+      _selectedStartDate.month,
+      _selectedStartDate.day,
+    );
+    final endOfDay = DateTime(
+      _selectedEndDate.year,
+      _selectedEndDate.month,
+      _selectedEndDate.day,
+    );
+    final allDatesInRange = <String>[];
+    var currentDate = startOfDay;
+    while (!currentDate.isAfter(endOfDay)) {
+      allDatesInRange.add(DateFormat('yyyy-MM-dd').format(currentDate));
+      currentDate = currentDate.add(Duration(days: 1));
+    }
+
+    if (allDatesInRange.isEmpty) {
+      return {
+        'totalSavedOrLost': 0.0,
+        'trendSpots': <FlSpot>[],
+      };
+    }
+
+    double cumulativeIncome = 0;
+    double cumulativeExpenses = 0;
+    List<FlSpot> trendSpots = [];
+    for (int i = 0; i < allDatesInRange.length; i++) {
+      final dateKey = allDatesInRange[i];
+      cumulativeIncome += dailyIncome[dateKey] ?? 0;
+      cumulativeExpenses += dailyExpenses[dateKey] ?? 0;
+      final net = cumulativeIncome - cumulativeExpenses;
+      trendSpots.add(FlSpot(i.toDouble(), net));
+    }
+    final totalSavedOrLost = cumulativeIncome - cumulativeExpenses;
+    if (trendSpots.length == 1) {
+      trendSpots.add(FlSpot(trendSpots[0].x + 1, trendSpots[0].y));
+    }
+    return {
+      'totalSavedOrLost': totalSavedOrLost,
+      'trendSpots': trendSpots,
+    };
+  }
+
   Future<void> _selectTimeFrame() async {
     final theme = Theme.of(context);
     final result = await showModalBottomSheet<String>(
@@ -1032,6 +1102,14 @@ class _StatsScreenState extends State<StatsScreen> {
                         data['incomeExpensePieData']
                             as List<PieChartSectionData>,
                         theme,
+                      ),
+                      SizedBox(height: 20),
+
+                      // Total saved / lost over time
+                      _buildSavedLostOverTimeSection(
+                        data['savedLostOverTime'] as Map<String, dynamic>,
+                        theme,
+                        isDark,
                       ),
                       SizedBox(height: 20),
 
@@ -2345,6 +2423,191 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSavedLostOverTimeSection(
+    Map<String, dynamic> data,
+    ThemeData theme,
+    bool isDark,
+  ) {
+    final totalSavedOrLost = data['totalSavedOrLost'] as double;
+    final trendSpots = data['trendSpots'] as List<FlSpot>;
+
+    final isSaved = totalSavedOrLost >= 0;
+    final summaryColor = isSaved ? Colors.green : Colors.red;
+    final summaryLabel =
+        isSaved ? 'Total saved' : 'Total lost';
+    final summaryMessage = totalSavedOrLost == 0
+        ? 'No change — income and expenses are equal for this period.'
+        : (isSaved
+            ? 'You saved ${Helpers.formatCurrency(totalSavedOrLost)} over this period.'
+            : 'You lost ${Helpers.formatCurrency(totalSavedOrLost.abs())} over this period.');
+
+    return _buildChartCard(
+      theme,
+      'Total saved / lost over time',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: summaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isSaved ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                  color: summaryColor,
+                  size: 28,
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      summaryLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      Helpers.formatCurrency(totalSavedOrLost.abs()),
+                      style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: summaryColor,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      summaryMessage,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.85),
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (trendSpots.isNotEmpty) ...[
+            SizedBox(height: 20),
+            SizedBox(
+              height: 200,
+              child: _buildSavedLostTrendChart(theme, isDark, trendSpots),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSavedLostTrendChart(
+    ThemeData theme,
+    bool isDark,
+    List<FlSpot> spots,
+  ) {
+    final allY = spots.map((e) => e.y).toList();
+    final minY = allY.isEmpty ? 0.0 : allY.reduce((a, b) => a < b ? a : b);
+    final maxY = allY.isEmpty ? 0.0 : allY.reduce((a, b) => a > b ? a : b);
+    final padding = 0.1 * (maxY - minY).clamp(100.0, double.infinity);
+    final paddedMinY = minY - padding;
+    final paddedMaxY = maxY + padding;
+    final yRange = (paddedMaxY - paddedMinY).clamp(1.0, double.infinity);
+    final yInterval = yRange / 5;
+
+    final allX = spots.map((e) => e.x).toList();
+    final minX = allX.isEmpty ? 0.0 : allX.reduce((a, b) => a < b ? a : b);
+    final maxX = allX.isEmpty ? 1.0 : allX.reduce((a, b) => a > b ? a : b);
+    final xRange = (maxX - minX).abs();
+    final adjustedMinX = minX - (xRange * 0.05);
+    final adjustedMaxX = maxX + (xRange * 0.05);
+
+    final lineColor = (spots.isNotEmpty && spots.last.y >= 0)
+        ? Colors.green
+        : Colors.red;
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: yInterval,
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+              strokeWidth: 1,
+            );
+          },
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 70,
+              interval: yInterval,
+              getTitlesWidget: (value, meta) {
+                return Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Text(
+                    Helpers.formatCurrency(value),
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: lineColor,
+            barWidth: 3,
+            isStrokeCapRound: true,
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: lineColor.withOpacity(0.15),
+            ),
+            preventCurveOverShooting: true,
+            preventCurveOvershootingThreshold: 0.1,
+          ),
+        ],
+        minX: adjustedMinX,
+        maxX: adjustedMaxX > adjustedMinX ? adjustedMaxX : adjustedMinX + 1,
+        minY: paddedMinY,
+        maxY: paddedMaxY,
+        clipData: FlClipData.none(),
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            HorizontalLine(
+              y: 0,
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.3) ?? Colors.grey,
+              strokeWidth: 1.5,
+              dashArray: [5, 5],
+            ),
+          ],
+        ),
       ),
     );
   }
