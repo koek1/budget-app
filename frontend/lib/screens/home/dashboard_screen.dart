@@ -26,6 +26,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   User? currentUser;
   DateTime _selectedMonth = DateTime.now();
   bool _showStartingBalanceNotification = false;
+  // Pre-loaded transactions cache – populated once per _loadDashboardData call
+  // so that parallel Future.wait methods share a single database read.
+  List<Transaction>? _cachedAllTransactions;
 
   @override
   void initState() {
@@ -351,8 +354,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 
   Future<List<Transaction>> _getTransactionsForMonth() async {
-    // Get user-filtered transactions
-    final allTransactions = await LocalStorageService.getTransactions();
+    // Get user-filtered transactions (use pre-loaded cache when available)
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
 
     if (allTransactions.isEmpty) {
       return [];
@@ -391,8 +394,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<double> getSavings() async {
     // Calculate savings as starting balance + total income minus expenses (all time, user-filtered)
-    // Optimized: single pass through transactions
-    final allTransactions = await LocalStorageService.getTransactions();
+    // Optimized: single pass through transactions, uses pre-loaded cache when available
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     double totalIncome = 0.0;
     double totalExpenses = 0.0;
     
@@ -412,7 +415,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Optimized method to load all dashboard data efficiently
   Future<Map<String, dynamic>> _loadDashboardData() async {
     try {
-      // Load all data in parallel
+      // Pre-load all transactions once – every helper method below
+      // uses this cache instead of hitting the database independently.
+      _cachedAllTransactions = await LocalStorageService.getTransactions();
+
+      // Load all data in parallel (each method hits the in-memory cache)
       final results = await Future.wait([
         getMonthlyIncome(),
         getMonthlyExpenses(),
@@ -452,7 +459,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
 
     // Get all user-filtered transactions up to the selected month to calculate starting balance
-    final allTransactions = await LocalStorageService.getTransactions()
+    final allTransactions = List<Transaction>.from(
+        _cachedAllTransactions ?? await LocalStorageService.getTransactions())
       ..sort((a, b) => a.date.compareTo(b.date));
 
     // Calculate starting balance (starting balance + all transactions before this month)
@@ -1867,7 +1875,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Get upcoming recurring debit orders
   Future<List<Map<String, dynamic>>> _getUpcomingRecurringDebitOrders() async {
-    final allTransactions = await LocalStorageService.getTransactions();
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     final now = DateTime.now();
     final endDate = now.add(Duration(days: 30)); // Show next 30 days
     return Helpers.getUpcomingRecurringDebitOrders(
@@ -2901,7 +2909,9 @@ class _FullScreenChartDialogState extends State<_FullScreenChartDialog> {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.05),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
@@ -2950,13 +2960,15 @@ class _FullScreenChartDialogState extends State<_FullScreenChartDialog> {
                     ),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.2)
+                            : Colors.black.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: IconButton(
                         icon: Icon(
                           Icons.close_rounded,
-                          color: isDark ? Colors.white : Colors.black87,
+                          color: Colors.white,
                         ),
                         onPressed: () => Navigator.pop(context),
                         padding: EdgeInsets.all(8),
@@ -3034,7 +3046,7 @@ class _FullScreenChartDialogState extends State<_FullScreenChartDialog> {
                   child: _isLoading
                       ? Center(
                           child: CircularProgressIndicator(
-                            color: Colors.white,
+                            color: isDark ? Colors.white : primaryTurquoise,
                           ),
                         )
                       : LineChart(
@@ -3062,60 +3074,63 @@ class _FullScreenChartDialogState extends State<_FullScreenChartDialog> {
                               bottomTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
-                                  reservedSize: 40,
-                                  interval: _graphData.length > 30 ? 10 : 5,
+                                  reservedSize: 36,
+                                  interval: () {
+                                    // Adapt interval to the data range so labels never overlap
+                                    final len = _graphData.length;
+                                    if (len <= 31) return 5.0;         // ~6 labels for a month
+                                    if (len <= 100) return (len / 7).ceilToDouble(); // ~7 labels for 3 months
+                                    return (len / 12).ceilToDouble();  // ~12 labels for a year+
+                                  }(),
                                   getTitlesWidget: (value, meta) {
                                     final index = value.toInt();
-                                    if (index >= 0 && index < _graphData.length) {
-                                      final now = DateTime.now();
-                                      DateTime date;
-                                      switch (_selectedTimeRange) {
-                                        case 'this_month':
-                                          date = DateTime(now.year, now.month, index + 1);
-                                          break;
-                                        case '3_months':
-                                        case 'year':
-                                        case 'custom':
-                                          // Calculate date based on start date
-                                          final startDate = _getStartDateForRange();
-                                          date = startDate.add(Duration(days: index));
-                                          break;
-                                        default:
-                                          date = DateTime(now.year, now.month, index + 1);
-                                      }
-                                      return Padding(
-                                        padding: EdgeInsets.only(top: 8),
-                                        child: Text(
-                                          DateFormat('MMM d').format(date),
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      );
+                                    if (index < 0 || index >= _graphData.length) {
+                                      return SizedBox.shrink();
                                     }
-                                    return SizedBox.shrink();
-                                  },
-                                ),
-                              ),
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 60,
-                                  getTitlesWidget: (value, meta) {
-                                    return Text(
-                                      Helpers.formatCurrency(value),
-                                      style: TextStyle(
-                                        color: isDark 
-                                            ? Colors.white.withOpacity(0.8)
-                                            : Colors.black87.withOpacity(0.7),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
+
+                                    final now = DateTime.now();
+                                    DateTime date;
+                                    switch (_selectedTimeRange) {
+                                      case 'this_month':
+                                        date = DateTime(now.year, now.month, index + 1);
+                                        break;
+                                      case '3_months':
+                                      case 'year':
+                                      case 'custom':
+                                        final startDate = _getStartDateForRange();
+                                        date = startDate.add(Duration(days: index));
+                                        break;
+                                      default:
+                                        date = DateTime(now.year, now.month, index + 1);
+                                    }
+
+                                    // Pick the shortest format that still makes sense
+                                    final len = _graphData.length;
+                                    final String label;
+                                    if (len <= 31) {
+                                      label = '${date.day}';               // "1", "5", "10" …
+                                    } else if (len > 200) {
+                                      label = DateFormat('MMM').format(date); // "Jan", "Feb" …
+                                    } else {
+                                      label = DateFormat('d MMM').format(date); // "1 Jan", "15 Feb" …
+                                    }
+
+                                    return Padding(
+                                      padding: EdgeInsets.only(top: 8),
+                                      child: Text(
+                                        label,
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: len > 200 ? 9 : 10,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     );
                                   },
                                 ),
+                              ),
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
                               ),
                             ),
                             borderData: FlBorderData(show: false),
@@ -3200,7 +3215,9 @@ class _FullScreenChartDialogState extends State<_FullScreenChartDialog> {
                                         radius: 4,
                                         color: primaryTurquoise,
                                         strokeWidth: 2,
-                                        strokeColor: Colors.white,
+                                        strokeColor: isDark
+                                            ? Colors.white
+                                            : Color(0xFFF0FDFA),
                                       );
                                     }
                                     return FlDotCirclePainter(radius: 0);

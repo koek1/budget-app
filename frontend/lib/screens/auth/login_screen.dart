@@ -913,6 +913,240 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
   }
 
+  void _showPopiaInfoDialog(
+      BuildContext context, bool isDark, Color primaryTurquoise) {
+    final theme = Theme.of(context);
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        insetPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(24, 24, 16, 16),
+                decoration: BoxDecoration(
+                  color: primaryTurquoise.withOpacity(0.1),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: primaryTurquoise.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.shield_outlined,
+                        color: primaryTurquoise,
+                        size: 28,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'POPIA Compliance',
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Protection of Personal Information Act',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: theme.textTheme.bodyMedium?.color,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded,
+                          color: theme.textTheme.bodyMedium?.color),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.all(8),
+                      constraints: BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Scrollable content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(24, 20, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPopiaItem(
+                        theme,
+                        primaryTurquoise,
+                        icon: Icons.smartphone,
+                        title: 'Local-Only Storage',
+                        body:
+                            'All your personal and financial data is stored exclusively on your device. '
+                            'No data is transmitted to external servers, cloud services, or third parties.',
+                      ),
+                      _buildPopiaItem(
+                        theme,
+                        primaryTurquoise,
+                        icon: Icons.visibility_off_outlined,
+                        title: 'No Tracking or Analytics',
+                        body:
+                            'This app does not use any analytics services, crash reporting tools, '
+                            'or advertising trackers. Your usage patterns are never monitored.',
+                      ),
+                      _buildPopiaItem(
+                        theme,
+                        primaryTurquoise,
+                        icon: Icons.data_usage_outlined,
+                        title: 'Minimal Data Collection',
+                        body:
+                            'The app only stores what is necessary: your username, password, transactions, '
+                            'budgets, and preferences. All data remains on your device only. The developer '
+                            'does not collect, store, or have access to any of your personal or financial information.',
+                      ),
+                      _buildPopiaItem(
+                        theme,
+                        primaryTurquoise,
+                        icon: Icons.share_outlined,
+                        title: 'No Third-Party Data Sharing',
+                        body:
+                            'Your data is never shared with, sold to, or disclosed to any third party.',
+                      ),
+                      _buildPopiaItem(
+                        theme,
+                        primaryTurquoise,
+                        icon: Icons.lock_outline,
+                        title: 'Security Safeguards',
+                        body:
+                            'The app offers biometric authentication for secure access. '
+                            'Sensitive credentials use your device\'s encrypted secure storage.',
+                      ),
+                      _buildPopiaItem(
+                        theme,
+                        primaryTurquoise,
+                        icon: Icons.person_outline,
+                        title: 'Your Data Rights',
+                        body:
+                            'Under POPIA, you have the right to access, correct, and delete your data. '
+                            'You can view, edit, export (CSV), or delete all data at any time from Settings. '
+                            'Uninstalling the app permanently removes all stored data.',
+                      ),
+                      SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Footer
+              Padding(
+                padding: EdgeInsets.fromLTRB(24, 0, 24, 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryTurquoise,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'I Understand',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPopiaItem(
+    ThemeData theme,
+    Color primaryTurquoise, {
+    required IconData icon,
+    required String title,
+    required String body,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: EdgeInsets.only(top: 2),
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: primaryTurquoise.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: primaryTurquoise, size: 20),
+          ),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  body,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1274,7 +1508,76 @@ class _RegisterScreenState extends State<RegisterScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+                  // POPIA compliance notice
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? primaryTurquoise.withOpacity(0.08)
+                            : primaryTurquoise.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: primaryTurquoise.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.shield_outlined,
+                            color: primaryTurquoise,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text:
+                                            'Your data is stored locally on your device only and is never shared with third parties. ',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          height: 1.4,
+                                          color: isDark
+                                              ? Colors.grey[400]
+                                              : Colors.grey[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                GestureDetector(
+                                  onTap: () => _showPopiaInfoDialog(
+                                      context, isDark, primaryTurquoise),
+                                  child: Text(
+                                    'Learn more about POPIA compliance',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: primaryTurquoise,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: primaryTurquoise,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

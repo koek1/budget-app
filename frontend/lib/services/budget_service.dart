@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:budget_app/models/budget.dart';
+import 'package:budget_app/models/transaction.dart';
 import 'package:budget_app/services/local_storage_service.dart';
 import 'package:uuid/uuid.dart';
 
@@ -206,17 +207,76 @@ class BudgetService {
   }
 
   // Get all budget statuses
+  // Optimized: loads transactions once and computes all statuses from the same list.
   static Future<List<Map<String, dynamic>>> getAllBudgetStatuses({String period = 'monthly'}) async {
     final budgets = await getBudgets();
     final periodBudgets = budgets.where((b) => b.period == period).toList();
     
+    if (periodBudgets.isEmpty) return [];
+
+    // Load transactions once for all budgets instead of once per budget
+    final transactions = await LocalStorageService.getTransactions();
+    
     final List<Map<String, dynamic>> statuses = [];
     for (final budget in periodBudgets) {
-      final status = await getBudgetStatus(budget);
-      statuses.add(status);
+      final spending = _computeSpending(budget, transactions);
+      final percentage = budget.amount > 0 ? (spending / budget.amount) * 100 : 0.0;
+      final warningThreshold = budget.warningThreshold ?? _defaultWarningThreshold;
+      final remaining = budget.amount - spending;
+
+      String status;
+      if (percentage >= 100) {
+        status = 'exceeded';
+      } else if (percentage >= warningThreshold) {
+        status = 'warning';
+      } else {
+        status = 'ok';
+      }
+
+      statuses.add({
+        'budget': budget,
+        'spending': spending,
+        'remaining': remaining,
+        'percentage': percentage,
+        'status': status,
+        'isExceeded': percentage >= 100,
+        'isWarning': percentage >= warningThreshold && percentage < 100,
+      });
     }
     
     return statuses;
+  }
+
+  // Internal helper: compute spending for a budget from a pre-loaded transaction list.
+  static double _computeSpending(Budget budget, List<Transaction> transactions) {
+    final now = DateTime.now();
+    
+    DateTime startDate;
+    DateTime endDate;
+
+    switch (budget.period) {
+      case 'weekly':
+        final weekStart = now.subtract(Duration(days: now.weekday - 1));
+        startDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
+        endDate = startDate.add(Duration(days: 7));
+        break;
+      case 'yearly':
+        startDate = DateTime(now.year, 1, 1);
+        endDate = DateTime(now.year + 1, 1, 1);
+        break;
+      case 'monthly':
+      default:
+        startDate = DateTime(now.year, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 1);
+        break;
+    }
+
+    return transactions.where((t) {
+      if (t.type != 'expense') return false;
+      if (t.date.isBefore(startDate) || t.date.isAfter(endDate)) return false;
+      if (budget.category != null && t.category != budget.category) return false;
+      return true;
+    }).fold<double>(0.0, (sum, t) => sum + t.amount);
   }
 }
 
