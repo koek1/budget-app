@@ -26,6 +26,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   // Cache for performance
   List<Transaction>? _cachedTransactions;
+  List<Transaction>? _cachedAllTransactions;
   DateTime? _cacheDateRangeStart;
   DateTime? _cacheDateRangeEnd;
 
@@ -67,6 +68,24 @@ class _StatsScreenState extends State<StatsScreen> {
     });
 
     try {
+      // Pre-load all transactions once to avoid redundant database reads.
+      // Many of the stats methods independently call LocalStorageService.getTransactions()
+      // or _getTransactionsForDateRange(); warm both caches up-front so the parallel
+      // Future.wait below never hits the database more than once.
+      final allTransactions = await LocalStorageService.getTransactions();
+      _cachedAllTransactions = allTransactions;
+
+      // Pre-compute the date-range filtered list and cache it
+      final startOfDay = _toStartOfDay(_selectedStartDate);
+      final endOfDay = _toEndOfDay(_selectedEndDate);
+      _cachedTransactions = allTransactions.where((transaction) {
+        final transactionDate = _toStartOfDay(transaction.date);
+        return !transactionDate.isBefore(startOfDay) &&
+            !transactionDate.isAfter(endOfDay);
+      }).toList();
+      _cacheDateRangeStart = startOfDay;
+      _cacheDateRangeEnd = endOfDay;
+
       final data = await Future.wait([
         _getTransactionsForDateRange(),
         _getDualLineData(),
@@ -298,8 +317,11 @@ class _StatsScreenState extends State<StatsScreen> {
       ];
     }
 
-    final incomePercent = (income / total) * 100;
-    final expensePercent = (expenses / total) * 100;
+    // Show percentages relative to income so expense rate is accurate
+    // (e.g., 380 expense on 10,000 income => 3.8%).
+    final incomePercent = income > 0 ? 100.0 : 0.0;
+    final expensePercent =
+        income > 0 ? (expenses / income) * 100 : (expenses > 0 ? 100.0 : 0.0);
 
     return [
       PieChartSectionData(
@@ -455,7 +477,7 @@ class _StatsScreenState extends State<StatsScreen> {
     final monthStart = DateTime(now.year, now.month, 1);
     final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
-    final allTransactions = await LocalStorageService.getTransactions();
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     final monthTransactions = allTransactions.where((t) {
       return t.type == 'expense' &&
           !t.date.isBefore(monthStart) &&
@@ -524,7 +546,7 @@ class _StatsScreenState extends State<StatsScreen> {
     final monthStart = DateTime(now.year, now.month, 1);
     final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
-    final allTransactions = await LocalStorageService.getTransactions();
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     final monthTransactions = allTransactions.where((t) {
       return t.type == 'expense' &&
           !t.date.isBefore(monthStart) &&
@@ -656,7 +678,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   // Get upcoming recurring debit orders
   Future<List<Map<String, dynamic>>> _getUpcomingRecurringDebitOrders() async {
-    final allTransactions = await LocalStorageService.getTransactions();
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     final endDate =
         _selectedEndDate.add(Duration(days: 30)); // Show next 30 days
     return Helpers.getUpcomingRecurringDebitOrders(
@@ -668,19 +690,19 @@ class _StatsScreenState extends State<StatsScreen> {
 
   // Calculate debt information from recurring bills with end dates (excluding subscriptions)
   Future<Map<String, double>> _getDebtInfo() async {
-    final allTransactions = await LocalStorageService.getTransactions();
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     return Helpers.calculateDebtInfo(allTransactions);
   }
 
   // Get pending recurring transactions
   Future<List<Map<String, dynamic>>> _getPendingTransactions() async {
-    final allTransactions = await LocalStorageService.getTransactions();
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     return Helpers.getPendingRecurringTransactions(allTransactions);
   }
 
   // Get subscription data with monthly/yearly predictions
   Future<Map<String, dynamic>> _getSubscriptionData() async {
-    final allTransactions = await LocalStorageService.getTransactions();
+    final allTransactions = _cachedAllTransactions ?? await LocalStorageService.getTransactions();
     final subscriptions = allTransactions.where((t) => 
       t.type == 'expense' && 
       t.isSubscription && 
@@ -967,6 +989,7 @@ class _StatsScreenState extends State<StatsScreen> {
   /// Clear transaction cache when date range changes so stats always use current range.
   void _clearDateRangeCache() {
     _cachedTransactions = null;
+    _cachedAllTransactions = null;
     _cacheDateRangeStart = null;
     _cacheDateRangeEnd = null;
   }
@@ -1131,6 +1154,8 @@ class _StatsScreenState extends State<StatsScreen> {
                         data['incomeExpensePieData']
                             as List<PieChartSectionData>,
                         theme,
+                        data['totalIncome'] as double,
+                        data['totalExpenses'] as double,
                       ),
                       SizedBox(height: 20),
 
@@ -1792,123 +1817,125 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget _buildIncomeExpensePieChart(
     List<PieChartSectionData> data,
     ThemeData theme,
+    double totalIncome,
+    double totalExpenses,
   ) {
-    return FutureBuilder<double>(
-      future: _getTotalIncome(),
-      builder: (context, incomeSnapshot) {
-        return FutureBuilder<double>(
-          future: _getTotalExpenses(),
-          builder: (context, expenseSnapshot) {
-            if (!incomeSnapshot.hasData || !expenseSnapshot.hasData) {
-              return _buildLoadingCard(theme);
-            }
-
-            return _buildChartCard(
-              theme,
-              'Income vs Expenses',
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    height: 240,
-                    child: ClipRect(
-                      child: PieChart(
-                        PieChartData(
-                          sections: data,
-                          centerSpaceRadius: 38,
-                          sectionsSpace: 2,
-                          pieTouchData: PieTouchData(
-                            touchCallback: (FlTouchEvent event, PieTouchResponse? response) {
-                              if (event is FlTapDownEvent &&
-                                  response?.touchedSection != null &&
-                                  data.length == 2) {
-                                final sectionIndex = response!.touchedSection!.touchedSectionIndex;
-                                if (!mounted) return;
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => TransactionsScreen(
-                                      initialTabIndex: sectionIndex == 0 ? 1 : 0,
-                                      showBackButton: true,
-                                      initialDateRangeStart: _selectedStartDate,
-                                      initialDateRangeEnd: _selectedEndDate,
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
+    return _buildChartCard(
+      theme,
+      'Income vs Expenses',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 240,
+            child: ClipRect(
+              child: PieChart(
+                PieChartData(
+                  sections: data,
+                  centerSpaceRadius: 38,
+                  sectionsSpace: 2,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (FlTouchEvent event, PieTouchResponse? response) {
+                      if (event is FlTapDownEvent &&
+                          response?.touchedSection != null &&
+                          data.length == 2) {
+                        final sectionIndex = response!.touchedSection!.touchedSectionIndex;
+                        if (!mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TransactionsScreen(
+                              initialTabIndex: sectionIndex == 0 ? 1 : 0,
+                              showBackButton: true,
+                              initialDateRangeStart: _selectedStartDate,
+                              initialDateRangeEnd: _selectedEndDate,
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (data.length == 2)
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0),
+              child: Column(
+                children: [
+                  Text(
+                    'Tap a segment to view list',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: theme.textTheme.bodyMedium?.color
+                          ?.withOpacity(0.5),
                     ),
                   ),
-                  if (data.length == 2)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Text(
-                        'Tap a segment to view list',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                          color: theme.textTheme.bodyMedium?.color
-                              ?.withOpacity(0.5),
-                        ),
-                      ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Percentages shown relative to income',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                      color: theme.textTheme.bodyMedium?.color
+                          ?.withOpacity(0.4),
                     ),
-                  SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Column(
-                        children: [
-                          Text(
-                            'Income',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: theme.textTheme.bodyMedium?.color
-                                  ?.withOpacity(0.7),
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            Helpers.formatCurrency(incomeSnapshot.data!),
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          Text(
-                            'Expenses',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: theme.textTheme.bodyMedium?.color
-                                  ?.withOpacity(0.7),
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            Helpers.formatCurrency(expenseSnapshot.data!),
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
                   ),
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Column(
+                children: [
+                  Text(
+                    'Income',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: theme.textTheme.bodyMedium?.color
+                          ?.withOpacity(0.7),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    Helpers.formatCurrency(totalIncome),
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                children: [
+                  Text(
+                    'Expenses',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: theme.textTheme.bodyMedium?.color
+                          ?.withOpacity(0.7),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    Helpers.formatCurrency(totalExpenses),
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -3015,20 +3042,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildLoadingCard(ThemeData theme) {
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFF14B8A6),
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildDebtAnalysis(
     Map<String, double> debtInfo,

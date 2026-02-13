@@ -66,7 +66,7 @@ class BudgetAnalysisService {
       final monthTransactions = transactions.where((t) {
         if (t.type != 'income') return false;
         final tMonth = DateTime(t.date.year, t.date.month);
-        return tMonth.year == month.month && tMonth.month == month.month;
+        return tMonth.year == month.year && tMonth.month == month.month;
       }).toList();
 
       trends[monthKey] = monthTransactions.fold<double>(0.0, (sum, t) => sum + t.amount);
@@ -168,9 +168,15 @@ class BudgetAnalysisService {
   // Get spending pattern insights
   /// AI-ready: This method can be enhanced with AI for deeper pattern analysis
   static Future<List<String>> getSpendingInsights({int months = 3}) async {
-    final avgSpending = await getAverageMonthlySpending(months: months);
-    final avgIncome = await getAverageMonthlyIncome(months: months);
-    final categoryTrends = await getCategorySpendingTrends(months: months);
+    // Load averages and trends (these use cached transactions internally)
+    final results = await Future.wait([
+      getAverageMonthlySpending(months: months),
+      getAverageMonthlyIncome(months: months),
+      getCategorySpendingTrends(months: months),
+    ]);
+    final avgSpending = results[0] as double;
+    final avgIncome = results[1] as double;
+    final categoryTrends = results[2] as Map<String, Map<String, double>>;
     
     final List<String> insights = [];
 

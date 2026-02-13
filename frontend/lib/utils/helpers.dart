@@ -13,9 +13,13 @@ class Helpers {
         final isNegative = amount < 0;
         
         // Format like "$ 7 380,16" - currency symbol, spaces for thousands, comma for decimal
+        // Use toStringAsFixed to avoid floating-point precision issues
+        // (e.g. 10.10 becoming 10.0999... with manual arithmetic)
         final absAmount = amount.abs();
-        final integerPart = absAmount.toInt();
-        final decimalPart = ((absAmount - integerPart) * 100).round();
+        final fixedStr = absAmount.toStringAsFixed(2);
+        final dotIndex = fixedStr.indexOf('.');
+        final integerPart = int.parse(fixedStr.substring(0, dotIndex));
+        final decimalPart = int.parse(fixedStr.substring(dotIndex + 1));
         
         // Format integer part with spaces every 3 digits from right
         String integerStr = integerPart.toString();
