@@ -47,6 +47,16 @@ class Transaction {
     @HiveField(13)
     String? subscriptionPriceHistory; // JSON string of price history: [{"date": "2024-01-01", "amount": 9.99}]
 
+    // Behavioural finance fields
+    @HiveField(14)
+    bool? isPlanned; // Was this purchase planned? null = not asked (old data), true = planned, false = impulse
+
+    @HiveField(15)
+    String? regretStatus; // 'worth_it', 'not_worth_it', or null (not yet rated)
+
+    @HiveField(16)
+    DateTime? regretMarkedAt; // When the user reflected on this transaction
+
     Transaction({
         required this.id,
         required this.userId,
@@ -62,6 +72,9 @@ class Transaction {
         this.isSubscription = false,
         this.subscriptionPaymentDay,
         this.subscriptionPriceHistory,
+        this.isPlanned,
+        this.regretStatus,
+        this.regretMarkedAt,
     });
 
     Map<String, dynamic> toJson() {
@@ -78,6 +91,9 @@ class Transaction {
             'isSubscription': isSubscription,
             'subscriptionPaymentDay': subscriptionPaymentDay,
             'subscriptionPriceHistory': subscriptionPriceHistory,
+            'isPlanned': isPlanned,
+            'regretStatus': regretStatus,
+            'regretMarkedAt': regretMarkedAt?.toIso8601String(),
         };
     }
 
@@ -101,6 +117,11 @@ class Transaction {
                 ? (json['subscriptionPaymentDay'] as num).toInt() 
                 : null,
             subscriptionPriceHistory: json['subscriptionPriceHistory'],
+            isPlanned: json['isPlanned'],
+            regretStatus: json['regretStatus'],
+            regretMarkedAt: json['regretMarkedAt'] != null 
+                ? DateTime.parse(json['regretMarkedAt']) 
+                : null,
         );
     }
 

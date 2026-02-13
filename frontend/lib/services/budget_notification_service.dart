@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:budget_app/services/budget_service.dart';
+import 'package:budget_app/services/behavioural_notification_service.dart';
 import 'package:budget_app/models/budget.dart';
 import 'package:budget_app/utils/helpers.dart';
 
@@ -46,8 +47,11 @@ class BudgetNotificationService {
 
   // Handle notification tap
   static void _onNotificationTapped(NotificationResponse response) {
-    // Handle notification tap - can navigate to budget screen
-    print('Notification tapped: ${response.payload}');
+    print('Budget notification tapped: ${response.payload}');
+    if (response.payload != null && response.payload!.isNotEmpty) {
+      BehaviouralNotificationService.pendingNotificationPayload =
+          'budget';
+    }
   }
 
   // Check budgets and send notifications if needed

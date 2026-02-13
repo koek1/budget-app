@@ -10,6 +10,7 @@ import 'package:budget_app/screens/stats/stats_loading_screen.dart';
 import 'package:budget_app/screens/transactions/transactions_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:budget_app/widgets/behavioural_insights_card.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -1182,6 +1183,12 @@ class _StatsScreenState extends State<StatsScreen> {
                             theme,
                           ),
                         ],
+                      ),
+                      SizedBox(height: 20),
+
+                      // Behavioural Spending Insights
+                      BehaviouralInsightsCard(
+                        transactions: data['transactions'] as List<Transaction>,
                       ),
                       SizedBox(height: 20),
 

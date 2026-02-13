@@ -11,6 +11,7 @@ import 'package:budget_app/screens/settings/settings_screen.dart';
 import 'package:budget_app/screens/home/add_transaction_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:budget_app/widgets/behavioural_insights_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onMenuTap;
@@ -427,6 +428,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         getSavings(),
         _getGraphData(),
         _getUpcomingRecurringDebitOrders(),
+        _getTransactionsForMonth(),
       ]).timeout(Duration(seconds: 10), onTimeout: () {
         throw Exception('Loading dashboard data timed out');
       });
@@ -438,6 +440,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'savings': results[3] as double,
         'graphData': results[4] as List<FlSpot>,
         'upcomingRecurringDebitOrders': results[5] as List<Map<String, dynamic>>,
+        'monthTransactions': results[6] as List<Transaction>,
       };
     } catch (e) {
       // Return empty data on error - user will see error state
@@ -448,6 +451,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'savings': 0.0,
         'graphData': <FlSpot>[],
         'upcomingRecurringDebitOrders': <Map<String, dynamic>>[],
+        'monthTransactions': <Transaction>[],
         'error': Helpers.getUserFriendlyErrorMessage(e.toString()),
       };
     }
@@ -663,6 +667,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         'graphData': <FlSpot>[],
                         'upcomingRecurringDebitOrders':
                             <Map<String, dynamic>>[],
+                        'monthTransactions': <Transaction>[],
                         'error': Helpers.getUserFriendlyErrorMessage(e.toString()),
                       };
                     }),
@@ -755,6 +760,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   final upcomingRecurringDebitOrders =
                       snapshot.data!['upcomingRecurringDebitOrders']
                           as List<Map<String, dynamic>>;
+                  final monthTransactions =
+                      snapshot.data!['monthTransactions'] as List<Transaction>;
 
                   return CustomScrollView(
                     slivers: [
@@ -1444,6 +1451,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 monthlyExpenses,
                                 monthlyBalance,
                                 theme,
+                              ),
+                              SizedBox(height: 24),
+
+                              // Behavioural Spending Insights
+                              BehaviouralInsightsCard(
+                                transactions: monthTransactions,
                               ),
                               SizedBox(height: 24),
 

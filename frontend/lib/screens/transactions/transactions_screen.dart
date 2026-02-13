@@ -241,6 +241,184 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     return DateFormat('MMMM').format(_selectedMonth);
   }
 
+  Future<void> _markRegret(Transaction transaction) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Text(
+              'Was this worth it?',
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '${transaction.description.isNotEmpty ? transaction.description : transaction.category} \u2014 ${Helpers.formatCurrency(transaction.amount)}',
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => Navigator.pop(context, 'worth_it'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        color: transaction.regretStatus == 'worth_it'
+                            ? Colors.green.withOpacity(0.15)
+                            : Colors.green.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: transaction.regretStatus == 'worth_it'
+                              ? Colors.green
+                              : Colors.green.withOpacity(0.3),
+                          width: transaction.regretStatus == 'worth_it' ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.thumb_up_rounded, color: Colors.green, size: 32),
+                          SizedBox(height: 8),
+                          Text(
+                            'Worth it',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => Navigator.pop(context, 'not_worth_it'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        color: transaction.regretStatus == 'not_worth_it'
+                            ? Colors.red.withOpacity(0.15)
+                            : Colors.red.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: transaction.regretStatus == 'not_worth_it'
+                              ? Colors.red
+                              : Colors.red.withOpacity(0.3),
+                          width: transaction.regretStatus == 'not_worth_it' ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.thumb_down_rounded, color: Colors.red, size: 32),
+                          SizedBox(height: 8),
+                          Text(
+                            'Not worth it',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (transaction.regretStatus != null) ...[
+              SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context, 'clear'),
+                child: Text(
+                  'Clear rating',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            ],
+            SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      try {
+        final updatedTransaction = Transaction(
+          id: transaction.id,
+          userId: transaction.userId,
+          amount: transaction.amount,
+          type: transaction.type,
+          category: transaction.category,
+          description: transaction.description,
+          date: transaction.date,
+          isSynced: transaction.isSynced,
+          isRecurring: transaction.isRecurring,
+          recurringEndDate: transaction.recurringEndDate,
+          recurringFrequency: transaction.recurringFrequency,
+          isSubscription: transaction.isSubscription,
+          subscriptionPaymentDay: transaction.subscriptionPaymentDay,
+          subscriptionPriceHistory: transaction.subscriptionPriceHistory,
+          isPlanned: transaction.isPlanned,
+          regretStatus: result == 'clear' ? null : result,
+          regretMarkedAt: result == 'clear' ? null : DateTime.now(),
+        );
+        await LocalStorageService.updateTransaction(updatedTransaction);
+        if (mounted) {
+          setState(() {});
+          Helpers.showSuccessSnackBar(
+            context,
+            result == 'clear'
+                ? 'Rating cleared'
+                : result == 'worth_it'
+                    ? 'Marked as worth it'
+                    : 'Marked as not worth it',
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Helpers.showErrorSnackBar(context, 'Failed to update rating');
+        }
+      }
+    }
+  }
+
   Future<void> _editTransaction(Transaction transaction) async {
     try {
       final result = await Navigator.push(
@@ -1393,6 +1571,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 onEdit: isPending ? null : () => _editTransaction(transaction),
                 onDelete:
                     isPending ? null : () => _deleteTransaction(transaction),
+                onRate: isPending || transaction.type == 'income'
+                    ? null
+                    : () => _markRegret(transaction),
               );
             },
             childCount: currentListItems.length,
@@ -1438,6 +1619,7 @@ class _ModernTransactionCard extends StatelessWidget {
   final DateTime? dueDate;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onRate;
 
   const _ModernTransactionCard({
     required this.transaction,
@@ -1445,6 +1627,7 @@ class _ModernTransactionCard extends StatelessWidget {
     this.dueDate,
     this.onEdit,
     this.onDelete,
+    this.onRate,
   });
 
   IconData _getCategoryIcon(String category) {
@@ -1590,8 +1773,64 @@ class _ModernTransactionCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                    ] else if (transaction.isRecurring ||
-                        transaction.isSubscription) ...[
+                    ] else if (transaction.isPlanned == false) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.flash_on_rounded,
+                              size: 12,
+                              color: Colors.orange,
+                            ),
+                            SizedBox(width: 2),
+                            Text(
+                              'Impulse',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (!isPending && transaction.regretStatus != null) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: transaction.regretStatus == 'worth_it'
+                              ? Colors.green.withOpacity(0.1)
+                              : Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          transaction.regretStatus == 'worth_it'
+                              ? Icons.thumb_up_rounded
+                              : Icons.thumb_down_rounded,
+                          size: 12,
+                          color: transaction.regretStatus == 'worth_it'
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ),
+                    ],
+                    if (!isPending && transaction.isPlanned != false && (transaction.isRecurring ||
+                        transaction.isSubscription)) ...[
                       SizedBox(width: 8),
                       Container(
                         padding: EdgeInsets.symmetric(
@@ -1659,6 +1898,26 @@ class _ModernTransactionCard extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (onRate != null) ...[
+                    InkWell(
+                      onTap: onRate,
+                      child: Container(
+                        padding: EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Icon(
+                          transaction.regretStatus != null
+                              ? Icons.rate_review
+                              : Icons.rate_review_outlined,
+                          size: 16,
+                          color: Colors.amber[700],
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                  ],
                   InkWell(
                     onTap: onEdit,
                     child: Container(

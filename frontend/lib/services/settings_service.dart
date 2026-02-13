@@ -6,11 +6,13 @@ class SettingsService {
   static const String _currencyKey = 'currency';
   static const String _themeModeKey = 'themeMode';
   static const String _startingBalanceKey = 'startingBalance';
+  static const String _monthlySavingsGoalKey = 'monthlySavingsGoal';
   
   // Default values
   static const String defaultCurrency = 'R';
   static const String defaultThemeMode = 'light';
   static const double defaultStartingBalance = 0.0;
+  static const double defaultMonthlySavingsGoal = 0.0; // 0 = not set
 
   // Available currencies
   static const List<Map<String, String>> availableCurrencies = [
@@ -126,6 +128,33 @@ class SettingsService {
     }
     final box = Hive.box(_settingsBoxName);
     await box.put(_startingBalanceKey, balance);
+  }
+
+  // Get monthly savings goal (0 = not set)
+  static double getMonthlySavingsGoal() {
+    if (!Hive.isBoxOpen(_settingsBoxName)) {
+      return defaultMonthlySavingsGoal;
+    }
+    final box = Hive.box(_settingsBoxName);
+    final goal = box.get(_monthlySavingsGoalKey);
+    if (goal == null) {
+      return defaultMonthlySavingsGoal;
+    }
+    try {
+      return (goal is double) ? goal : (goal as num).toDouble();
+    } catch (e) {
+      print('Error getting monthly savings goal: $e');
+      return defaultMonthlySavingsGoal;
+    }
+  }
+
+  // Set monthly savings goal
+  static Future<void> setMonthlySavingsGoal(double goal) async {
+    if (!Hive.isBoxOpen(_settingsBoxName)) {
+      await Hive.openBox(_settingsBoxName);
+    }
+    final box = Hive.box(_settingsBoxName);
+    await box.put(_monthlySavingsGoalKey, goal);
   }
 }
 

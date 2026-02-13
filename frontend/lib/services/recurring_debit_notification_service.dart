@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/models/transaction.dart';
+import 'package:budget_app/services/behavioural_notification_service.dart';
 import 'package:budget_app/utils/helpers.dart';
 import 'package:intl/intl.dart';
 
@@ -48,6 +49,10 @@ class RecurringDebitNotificationService {
   // Handle notification tap
   static void _onNotificationTapped(NotificationResponse response) {
     print('Recurring debit notification tapped: ${response.payload}');
+    if (response.payload != null && response.payload!.isNotEmpty) {
+      BehaviouralNotificationService.pendingNotificationPayload =
+          'transactions';
+    }
   }
 
   // Schedule notifications for upcoming recurring debit orders

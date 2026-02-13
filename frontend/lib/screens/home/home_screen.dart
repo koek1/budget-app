@@ -10,6 +10,9 @@ import 'package:budget_app/screens/auth/login_screen.dart';
 import 'package:budget_app/screens/settings/settings_screen.dart';
 import 'package:budget_app/screens/stats/stats_screen.dart';
 import 'package:budget_app/screens/budget/budget_screen.dart';
+import 'package:budget_app/screens/insights/weekly_reflection_screen.dart';
+import 'package:budget_app/screens/insights/savings_simulator_screen.dart';
+import 'package:budget_app/services/behavioural_notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +24,65 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Fire behavioural notifications after login (non-blocking)
+    BehaviouralNotificationService.checkAndNotify().catchError((e) {
+      print('Behavioural notification error (non-blocking): $e');
+    });
+
+    // Check if a notification was tapped — navigate to the relevant screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handlePendingNotification();
+    });
+  }
+
+  void _handlePendingNotification() {
+    final payload = BehaviouralNotificationService.consumePendingPayload();
+    if (payload == null || !mounted) return;
+
+    print('Handling pending notification payload: $payload');
+
+    Widget? destination;
+    int? tabIndex; // for bottom-nav tabs
+
+    switch (payload) {
+      case 'weekly_reflection':
+        destination = const WeeklyReflectionScreen();
+        break;
+      case 'savings_goal':
+        destination = const SavingsSimulatorScreen();
+        break;
+      case 'impulse_summary':
+        // Switch to transactions tab to see the impulse purchases
+        tabIndex = 1;
+        break;
+      case 'budget':
+        destination = const BudgetScreen();
+        break;
+      case 'transactions':
+        tabIndex = 1;
+        break;
+      default:
+        if (payload.startsWith('budget_')) {
+          destination = const BudgetScreen();
+        } else if (payload.startsWith('recurring_')) {
+          tabIndex = 1;
+        }
+        break;
+    }
+
+    if (destination != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => destination!),
+      );
+    } else if (tabIndex != null) {
+      setState(() => _currentIndex = tabIndex!);
+    }
+  }
 
   List<Widget> get _screens => [
         DashboardScreen(
@@ -247,6 +309,36 @@ class _HomeScreenState extends State<HomeScreen> {
                                 context,
                                 MaterialPageRoute(
                                     builder: (context) => const BudgetScreen()),
+                              );
+                            },
+                          ),
+                          SizedBox(height: 12),
+                          _buildDrawerItem(
+                            context,
+                            icon: Icons.self_improvement_rounded,
+                            title: 'Weekly Reflection',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                        const WeeklyReflectionScreen()),
+                              );
+                            },
+                          ),
+                          SizedBox(height: 12),
+                          _buildDrawerItem(
+                            context,
+                            icon: Icons.savings_rounded,
+                            title: 'Savings Simulator',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                        const SavingsSimulatorScreen()),
                               );
                             },
                           ),

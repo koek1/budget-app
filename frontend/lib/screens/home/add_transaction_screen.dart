@@ -43,6 +43,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isSubscription = false; // For subscriptions like Gym, Spotify, Netflix
   int? _subscriptionPaymentDay; // Day of month (1-31) when subscription is due
 
+  // Behavioural finance fields
+  bool? _isPlanned = true; // Default to planned; null means not asked (old data)
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +67,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _recurringFrequency = transaction.recurringFrequency ?? 'monthly';
       _isSubscription = transaction.isSubscription;
       _subscriptionPaymentDay = transaction.subscriptionPaymentDay;
+      _isPlanned = transaction.isPlanned;
     } else if (widget.prefillData != null) {
       // Prefill from receipt scan
       final receiptData = widget.prefillData!;
@@ -144,6 +148,129 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     super.dispose();
   }
 
+  /// Check how many unplanned expenses the user has logged this week.
+  /// If >= 5, show a soft friction dialog before saving.
+  Future<bool> _checkImpulseFriction() async {
+    if (_selectedType != 'expense' || _isPlanned != false) return true;
+
+    try {
+      final allTransactions = await LocalStorageService.getTransactions();
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final startOfWeek = DateTime(weekStart.year, weekStart.month, weekStart.day);
+
+      final unplannedThisWeek = allTransactions.where((t) =>
+          t.type == 'expense' &&
+          t.isPlanned == false &&
+          t.date.isAfter(startOfWeek)).length;
+
+      if (unplannedThisWeek >= 4) {
+        // This will be the 5th+ unplanned purchase
+        final shouldContinue = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            final theme = Theme.of(context);
+            final isDark = theme.brightness == Brightness.dark;
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              backgroundColor: isDark ? Color(0xFF1E293B) : Colors.white,
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.pause_circle_outline,
+                        color: Colors.orange,
+                        size: 48,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      'Quick check-in',
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'This is your ${unplannedThisWeek + 1}${_ordinalSuffix(unplannedThisWeek + 1)} unplanned purchase this week.\n\nNo judgement \u2014 just a moment to pause.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        color: theme.textTheme.bodyMedium?.color,
+                        height: 1.5,
+                      ),
+                    ),
+                    SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[700],
+                              side: BorderSide(color: Colors.grey[400]!),
+                              padding: EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text('Let me think'),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFF14B8A6),
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text('Continue'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+        return shouldContinue == true;
+      }
+    } catch (e) {
+      // Don't block saving if the check fails
+    }
+    return true;
+  }
+
+  String _ordinalSuffix(int n) {
+    if (n >= 11 && n <= 13) return 'th';
+    switch (n % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  }
+
   Future<void> _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -174,6 +301,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         return;
       }
     }
+
+    // Impulse friction check - soft pause for repeated unplanned purchases
+    final shouldContinue = await _checkImpulseFriction();
+    if (!shouldContinue) return;
 
     setState(() {
       _isSaving = true;
@@ -251,6 +382,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             : null,
         subscriptionPriceHistory:
             _selectedType == 'expense' && _isSubscription ? priceHistory : null,
+        isPlanned: _selectedType == 'expense' ? _isPlanned : null,
+        regretStatus: _isEditing ? widget.transaction!.regretStatus : null,
+        regretMarkedAt: _isEditing ? widget.transaction!.regretMarkedAt : null,
       );
 
       if (_isEditing) {
@@ -967,6 +1101,163 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
               ),
               SizedBox(height: 20),
+
+              // "Was this planned?" toggle (only for expenses)
+              if (_selectedType == 'expense') ...[
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Color(0xFF1E293B)
+                        : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _isPlanned == false
+                          ? Colors.orange.withOpacity(0.5)
+                          : Color(0xFF14B8A6).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _isPlanned == false
+                                ? Icons.flash_on_rounded
+                                : Icons.check_circle_outline_rounded,
+                            color: _isPlanned == false
+                                ? Colors.orange
+                                : Color(0xFF14B8A6),
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Was this planned?',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setState(() => _isPlanned = true),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _isPlanned == true
+                                      ? Color(0xFF14B8A6).withOpacity(0.15)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: _isPlanned == true
+                                        ? Color(0xFF14B8A6)
+                                        : Colors.grey.withOpacity(0.3),
+                                    width: _isPlanned == true ? 2 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_outline,
+                                      size: 20,
+                                      color: _isPlanned == true
+                                          ? Color(0xFF14B8A6)
+                                          : Colors.grey[600],
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Planned',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isPlanned == true
+                                            ? Color(0xFF14B8A6)
+                                            : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setState(() => _isPlanned = false),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _isPlanned == false
+                                      ? Colors.orange.withOpacity(0.15)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: _isPlanned == false
+                                        ? Colors.orange
+                                        : Colors.grey.withOpacity(0.3),
+                                    width: _isPlanned == false ? 2 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.flash_on_rounded,
+                                      size: 20,
+                                      color: _isPlanned == false
+                                          ? Colors.orange
+                                          : Colors.grey[600],
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Impulse',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isPlanned == false
+                                            ? Colors.orange
+                                            : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_isPlanned == false)
+                        Padding(
+                          padding: EdgeInsets.only(top: 10),
+                          child: Text(
+                            'Tracking impulse purchases helps you understand your spending patterns.',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.orange[700],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 20),
+              ],
 
               // Recurring Bill Section (only for expenses)
               if (_selectedType == 'expense') ...[

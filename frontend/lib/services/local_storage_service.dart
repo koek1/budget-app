@@ -53,7 +53,7 @@ class LocalStorageService {
       }
       
       // Ensure transaction is associated with current user
-      // Preserve all transaction properties including recurring fields
+      // Preserve all transaction properties including recurring and behavioural fields
       final userTransaction = Transaction(
         id: transaction.id,
         userId: currentUser.id,
@@ -69,6 +69,9 @@ class LocalStorageService {
         isSubscription: transaction.isSubscription,
         subscriptionPaymentDay: transaction.subscriptionPaymentDay,
         subscriptionPriceHistory: transaction.subscriptionPriceHistory,
+        isPlanned: transaction.isPlanned,
+        regretStatus: transaction.regretStatus,
+        regretMarkedAt: transaction.regretMarkedAt,
       );
       
       // Use add to ensure proper auto-incrementing and listener notifications
@@ -118,7 +121,7 @@ class LocalStorageService {
           if (existingTransaction?.id == transaction.id && 
               existingTransaction?.userId == currentUser.id) {
             // Ensure transaction remains associated with current user
-            // Preserve all transaction properties including recurring fields
+            // Preserve all transaction properties including recurring and behavioural fields
             final userTransaction = Transaction(
               id: transaction.id,
               userId: currentUser.id,
@@ -134,6 +137,9 @@ class LocalStorageService {
               isSubscription: transaction.isSubscription,
               subscriptionPaymentDay: transaction.subscriptionPaymentDay,
               subscriptionPriceHistory: transaction.subscriptionPriceHistory,
+              isPlanned: transaction.isPlanned,
+              regretStatus: transaction.regretStatus,
+              regretMarkedAt: transaction.regretMarkedAt,
             );
             await box.putAt(i, userTransaction);
             return;

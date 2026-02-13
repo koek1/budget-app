@@ -28,6 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   String _selectedCurrency = SettingsService.defaultCurrency;
   String _themeMode = SettingsService.defaultThemeMode;
   double _startingBalance = SettingsService.defaultStartingBalance;
+  double _monthlySavingsGoal = SettingsService.defaultMonthlySavingsGoal;
   bool _highlightBudgetSetting = false;
   final GlobalKey _budgetSettingKey = GlobalKey();
   late AnimationController _highlightAnimationController;
@@ -147,6 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           _selectedCurrency = SettingsService.getCurrency();
           _themeMode = SettingsService.getThemeMode();
           _startingBalance = SettingsService.getStartingBalance();
+          _monthlySavingsGoal = SettingsService.getMonthlySavingsGoal();
           _isLoading = false;
         });
       }
@@ -169,6 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           _selectedCurrency = SettingsService.getCurrency();
           _themeMode = SettingsService.getThemeMode();
           _startingBalance = SettingsService.getStartingBalance();
+          _monthlySavingsGoal = SettingsService.getMonthlySavingsGoal();
           _isLoading = false;
         });
       }
@@ -394,6 +397,123 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               Navigator.pop(context);
             }
           });
+        }
+      }
+    }
+  }
+
+  Future<void> _editMonthlySavingsGoal() async {
+    final theme = Theme.of(context);
+    final currencySymbol = SettingsService.getCurrencySymbol();
+    final controller = TextEditingController(
+      text: _monthlySavingsGoal > 0 ? _monthlySavingsGoal.toStringAsFixed(2) : '',
+    );
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: Text(
+          'Monthly Savings Goal',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Set how much you want to save each month. You\'ll get a notification at the end of each month to see how you did!',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Goal Amount',
+                hintText: 'e.g. 500.00',
+                prefixText: currencySymbol,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Color(0xFF14B8A6), width: 2),
+                ),
+              ),
+              style: GoogleFonts.inter(),
+            ),
+          ],
+        ),
+        actions: [
+          if (_monthlySavingsGoal > 0)
+            TextButton(
+              onPressed: () => Navigator.pop(context, 0.0),
+              child: Text(
+                'Remove Goal',
+                style: GoogleFonts.inter(
+                  color: Colors.red[400],
+                ),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              final value = double.tryParse(controller.text);
+              if (value != null && value > 0) {
+                Navigator.pop(context, value);
+              } else if (controller.text.isEmpty) {
+                Navigator.pop(context);
+              } else {
+                Helpers.showErrorSnackBar(
+                  context,
+                  'Please enter a valid amount greater than 0',
+                );
+              }
+            },
+            child: Text(
+              'Save',
+              style: GoogleFonts.inter(
+                color: Color(0xFF14B8A6),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      await SettingsService.setMonthlySavingsGoal(result);
+      setState(() {
+        _monthlySavingsGoal = result;
+      });
+      if (mounted) {
+        if (result > 0) {
+          Helpers.showSuccessSnackBar(
+            context,
+            'Monthly savings goal set to ${currencySymbol}${result.toStringAsFixed(2)}',
+          );
+        } else {
+          Helpers.showSuccessSnackBar(
+            context,
+            'Monthly savings goal removed',
+          );
         }
       }
     }
@@ -1088,6 +1208,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     _selectedCurrency = SettingsService.getCurrency();
                     _themeMode = SettingsService.getThemeMode();
                     _startingBalance = SettingsService.getStartingBalance();
+                    _monthlySavingsGoal = SettingsService.getMonthlySavingsGoal();
 
                     return ListView(
                       padding: EdgeInsets.only(top: 16, bottom: 24, left: 0, right: 0),
@@ -1240,6 +1361,19 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                                     iconColor: Color(0xFF14B8A6),
                                   ),
                                 ),
+                        ),
+
+                        // Monthly Savings Goal
+                        _buildSettingsCard(
+                          child: _buildSettingsItem(
+                            icon: Icons.savings_rounded,
+                            title: 'Monthly Savings Goal',
+                            subtitle: _monthlySavingsGoal > 0
+                                ? '${SettingsService.getCurrencySymbol()}${_monthlySavingsGoal.toStringAsFixed(2)} / month'
+                                : 'Not set — tap to set a goal',
+                            onTap: _editMonthlySavingsGoal,
+                            iconColor: Color(0xFF8B5CF6),
+                          ),
                         ),
 
                         // Security Section

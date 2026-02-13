@@ -8,12 +8,14 @@ import '../../models/transaction.dart';
 import '../../models/custom_criteria.dart';
 import '../../models/budget.dart';
 import '../../models/receipt_batch.dart';
+import '../../models/weekly_reflection.dart';
 import '../../services/settings_service.dart';
 import '../../services/custom_criteria_service.dart';
 import '../../services/budget_service.dart';
 import '../../services/budget_notification_service.dart';
 import '../../services/recurring_debit_notification_service.dart';
 import '../../services/receipt_batch_service.dart';
+import '../../services/behavioural_notification_service.dart';
 import 'login_screen.dart';
 
 class InitialSplashScreen extends StatefulWidget {
@@ -115,6 +117,11 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         Hive.registerAdapter(ReceiptBatchAdapter());
       } catch (e) {
         print('ReceiptBatchAdapter already registered or error: $e');
+      }
+      try {
+        Hive.registerAdapter(WeeklyReflectionAdapter());
+      } catch (e) {
+        print('WeeklyReflectionAdapter already registered or error: $e');
       }
 
       // Check if this is a fresh install by checking for app version marker
@@ -237,6 +244,13 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         print('Error opening receipt batches box: $e');
       }
 
+      // Open weekly reflections box
+      try {
+        await Hive.openBox<WeeklyReflection>('weeklyReflectionsBox');
+      } catch (e) {
+        print('Error opening weekly reflections box: $e');
+      }
+
       // Settings box already opened above
       // Ensure custom criteria box is open
       if (!Hive.isBoxOpen('customCriteriaBox')) {
@@ -293,6 +307,9 @@ class _InitialSplashScreenState extends State<InitialSplashScreen>
         
         // Initialize receipt batch service
         ReceiptBatchService.init(),
+
+        // Initialize behavioural notification service
+        BehaviouralNotificationService.init(),
       ]);
 
       // Schedule notifications for recurring debits (non-blocking)
