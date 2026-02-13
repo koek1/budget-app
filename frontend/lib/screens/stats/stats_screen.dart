@@ -36,6 +36,9 @@ class _StatsScreenState extends State<StatsScreen> {
   bool _isReloading = false;
   int _lastTransactionCount = 0;
 
+  /// Category names hidden from the expense breakdown pie chart (click label to toggle).
+  Set<String> _hiddenCategoryBreakdownCategories = {};
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +112,7 @@ class _StatsScreenState extends State<StatsScreen> {
           _loadedData = data;
           _isLoading = false;
           _isReloading = false;
+          _hiddenCategoryBreakdownCategories.clear(); // Reset hide state on new data
           // Update transaction count to track changes
           try {
             final box = Hive.box<Transaction>('transactionsBox');
@@ -129,23 +133,22 @@ class _StatsScreenState extends State<StatsScreen> {
     }
   }
 
+  /// Normalize to start of day (00:00:00) for consistent range filtering.
+  DateTime _toStartOfDay(DateTime d) {
+    return DateTime(d.year, d.month, d.day);
+  }
+
+  /// Normalize to end of day (23:59:59) for consistent range filtering.
+  DateTime _toEndOfDay(DateTime d) {
+    return DateTime(d.year, d.month, d.day, 23, 59, 59);
+  }
+
   // Get user-filtered transactions for date range (with caching)
   Future<List<Transaction>> _getTransactionsForDateRange() async {
-    final startOfDay = DateTime(
-      _selectedStartDate.year,
-      _selectedStartDate.month,
-      _selectedStartDate.day,
-    );
-    final endOfDay = DateTime(
-      _selectedEndDate.year,
-      _selectedEndDate.month,
-      _selectedEndDate.day,
-      23,
-      59,
-      59,
-    );
+    final startOfDay = _toStartOfDay(_selectedStartDate);
+    final endOfDay = _toEndOfDay(_selectedEndDate);
 
-    // Check cache
+    // Check cache (same range => reuse)
     if (_cachedTransactions != null &&
         _cacheDateRangeStart == startOfDay &&
         _cacheDateRangeEnd == endOfDay) {
@@ -154,11 +157,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
     final allTransactions = await LocalStorageService.getTransactions();
     final filtered = allTransactions.where((transaction) {
-      final transactionDate = DateTime(
-        transaction.date.year,
-        transaction.date.month,
-        transaction.date.day,
-      );
+      final transactionDate = _toStartOfDay(transaction.date);
       return !transactionDate.isBefore(startOfDay) &&
           !transactionDate.isAfter(endOfDay);
     }).toList();
@@ -391,21 +390,38 @@ class _StatsScreenState extends State<StatsScreen> {
       Colors.indigo,
     ];
 
+    // Don't show percentage on the pie if the slice is below this (avoids clutter in tiny segments)
+    const double minPercentageToShowOnPie = 3.0;
+
     for (int i = 0; i < sortedCategories.length && i < 10; i++) {
       final entry = sortedCategories[i];
       final percentage = (entry.value / totalExpenses) * 100;
       final color =
           AppConstants.categoryColors[entry.key] ?? colors[i % colors.length];
 
+      final bool showOnPie = percentage >= minPercentageToShowOnPie;
+      final String titleText = showOnPie
+          ? (percentage >= 1
+              ? '${percentage.toStringAsFixed(0)}%'
+              : '${percentage.toStringAsFixed(1)}%')
+          : '';
+
+      // Scale font size so labels fit in narrow slices (only used when showOnPie)
+      final fontSize = percentage >= 10
+          ? 11.0
+          : percentage >= 5
+              ? 10.0
+              : percentage >= 2
+                  ? 9.0
+                  : 8.0;
+
       sections.add(PieChartSectionData(
         value: entry.value,
-        title: percentage >= 5
-            ? '${percentage.toStringAsFixed(0)}%'
-            : '', // Only show percentage if >= 5%
+        title: titleText,
         color: color,
         radius: 54,
         titleStyle: TextStyle(
-          fontSize: 11,
+          fontSize: fontSize,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
@@ -871,34 +887,39 @@ class _StatsScreenState extends State<StatsScreen> {
     );
 
     if (result != null) {
+      if (result == 'Custom') {
+        _selectDateRange();
+        return; // Don't reload if opening custom picker
+      }
       setState(() {
         _selectedTimeFrame = result;
         final now = DateTime.now();
+        // Use fixed-day ranges so modal and quick chips (7D, 30D, 3M, 6M, 1Y) always match
         switch (result) {
           case 'Last 7 Days':
-            _selectedStartDate = now.subtract(Duration(days: 7));
-            _selectedEndDate = now;
+            _selectedStartDate = _toStartOfDay(now.subtract(Duration(days: 7)));
+            _selectedEndDate = _toStartOfDay(now);
             break;
           case 'Last 30 Days':
-            _selectedStartDate = now.subtract(Duration(days: 30));
-            _selectedEndDate = now;
+            _selectedStartDate = _toStartOfDay(now.subtract(Duration(days: 30)));
+            _selectedEndDate = _toStartOfDay(now);
             break;
           case 'Last 3 Months':
-            _selectedStartDate = DateTime(now.year, now.month - 3, now.day);
-            _selectedEndDate = now;
+            _selectedStartDate = _toStartOfDay(now.subtract(Duration(days: 90)));
+            _selectedEndDate = _toStartOfDay(now);
             break;
           case 'Last 6 Months':
-            _selectedStartDate = DateTime(now.year, now.month - 6, now.day);
-            _selectedEndDate = now;
+            _selectedStartDate = _toStartOfDay(now.subtract(Duration(days: 180)));
+            _selectedEndDate = _toStartOfDay(now);
             break;
           case 'Last Year':
-            _selectedStartDate = DateTime(now.year - 1, now.month, now.day);
-            _selectedEndDate = now;
+            _selectedStartDate = _toStartOfDay(now.subtract(Duration(days: 365)));
+            _selectedEndDate = _toStartOfDay(now);
             break;
-          case 'Custom':
-            _selectDateRange();
-            return; // Don't reload if opening custom picker
+          default:
+            break;
         }
+        _clearDateRangeCache();
       });
       _loadAllData();
     }
@@ -934,12 +955,20 @@ class _StatsScreenState extends State<StatsScreen> {
     );
     if (picked != null) {
       setState(() {
-        _selectedStartDate = picked.start;
-        _selectedEndDate = picked.end;
+        _selectedStartDate = _toStartOfDay(picked.start);
+        _selectedEndDate = _toStartOfDay(picked.end);
         _selectedTimeFrame = 'Custom';
+        _clearDateRangeCache();
       });
       _loadAllData();
     }
+  }
+
+  /// Clear transaction cache when date range changes so stats always use current range.
+  void _clearDateRangeCache() {
+    _cachedTransactions = null;
+    _cacheDateRangeStart = null;
+    _cacheDateRangeEnd = null;
   }
 
   @override
@@ -1119,6 +1148,7 @@ class _StatsScreenState extends State<StatsScreen> {
                           _buildCategoryBreakdownPieChart(
                             data['categoryPieData']
                                 as List<PieChartSectionData>,
+                            data['categoryBreakdown'] as Map<String, double>,
                             theme,
                           ),
                           SizedBox(height: 20),
@@ -1288,21 +1318,17 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget _buildQuickRangeButton(
       ThemeData theme, String label, Duration duration) {
     final isDark = theme.brightness == Brightness.dark;
-    final now = DateTime.now();
-    final startDate = now.subtract(duration);
-    final isSelected = _selectedStartDate.year == startDate.year &&
-        _selectedStartDate.month == startDate.month &&
-        _selectedStartDate.day == startDate.day &&
-        _selectedEndDate.year == now.year &&
-        _selectedEndDate.month == now.month &&
-        _selectedEndDate.day == now.day;
+    final timeframeLabel = _getTimeFrameLabel(duration);
+    final isSelected = _selectedTimeFrame == timeframeLabel;
 
     return InkWell(
       onTap: () {
         setState(() {
-          _selectedStartDate = startDate;
-          _selectedEndDate = now;
-          _selectedTimeFrame = _getTimeFrameLabel(duration);
+          final now = DateTime.now();
+          _selectedStartDate = _toStartOfDay(now.subtract(duration));
+          _selectedEndDate = _toStartOfDay(now);
+          _selectedTimeFrame = timeframeLabel;
+          _clearDateRangeCache();
         });
         _loadAllData();
       },
@@ -1886,129 +1912,239 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
+  /// When the chart is adjusted (some categories hidden), build visible sections.
+  /// Show the percentage label only when the slice is big enough *in the visible
+  /// chart* (share of visible total >= threshold). Label text is always % of
+  /// [totalExpenses] (all categories).
+  List<PieChartSectionData> _buildVisibleSectionsWithLabels({
+    required List<PieChartSectionData> data,
+    required List<MapEntry<String, double>> sortedCategories,
+    required double totalExpenses,
+    required double visibleTotal,
+  }) {
+    const double minSliceShareToShowLabel = 3.0;
+
+    final result = <PieChartSectionData>[];
+    for (int i = 0; i < data.length && i < sortedCategories.length; i++) {
+      final categoryName = sortedCategories[i].key;
+      if (_hiddenCategoryBreakdownCategories.contains(categoryName)) continue;
+
+      final section = data[i];
+      final value = sortedCategories[i].value;
+
+      // Percentage of *total* expenses (all categories) – what we display
+      final percentageOfTotal =
+          totalExpenses > 0 ? (value / totalExpenses) * 100 : 0.0;
+
+      // Share of the *visible* pie – determines if slice is big enough to show label
+      final shareOfVisiblePie =
+          visibleTotal > 0 ? (value / visibleTotal) * 100 : 0.0;
+      final showLabel = shareOfVisiblePie >= minSliceShareToShowLabel;
+
+      final titleText = showLabel
+          ? (percentageOfTotal >= 1
+              ? '${percentageOfTotal.toStringAsFixed(0)}%'
+              : percentageOfTotal > 0
+                  ? '${percentageOfTotal.toStringAsFixed(1)}%'
+                  : '')
+          : '';
+
+      final fontSize = percentageOfTotal >= 10
+          ? 11.0
+          : percentageOfTotal >= 5
+              ? 10.0
+              : percentageOfTotal >= 2
+                  ? 9.0
+                  : 8.0;
+
+      result.add(PieChartSectionData(
+        value: section.value,
+        title: titleText,
+        color: section.color,
+        radius: section.radius,
+        titleStyle: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    return result;
+  }
+
   Widget _buildCategoryBreakdownPieChart(
     List<PieChartSectionData> data,
+    Map<String, double> categoryBreakdown,
     ThemeData theme,
   ) {
-    return FutureBuilder<Map<String, double>>(
-      future: _getCategoryBreakdown(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return _buildLoadingCard(theme);
-        }
+    final categories = categoryBreakdown;
+    final sortedCategories = categories.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final totalExpenses =
+        categories.values.fold(0.0, (a, b) => a + b);
 
-        final categories = snapshot.data!;
-        final sortedCategories = categories.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
+    // Section order matches sortedCategories (top 10); filter out hidden
+    final visibleSections = <PieChartSectionData>[];
+    final visibleCategoryNames = <String>[];
+    double visibleTotal = 0.0;
+    for (int i = 0; i < data.length && i < sortedCategories.length; i++) {
+      final categoryName = sortedCategories[i].key;
+      if (!_hiddenCategoryBreakdownCategories.contains(categoryName)) {
+        visibleSections.add(data[i]);
+        visibleCategoryNames.add(categoryName);
+        visibleTotal += sortedCategories[i].value;
+      }
+    }
+    if (visibleCategoryNames.isEmpty) {
+      visibleCategoryNames.addAll(
+          sortedCategories.take(data.length).map((e) => e.key));
+    }
 
-        return _buildChartCard(
-          theme,
-          'Expense Breakdown by Category',
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: 240,
-                child: ClipRect(
-                  child: PieChart(
-                    PieChartData(
-                      sections: data,
-                      centerSpaceRadius: 38,
-                      sectionsSpace: 2,
-                      pieTouchData: PieTouchData(
-                        touchCallback:
-                            (FlTouchEvent event, PieTouchResponse? response) {
-                          if (event is FlTapDownEvent &&
-                              response?.touchedSection != null) {
-                            final sectionIndex = response!
-                                .touchedSection!.touchedSectionIndex;
-                            if (sectionIndex >= 0 &&
-                                sectionIndex < sortedCategories.length &&
-                                mounted) {
-                              final categoryName =
-                                  sortedCategories[sectionIndex].key;
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => TransactionsScreen(
-                                    initialTabIndex: 0,
-                                    showBackButton: true,
-                                    initialDateRangeStart: _selectedStartDate,
-                                    initialDateRangeEnd: _selectedEndDate,
-                                    initialCategory: categoryName,
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                      ),
-                    ),
+    // When chart is adjusted (some hidden): show % only if slice is big enough
+    // in the visible chart (share of visible >= 3%); label is always % of total
+    final sectionsToShow = visibleSections.isEmpty
+        ? data
+        : _buildVisibleSectionsWithLabels(
+            data: data,
+            sortedCategories: sortedCategories,
+            totalExpenses: totalExpenses,
+            visibleTotal: visibleTotal,
+          );
+
+    return _buildChartCard(
+      theme,
+      'Expense Breakdown by Category',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 240,
+            child: ClipRect(
+              child: PieChart(
+                PieChartData(
+                  sections: sectionsToShow,
+                  centerSpaceRadius: 38,
+                  sectionsSpace: 2,
+                  pieTouchData: PieTouchData(
+                    touchCallback:
+                        (FlTouchEvent event, PieTouchResponse? response) {
+                      if (event is FlTapDownEvent &&
+                          response?.touchedSection != null) {
+                        final sectionIndex = response!
+                            .touchedSection!.touchedSectionIndex;
+                        if (sectionIndex >= 0 &&
+                            sectionIndex < visibleCategoryNames.length &&
+                            mounted) {
+                          final categoryName =
+                              visibleCategoryNames[sectionIndex];
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TransactionsScreen(
+                                initialTabIndex: 0,
+                                showBackButton: true,
+                                initialDateRangeStart: _selectedStartDate,
+                                initialDateRangeEnd: _selectedEndDate,
+                                initialCategory: categoryName,
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: Text(
-                  'Tap a segment to view list',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontStyle: FontStyle.italic,
-                    color: theme.textTheme.bodyMedium?.color
-                        ?.withOpacity(0.5),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20),
-              ...sortedCategories.take(5).map((entry) {
-                final percentage =
-                    categories.values.fold(0.0, (a, b) => a + b) > 0
-                        ? (entry.value /
-                                categories.values.fold(0.0, (a, b) => a + b)) *
-                            100
-                        : 0.0;
-                final color =
-                    AppConstants.categoryColors[entry.key] ?? Colors.grey;
-
-                return Padding(
-                  padding: EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          entry.key,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: theme.textTheme.bodyLarge?.color,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        '${percentage.toStringAsFixed(1)}%',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
+            ),
           ),
-        );
+          Padding(
+            padding: const EdgeInsets.only(top: 16.0),
+            child: Text(
+              'Tap segment to view list · Tap label to hide/show',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+              ),
+            ),
+          ),
+          SizedBox(height: 20),
+          ...sortedCategories
+              .take(data.length)
+              .map((entry) => _buildCategoryBreakdownLegendRow(
+                    theme: theme,
+                    entry: entry,
+                    totalExpenses: totalExpenses,
+                  )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryBreakdownLegendRow({
+    required ThemeData theme,
+    required MapEntry<String, double> entry,
+    required double totalExpenses,
+  }) {
+    final isHidden =
+        _hiddenCategoryBreakdownCategories.contains(entry.key);
+    final percentage = totalExpenses > 0
+        ? (entry.value / totalExpenses) * 100
+        : 0.0;
+    final color = AppConstants.categoryColors[entry.key] ?? Colors.grey;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (isHidden) {
+            _hiddenCategoryBreakdownCategories.remove(entry.key);
+          } else {
+            _hiddenCategoryBreakdownCategories.add(entry.key);
+          }
+        });
       },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: isHidden
+                    ? color.withOpacity(0.4)
+                    : color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                entry.key,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: theme.textTheme.bodyLarge?.color?.withOpacity(
+                      isHidden ? 0.5 : 1.0),
+                  decoration: isHidden
+                      ? TextDecoration.lineThrough
+                      : null,
+                ),
+              ),
+            ),
+            SizedBox(width: 8),
+            Text(
+              '${percentage.toStringAsFixed(1)}%',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: theme.textTheme.bodyLarge?.color?.withOpacity(
+                    isHidden ? 0.5 : 1.0),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
