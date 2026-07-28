@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:budget_app/models/transaction.dart';
@@ -12,6 +13,12 @@ class RecurringDebitNotificationService {
   // Initialize notifications
   static Future<void> init() async {
     if (_initialized) return;
+    // flutter_local_notifications has no web implementation; browser
+    // notifications work differently and aren't wired up, so skip entirely.
+    if (kIsWeb) {
+      _initialized = true;
+      return;
+    }
 
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -52,6 +59,7 @@ class RecurringDebitNotificationService {
 
   // Schedule notifications for upcoming recurring debit orders
   static Future<void> scheduleRecurringDebitNotifications() async {
+    if (kIsWeb) return; // No local-notification support in the web demo
     try {
       await init();
       

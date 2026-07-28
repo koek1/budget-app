@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -358,6 +359,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Future<void> _scanReceipt() async {
+    if (kIsWeb) {
+      Helpers.showWebUnavailableDialog(
+        context,
+        feature: 'Receipt scanning',
+        reason: 'Scanning uses your device camera and on-device OCR, which '
+            'this browser demo does not have access to. Please add the '
+            'transaction manually, or try this feature in the mobile app.',
+      );
+      return;
+    }
     try {
       final receiptData = await Navigator.push<ReceiptData>(
         context,
@@ -651,6 +662,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               Expanded(
                                 child: OutlinedButton.icon(
                                   onPressed: () async {
+                                    if (kIsWeb) {
+                                      Helpers.showWebUnavailableDialog(
+                                        context,
+                                        feature: 'Batch receipt scanning',
+                                        reason: 'Scanning uses your device '
+                                            'camera and on-device OCR, which '
+                                            'this browser demo does not have '
+                                            'access to. Please add '
+                                            'transactions manually, or try '
+                                            'this feature in the mobile app.',
+                                      );
+                                      return;
+                                    }
                                     final result = await Navigator.push(
                                       context,
                                       MaterialPageRoute(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:budget_app/services/budget_service.dart';
 import 'package:budget_app/models/budget.dart';
@@ -11,6 +12,12 @@ class BudgetNotificationService {
   // Initialize notifications
   static Future<void> init() async {
     if (_initialized) return;
+    // flutter_local_notifications has no web implementation; browser
+    // notifications work differently and aren't wired up, so skip entirely.
+    if (kIsWeb) {
+      _initialized = true;
+      return;
+    }
 
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -52,6 +59,7 @@ class BudgetNotificationService {
 
   // Check budgets and send notifications if needed
   static Future<void> checkBudgetsAndNotify() async {
+    if (kIsWeb) return; // No local-notification support in the web demo
     try {
       await init();
       final budgetStatuses = await BudgetService.getAllBudgetStatuses();
@@ -151,12 +159,14 @@ class BudgetNotificationService {
 
   // Cancel notification for a budget
   static Future<void> cancelBudgetNotification(String budgetId) async {
+    if (kIsWeb) return;
     await _notifications.cancel(budgetId.hashCode);
     await _notifications.cancel(budgetId.hashCode + 1000);
   }
 
   // Cancel all budget notifications
   static Future<void> cancelAllNotifications() async {
+    if (kIsWeb) return;
     await _notifications.cancelAll();
   }
 }

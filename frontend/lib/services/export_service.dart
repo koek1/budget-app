@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:budget_app/services/local_storage_service.dart';
@@ -11,6 +12,12 @@ class ExportService {
     required Function(String) onSuccess,
     required Function(String) onError,
   }) async {
+    if (kIsWeb) {
+      // Writes to a filesystem path via dart:io + path_provider, neither of
+      // which is available in the browser. Not wired up for web download.
+      onError('CSV export is not available in this web demo. Please try this feature in the mobile app.');
+      return;
+    }
     try {
       // Validate date range
       if (startDate.isAfter(endDate)) {

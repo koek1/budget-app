@@ -163,6 +163,33 @@ class Helpers {
         );
     }
 
+    // Explain that a native-only feature (camera/OCR/biometrics) isn't available in the web demo
+    static Future<void> showWebUnavailableDialog(
+        BuildContext context, {
+        required String feature,
+        required String reason,
+    }) {
+        return showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+                title: Text(
+                    '$feature unavailable in this demo',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+                content: Text(
+                    reason,
+                    style: GoogleFonts.inter(),
+                ),
+                actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Got it'),
+                    ),
+                ],
+            ),
+        );
+    }
+
     // Show modern info SnackBar
     static void showInfoSnackBar(BuildContext context, String message) {
         final theme = Theme.of(context);

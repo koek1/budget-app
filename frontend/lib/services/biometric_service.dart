@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -11,6 +12,9 @@ class BiometricService {
 
   // Check if biometric authentication is available (fingerprint, face, etc.)
   static Future<bool> isAvailable() async {
+    // No fingerprint/face hardware on web - skip the plugin entirely rather
+    // than relying on it to fail gracefully.
+    if (kIsWeb) return false;
     try {
       // First, try a quick check without timeout to avoid false negatives
       bool isDeviceSupported = false;
@@ -97,6 +101,12 @@ class BiometricService {
 
   // Authenticate using fingerprint only
   static Future<bool> authenticate() async {
+    if (kIsWeb) {
+      throw PlatformException(
+        code: 'FINGERPRINT_NOT_AVAILABLE',
+        message: 'Fingerprint authentication is not available in this web demo',
+      );
+    }
     try {
       // Mark that authentication is in progress
       _isAuthenticating = true;

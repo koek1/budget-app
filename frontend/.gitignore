@@ -93,9 +93,6 @@ android/.project
 *.hprof
 java_pid*.hprof
 
-# Web
-web/
-
 # Test coverage
 coverage/
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:budget_app/models/receipt_batch.dart';
@@ -48,6 +49,16 @@ class _BatchesListScreenState extends State<BatchesListScreen> {
   }
 
   Future<void> _startBatchScan() async {
+    if (kIsWeb) {
+      Helpers.showWebUnavailableDialog(
+        context,
+        feature: 'Batch receipt scanning',
+        reason: 'Scanning uses your device camera and on-device OCR, which '
+            'this browser demo does not have access to. Please try this '
+            'feature in the mobile app.',
+      );
+      return;
+    }
     final result = await Navigator.push<ReceiptBatch?>(
       context,
       MaterialPageRoute(
